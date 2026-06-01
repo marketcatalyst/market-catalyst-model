@@ -216,3 +216,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+# Custom rule to protect our Market Catalyst credentials
+.streamlit/secrets.toml
+local_sandbox.db
