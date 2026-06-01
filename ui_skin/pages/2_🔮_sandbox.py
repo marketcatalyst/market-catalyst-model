@@ -48,11 +48,11 @@ creditor_days_input = st.sidebar.number_input("Creditor Days (Payment Lag)", min
 
 
 # --- RUN THE FORECAST CALCULATIONS ---
-# Pass the slider values straight to the underlying mathematical engine using the module alias
+# Enforce perfect double-entry equation state parity by mapping opening cash asset straight to equity
 forecast_df = ff.run_three_way_forecast(
     months=24,
     starting_cash=500000.00,
-    starting_retained_earnings=0.00,
+    starting_retained_earnings=500000.00,  # Balanced Day 1 Baseline
     monthly_sales=sales_input,
     gross_profit_percent=gp_input,
     monthly_wages=wages_input,
