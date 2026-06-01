@@ -2,18 +2,9 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import sys
-import os
 
-# 1. DYNAMIC SYSTEM PATH RESOLUTION: Locate absolute root folder anchor
-current_abs_path = os.path.abspath(__file__)
-project_root = current_abs_path.split("market-catalyst-model")[0] + "market-catalyst-model"
-
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
-
-# 2. Securely import the tight double-entry core calculation engine
-from core_engine.forecast_formulas import run_three_way_forecast
+# 1. Native Relative Import: The leading double-dot steps out of 'pages/' to find 'core_engine/'
+from ..core_engine.forecast_formulas import run_three_way_forecast
 
 st.set_page_config(layout="wide", page_title="3-Way Forecasting Sandbox")
 
