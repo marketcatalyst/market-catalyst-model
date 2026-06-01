@@ -48,7 +48,7 @@ creditor_days_input = st.sidebar.number_input("Creditor Days (Payment Lag)", min
 
 
 # --- RUN THE FORECAST CALCULATIONS ---
-# Enforce perfect double-entry equation state parity by mapping opening cash asset straight to equity
+# Pass parameters to our native engine module
 forecast_df = ff.run_three_way_forecast(
     months=24,
     starting_cash=500000.00,
@@ -60,8 +60,8 @@ forecast_df = ff.run_three_way_forecast(
     creditor_days=creditor_days_input
 )
 
-# Grab the final absolute variance to verify balance sheet health
-cumulative_variance = forecast_df["Variance (£)"].sum()
+# FIXED: Check the final month snapshot variance rather than summing row increments
+cumulative_variance = forecast_df["Variance (£)"].iloc[-1]
 
 
 # --- MODULE DEPLOYMENT: VALIDATION BANNERS ---
@@ -81,7 +81,7 @@ with col_layout_2:
     else:
         st.error(
             f"❌ 3-Way Model Out of Balance!\n\n"
-            f"Cumulative Variance:\n\n"
+            f"Current Snapshot Variance:\n\n"
             f"£{cumulative_variance:,.2f}"
         )
 
