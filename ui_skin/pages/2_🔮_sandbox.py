@@ -2,9 +2,18 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import sys
+import os
 
-# 1. Native Relative Import: The leading double-dot steps out of 'pages/' to find 'core_engine/'
-from ..core_engine.forecast_formulas import run_three_way_forecast
+# 1. DYNAMIC PATH INJECTION: Explicitly point Python to the ui_skin directory context
+current_dir = os.path.dirname(os.path.abspath(__file__)) # Evaluates to ui_skin/pages
+ui_skin_dir = os.path.dirname(current_dir)              # Evaluates to ui_skin
+
+if ui_skin_dir not in sys.path:
+    sys.path.insert(0, ui_skin_dir)
+
+# 2. Clean absolute import from the newly registered system path root
+from core_engine.forecast_formulas import run_three_way_forecast
 
 st.set_page_config(layout="wide", page_title="3-Way Forecasting Sandbox")
 
