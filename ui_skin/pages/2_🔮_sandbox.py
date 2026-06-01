@@ -2,18 +2,9 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import sys
-import os
 
-# 1. DYNAMIC PATH INJECTION: Explicitly point Python to the ui_skin directory context
-current_dir = os.path.dirname(os.path.abspath(__file__)) # Evaluates to ui_skin/pages
-ui_skin_dir = os.path.dirname(current_dir)              # Evaluates to ui_skin
-
-if ui_skin_dir not in sys.path:
-    sys.path.insert(0, ui_skin_dir)
-
-# 2. Clean absolute import from the newly registered system path root
-from core_engine.forecast_formulas import run_three_way_forecast
+# 1. Native Workspace Root Import (No dots, no path hacks needed)
+import core_engine.forecast_formulas as ff
 
 st.set_page_config(layout="wide", page_title="3-Way Forecasting Sandbox")
 
@@ -57,8 +48,8 @@ creditor_days_input = st.sidebar.number_input("Creditor Days (Payment Lag)", min
 
 
 # --- RUN THE FORECAST CALCULATIONS ---
-# Pass the slider values straight to the underlying mathematical engine
-forecast_df = run_three_way_forecast(
+# Pass the slider values straight to the underlying mathematical engine using the module alias
+forecast_df = ff.run_three_way_forecast(
     months=24,
     starting_cash=500000.00,
     starting_retained_earnings=0.00,
