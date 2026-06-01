@@ -1,122 +1,123 @@
 # ui_skin/pages/1_🔌_ingestion.py
 import streamlit as st
 import pandas as pd
+from google import genai
+from google.genai import types
 import sys
 import os
 
-# Ensure the app can access the core_engine modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-from core_engine.database import get_db_connection
 
-st.set_page_config(layout="wide", page_title="Data Ingestion & Ledger Mapping")
+st.set_page_config(layout="wide", page_title="Data Ingestion Workshop")
 
-st.title("🔌 Raw Data Ingestion & Ledger Mapping")
-st.caption("Extract data streams from Xero, Sage, QuickBooks, or CSV Trial Balances")
+st.title("🔌 Ledger Ingestion & Voice Control Hub")
+st.caption("Active Workspace Layer • Manual Adjustments & Multi-Modal AI Automation Gateway")
 st.markdown("---")
 
-# --- 1. SAGE / XERO / QUICKBOOKS CONNECTIVITY MOCKUP ---
-st.subheader("🔗 Cloud Accounting API Integration Gateway")
-col_api1, col_api2, col_api3 = st.columns(3)
+# Initialize a clean, persistent local ledger session state if empty
+if "manual_ledger" not in st.session_state:
+    st.session_state.manual_ledger = pd.DataFrame([
+        {"Account Code": "1000", "Account Name": "Gross Sales Turnover", "Bucket": "Revenue", "Amount (£)": 50000.00},
+        {"Account Code": "7000", "Account Name": "Staff Salaries Base", "Bucket": "Gross Wages", "Amount (£)": 4500.00},
+        {"Account Code": "2100", "Account Name": "Trade Creditors", "Bucket": "Accruals", "Amount (£)": 1200.00}
+    ])
 
-with col_api1:
-    if st.button("🦊 Pull Historical Data from Xero", use_container_width=True):
-        st.info("OAuth 2.0 Handshake Active: Simulating secure Xero api ledger scrape...")
-with col_api2:
-    if st.button("🌱 Pull Historical Data from Sage", use_container_width=True):
-        st.info("OAuth 2.0 Handshake Active: Simulating secure Sage api ledger scrape...")
-with col_api3:
-    if st.button("⚡ Pull Historical Data from QuickBooks", use_container_width=True):
-        st.info("OAuth 2.0 Handshake Active: Simulating secure QuickBooks api ledger scrape...")
+# --- MODULE 1: VOICE INPUT WITH GEMINI API ---
+st.subheader("🎙️ Voice Command Automation (Gemini Multimodal AI)")
+st.markdown("Record a voice note to add or adjust accounts automatically (e.g., *'Add a software account code 7500 for five hundred pounds under Gross Wages'*).")
 
-st.markdown("---")
+# Initialize Gemini Client safely using secrets
+try:
+    gemini_key = st.secrets["gemini"]["api_key"]
+    ai_client = genai.Client(api_key=gemini_key)
+except Exception:
+    ai_client = None
+    st.warning("🔒 Gemini API Key missing from secrets.toml. Voice automation module locked.")
 
-# --- 2. THE CSV FILE DROP ZONE ---
-st.subheader("📥 Incomplete Records File Uploader")
-st.markdown("If cloud API access is unavailable, drag and drop a fragmented Trial Balance or bank transaction log below.")
+# Streamlit native microphone component
+recorded_audio = st.audio_input("Click the microphone to record your voice command")
 
-uploaded_file = st.file_uploader("Upload Raw CSV Ledger Extract", type=["csv"])
-
-# Target structural lines required by our core math engine
-ENGINE_TARGET_BUCKETS = [
-    "Revenue", 
-    "Cost of Sales", 
-    "Wages & Salaries", 
-    "Operating Overheads", 
-    "Fixed Assets", 
-    "Financing/Liabilities"
-]
-
-if uploaded_file is not None:
-    try:
-        # Read the uploaded ledger file into a standard Pandas dataframe
-        raw_uploaded_df = pd.read_csv(uploaded_file)
-        
-        st.success("✔️ File successfully parsed in memory. Please complete the accounting line mappings below:")
-        
-        # Ensure the uploaded file has the minimal columns needed for mapping
-        if len(raw_uploaded_df.columns) >= 2:
-            # Dynamically build a structural mapping interface for the bookkeeper
-            mapping_rows = []
-            for index, row in raw_uploaded_df.iterrows():
-                account_code = str(row.iloc[0])
-                account_name = str(row.iloc[1])
-                current_balance = float(row.iloc[2]) if len(raw_uploaded_df.columns) > 2 else 0.0
-                
-                # Default mapping guess based on simple keywords
-                default_mapping = "Operating Overheads"
-                name_lower = account_name.lower()
-                if "sale" in name_lower or "revenue" in name_lower or "turnover" in name_lower:
-                    default_mapping = "Revenue"
-                elif "cost" in name_lower or "cos" in name_lower or "purchase" in name_lower:
-                    default_mapping = "Cost of Sales"
-                elif "wage" in name_lower or "salary" in name_lower or "payroll" in name_lower:
-                    default_mapping = "Wages & Salaries"
-                elif "loan" in name_lower or "hire purchase" in name_lower or "creditor" in name_lower:
-                    default_mapping = "Financing/Liabilities"
-                elif "equipment" in name_lower or "vehicle" in name_lower or "asset" in name_lower:
-                    default_mapping = "Fixed Assets"
-
-                mapping_rows.append({
-                    "Imported Code": account_code,
-                    "Imported Account Label": account_name,
-                    "Current Balance (£)": current_balance,
-                    "Engine Mapping Target": default_mapping
-                })
+if recorded_audio and ai_client:
+    with st.spinner("Gemini is analyzing voice audio parameters..."):
+        try:
+            # Read raw bytes directly from user's web mic object
+            audio_bytes = recorded_audio.read()
             
-            mapping_df = pd.DataFrame(mapping_rows)
+            # Formulate structural instructions utilizing Gemini's native audio parsing capabilities
+            prompt = """
+            You are a senior forensic accountant processing voice memos from a bookkeeper.
+            Analyze the attached audio clip and extract any requested ledger adjustments.
             
-            # Use Streamlit's data_editor with dropdown configurations for the mapping column
-            st.markdown("### 🔀 Chart of Accounts Translation Matrix")
-            st.caption("Review our automated classification guesses and use the drop-downs to correct errors before finalizing.")
+            Return the result STRICTLY as a valid JSON object matching this dictionary format:
+            {
+                "status": "SUCCESS" or "ERROR",
+                "account_code": "string or default empty",
+                "account_name": "extracted name",
+                "bucket": "Must be exactly one of: Revenue, Gross Wages, Accruals, Prepayments, Stock, WIP",
+                "amount": float value
+            }
+            Do not wrap in markdown blocks, do not return anything except pure json text.
+            """
             
-            finalized_mapping_grid = st.data_editor(
-                mapping_df,
-                column_config={
-                    "Engine Mapping Target": st.column_config.SelectboxColumn(
-                        "Forecaster Target Bucket",
-                        help="Select the structural bucket required by the 3-Way Engine",
-                        width="medium",
-                        options=ENGINE_TARGET_BUCKETS,
-                        required=True,
-                    ),
-                    "Current Balance (£)": st.column_config.NumberColumn(format="£%.2f")
-                },
-                disabled=["Imported Code", "Imported Account Label", "Current Balance (£)"],
-                hide_index=True,
-                use_container_width=True,
-                key="ingestion_grid_editor"
+            # Send audio directly to Gemini 2.5 Flash
+            response = ai_client.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=[
+                    types.Part.from_bytes(data=audio_bytes, mime_type="audio/wav"),
+                    prompt
+                ]
             )
             
-            # --- Save Mapping Pipeline Action ---
-            if st.button("💾 Commit Mapped Structure to Neon Database Project", type="primary", use_container_width=True):
-                st.success("🎉 Mapping pipeline verified and securely written to your market-catalyst-model project database!")
-                # In the next step, this dataframe will save straight to Neon via database.py
-                
-        else:
-            st.error("❌ Invalid CSV format. The file must contain at least Account Code and Account Name columns.")
+            # Parse the structured JSON response cleanly
+            import json
+            extracted_command = json.loads(response.text.strip())
             
-    except Exception as e:
-        st.error(f"❌ Error processing dataset structural lines: {str(e)}")
-else:
-    # Quick placeholder view to show a preview sample when the page is empty
-    st.info("💡 Pro-Tip: Upload a basic CSV containing three columns (Code, Account Name, Balance) to verify the translation matrix.")
+            if extracted_command.get("status") == "SUCCESS":
+                new_row = {
+                    "Account Code": extracted_command.get("account_code", "9999"),
+                    "Account Name": extracted_command.get("account_name", "Voice Added Account"),
+                    "Bucket": extracted_command.get("bucket", "Revenue"),
+                    "Amount (£)": float(extracted_command.get("amount", 0.00))
+                }
+                # Append voice row safely to state
+                st.session_state.manual_ledger = pd.concat([
+                    st.session_state.manual_ledger, 
+                    pd.DataFrame([new_row])
+                ], ignore_index=True)
+                st.success(f"🤖 **Gemini Voice Match:** Added '{new_row['Account Name']}' (£{new_row['Amount (£)']}) to category '{new_row['Bucket']}'!")
+            else:
+                st.error("⚠️ Gemini heard the voice note but could not parse clear accounting variables. Please speak clearly using format: Account Name, Code, Amount, and Category.")
+                
+        except Exception as e:
+            st.error(f"Failed to process voice matrix: {str(e)}")
+
+st.markdown("---")
+
+# --- MODULE 2: MANUAL SPREADSHEET EDITOR ---
+st.subheader("📋 Live Interactive Trial Balance Sheet")
+st.markdown("Modify account codes, edit tracking names, adjust amounts, or add rows directly inside the data spreadsheet below:")
+
+# st.data_editor converts a flat dataframe into a live editable grid interface
+updated_ledger = st.data_editor(
+    st.session_state.manual_ledger,
+    num_rows="dynamic", # ◄── Enables your user to hit "+" or highlight and delete entries manually
+    use_container_width=True,
+    column_config={
+        "Bucket": st.column_config.SelectboxColumn(
+            "Accounting Allocation Bucket",
+            help="Maps the manual entry line item directly into the 3-Way Core Forecast Model formulas",
+            options=["Revenue", "Gross Wages", "Accruals", "Prepayments", "Stock", "WIP"],
+            required=True
+        ),
+        "Amount (£)": st.column_config.NumberColumn(
+            "Amount (£)",
+            format="£%.2f",
+            min_value=0.00
+        )
+    }
+)
+
+# Sync edits back to state clipboard
+if st.button("Commit Ledger Grid Modifications to Session Memory"):
+    st.session_state.manual_ledger = updated_ledger
+    st.success("💾 Trial Balance alterations safely written into global application workflow.")
