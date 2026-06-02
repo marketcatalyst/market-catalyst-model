@@ -140,7 +140,7 @@ else:
     )
 
 # ==========================================
-# RENDER STATEMENTS ENGINE
+# RENDER STATEMENT VIEWS
 # ==========================================
 if forecast_df is not None:
     cumulative_variance = forecast_df["Variance (£)"].iloc[-1]
@@ -164,17 +164,71 @@ if forecast_df is not None:
         statement_df.index = df["Month"]
         return statement_df.T.reset_index().rename(columns={"index": "Financial Line Item"})
         
+    # ==========================================
+    # TAB 1: PROFIT & LOSS (WITH GRANULAR EXTENSION)
+    # ==========================================
     with tab_pl:
         st.markdown(f"### **Statement of Profit or Loss ({horizon_months}-Month Runway)**")
-        pl_rows = {
-            "Turnover (£)": "Revenue (Turnover)", 
-            "Direct Expenses (COGS) (£)": "  Less: Cost of Sales (Direct COGS)",
-            "Indirect Overheads (£)": "  Less: Operating Expenses (Indirect OpEx)",
-            "Payroll Costs (£)": "  Less: Operating Overheads (Payroll)", 
-            "Net Profit (£)": "Net Operating Profit / (Loss) EBITDA"
-        }
-        st.data_editor(create_accounting_statement(forecast_df, pl_rows), use_container_width=True, hide_index=True, key="pl_view_editor")
         
+        st.markdown("---")
+        pl_audit_mode = st.toggle("🔍 Activate Granular Auditor View (Explode Operational Accounts)", key="pl_audit_toggle")
+        st.markdown("---")
+        
+        if not pl_audit_mode:
+            pl_rows = {
+                "Turnover (£)": "Revenue (Turnover)", 
+                "Direct Expenses (COGS) (£)": "  Less: Cost of Sales (Direct COGS)",
+                "Indirect Overheads (£)": "  Less: Operating Expenses (Indirect OpEx)",
+                "Payroll Costs (£)": "  Less: Operating Overheads (Payroll)", 
+                "Net Profit (£)": "Net Operating Profit / (Loss) EBITDA"
+            }
+            st.data_editor(create_accounting_statement(forecast_df, pl_rows), use_container_width=True, hide_index=True, key="pl_view_editor")
+        else:
+            # 💡 FIXED: True Time-Series Explosion mapping performance accounts across P&L columns pro-rata
+            st.info("📊 Deep-Dive P&L Time-Series Audit Active: Exploding performance line items into dynamic constituent sub-ledgers.")
+            
+            if "trial_balance_matrix" in st.session_state:
+                raw_tb_df = st.session_state.trial_balance_matrix.copy()
+                raw_tb_df["Amount (£)"] = pd.to_numeric(raw_tb_df["Amount (£)"], errors="coerce").fillna(0.0)
+                
+                pl_bucket_mapping = {
+                    "Revenue": "Turnover (£)",
+                    "Direct Expenses (COGS)": "Direct Expenses (COGS) (£)",
+                    "Indirect Overheads (OpEx)": "Indirect Overheads (£)",
+                    "Gross Wages": "Payroll Costs (£)"
+                }
+                
+                for ui_bucket, forecast_col in pl_bucket_mapping.items():
+                    accounts_in_bucket = raw_tb_df[raw_tb_df["Accounting Allocation Bucket"] == ui_bucket]
+                    
+                    with st.expander(f"📁 Dynamic Account Performance Breakdown: {ui_bucket}", expanded=True):
+                        if not accounts_in_bucket.empty:
+                            bucket_base_total = accounts_in_bucket["Amount (£)"].sum()
+                            exploded_records = []
+                            
+                            for _, acct_row in accounts_in_bucket.iterrows():
+                                acct_code = acct_row["Account Code"]
+                                acct_name = acct_row["Account Name"]
+                                base_val = acct_row["Amount (£)"]
+                                
+                                ratio = (base_val / bucket_base_total) if bucket_base_total > 0 else 1.0
+                                row_series = {"Account": f"[{acct_code}] {acct_name}"}
+                                
+                                for m_idx in range(1, horizon_months + 1):
+                                    tot_for_month = forecast_df.loc[m_idx - 1, forecast_col]
+                                    row_series[f"Month {m_idx}"] = tot_for_month * ratio
+                                    
+                                exploded_records.append(row_series)
+                            
+                            st.dataframe(pd.DataFrame(exploded_records), use_container_width=True, hide_index=True)
+                        else:
+                            st.caption(f"No custom ingestion lines allocated under '{ui_bucket}'. Core engine is tracking baseline parameters at flat trend vector indices.")
+            else:
+                st.warning("⚠️ No initial trial balance matrix found in app memory to explode.")
+
+    # ==========================================
+    # TAB 2: BALANCE SHEET (STRICTLY SEGREGATED)
+    # ==========================================
     with tab_bs:
         st.markdown(f"### **Statement of Financial Position ({horizon_months}-Month Snapshot)**")
         
@@ -192,10 +246,8 @@ if forecast_df is not None:
             }
             st.data_editor(create_accounting_statement(forecast_df, bs_rows), use_container_width=True, hide_index=True, key="bs_view_editor")
         else:
-            # 💡 FIXED: Isolates genuine point-in-time Balance Sheet columns and expands them into matching ledger structures
             st.info("📊 Deep-Dive Balance Sheet Audit Active: Unpacking statement columns into true asset and liability sub-ledgers.")
             
-            # --- 1. CURRENT ASSETS: CASH AT BANK ---
             with st.expander("📁 Dynamic Asset Series Breakdown: Current Assets: Cash at Bank", expanded=True):
                 cash_records = [{
                     "Account": "[1200] Central Liquidity Bank Clearing Account",
@@ -203,7 +255,6 @@ if forecast_df is not None:
                 }]
                 st.dataframe(pd.DataFrame(cash_records), use_container_width=True, hide_index=True)
                 
-            # --- 2. CURRENT ASSETS: DEBTORS (ACCOUNTS RECEIVABLE) ---
             with st.expander("📁 Dynamic Asset Series Breakdown: Current Assets: Accounts Receivable (Debtors)", expanded=True):
                 debtor_records = [{
                     "Account": "[1100] Trade Debtors Ledger (Trailing Multi-Period Sales Asset)",
@@ -211,28 +262,20 @@ if forecast_df is not None:
                 }]
                 st.dataframe(pd.DataFrame(debtor_records), use_container_width=True, hide_index=True)
                 
-            # --- 3. CURRENT LIABILITIES: EXPLICIT SUB-LEDGER EXPANSION ---
             with st.expander("📁 Dynamic Liability Series Breakdown: Current Liabilities: Accounts Payable & Owed", expanded=True):
                 liability_records = []
-                
-                # Fetch baseline values to build proportional pro-rata distributions
                 wages_base = derived_wages if derived_wages > 0 else 8672.57
                 
                 for m_idx in range(1, horizon_months + 1):
-                    # Pull macro metrics directly from the current step's engine slice
                     w_mult = (1 + wage_inf_monthly) ** (m_idx - 1)
                     current_wages = wages_base * w_mult
                     
-                    # Compute individual tax liability components
                     paye_obligation = current_wages * 0.25
                     pension_obligation = current_wages * 0.05
                     total_creditors_block = forecast_df.loc[m_idx-1, "Creditors Under 1 Yr (£)"]
-                    
-                    # Trade creditors acts as the remainder balancing asset outlays
                     calculated_trade_creditors = total_creditors_block - paye_obligation - pension_obligation
                     
                     if m_idx == 1:
-                        # Initialize tracking keys on step 1 execution
                         liability_records = [
                             {"Account": "[2100] Trade Creditors Control Account (Suppliers Outflow Lag)"},
                             {"Account": "[2210] HMRC PAYE & NI Statutory Control Account"},
@@ -245,7 +288,6 @@ if forecast_df is not None:
                     
                 st.dataframe(pd.DataFrame(liability_records), use_container_width=True, hide_index=True)
                 
-            # --- 4. CAPITAL & RESERVES: RETAINED EARNINGS ---
             with st.expander("📁 Dynamic Equity Series Breakdown: Capital & Reserves: Retained Earnings", expanded=True):
                 equity_records = [{
                     "Account": "[3000] Accumulated Retained Earnings Profit Pool Balance",
@@ -253,6 +295,9 @@ if forecast_df is not None:
                 }]
                 st.dataframe(pd.DataFrame(equity_records), use_container_width=True, hide_index=True)
         
+    # ==========================================
+    # TAB 3 & 4: CASH FLOW & MASTER DATA RECORD
+    # ==========================================
     with tab_cf:
         st.markdown(f"### **Statement of Cash Flows ({horizon_months}-Month Indirect Reconciliation)**")
         cf_working = forecast_df[["Month", "Net Profit (£)", "Bank Cash Position (£)"]].copy()
