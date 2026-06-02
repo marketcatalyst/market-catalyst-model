@@ -16,16 +16,16 @@ st.markdown("---")
 STARTING_CASH_BASELINE = 500000.00
 
 # ==========================================
-# 📈 INTERACTIVE SCENARIO MATRIX WITH UX POP-UP
+# 📈 INTERACTIVE SCENARIO MATRIX INPUT SHEET
 # ==========================================
 st.subheader("🚀 Strategic Macro Scenario Configuration Suite")
 
 col_scen_title, col_scen_pop = st.columns([5, 1])
 with col_scen_title:
-    st.markdown("Select an economic case template from the table below to flex volume growth and inflation indices across your 5-year timeline.")
+    st.markdown("Select an economic case template below. **Double-click any numeric cell to edit or override parameters live!**")
 
 with col_scen_pop:
-    # 💡 INTERACTIVE POP-UP ANCHOR FOR SCENARIO RUNS
+    # --- CONTEXTUAL WHAT, WHEN & WHY POP-UP NOTE ---
     with st.popover("ℹ️ Cases: What, When & Why?", use_container_width=True):
         st.markdown("### **📋 Scenario Matrix Documentation**")
         st.markdown("---")
@@ -44,41 +44,43 @@ with col_scen_pop:
         st.markdown("* *When:* Stress-testing liquidity buffers and planning defensive runways.")
         st.markdown("* *Why:* Proves if your £500k cash cushion can absorb macro macroeconomic disruptions.")
 
-# Define structured scenario input matrix data frame
-scenario_data = {
-    "Scenario Case": ["🟢 Base Case Plan", "🔥 Best Case Expansion", "⚠️ High-Inflation Downside"],
-    "Annual Volume Growth (%)": [12.0, 25.0, 2.0],
-    "Annual Supplier Inflation (%)": [4.0, 2.0, 10.0],
-    "Annual Wage Inflation (%)": [5.0, 3.0, 8.0]
-}
-scenario_df = pd.DataFrame(scenario_data)
+# Initialize scenario state storage within Streamlit's runtime memory session
+if "scenario_matrix" not in st.session_state:
+    st.session_state.scenario_matrix = pd.DataFrame({
+        "Scenario Case": ["🟢 Base Case Plan", "🔥 Best Case Expansion", "⚠️ High-Inflation Downside"],
+        "Annual Volume Growth (%)": [12.0, 25.0, 2.0],
+        "Annual Supplier Inflation (%)": [4.0, 2.0, 10.0],
+        "Annual Wage Inflation (%)": [5.0, 3.0, 8.0]
+    })
 
-# Render the input options transparently via an interactive data table grid
-st.dataframe(
-    scenario_df,
+# RENDER FULLY EDITABLE INTERACTIVE SCENARIO MATRIX
+edited_scenario_df = st.data_editor(
+    st.session_state.scenario_matrix,
     use_container_width=True,
     hide_index=True,
     column_config={
-        "Annual Volume Growth (%)": st.column_config.NumberColumn(format="%.1f%%"),
-        "Annual Supplier Inflation (%)": st.column_config.NumberColumn(format="%.1f%%"),
-        "Annual Wage Inflation (%)": st.column_config.NumberColumn(format="%.1f%%"),
-    }
+        "Scenario Case": st.column_config.TextColumn(disabled=True),  # Lock case identifiers to maintain stability
+        "Annual Volume Growth (%)": st.column_config.NumberColumn(format="%.1f%%", min_value=0.0, max_value=200.0),
+        "Annual Supplier Inflation (%)": st.column_config.NumberColumn(format="%.1f%%", min_value=0.0, max_value=100.0),
+        "Annual Wage Inflation (%)": st.column_config.NumberColumn(format="%.1f%%", min_value=0.0, max_value=100.0),
+    },
+    key="macro_scenario_editor"
 )
 
-# Active Radio Input Matrix Selection Controller
+# Active Case Radio Selector
 selected_case = st.radio(
     "Activate Macro Matrix Tracking Profile:",
-    options=scenario_df["Scenario Case"].tolist(),
+    options=edited_scenario_df["Scenario Case"].tolist(),
     horizontal=True
 )
 
-# Extract chosen row variables from matrix programmatically
-case_row = scenario_df[scenario_df["Scenario Case"] == selected_case].iloc[0]
+# Parse selected parameters out dynamically
+case_row = edited_scenario_df[edited_scenario_df["Scenario Case"] == selected_case].iloc[0]
 vol_growth_annual = float(case_row["Annual Volume Growth (%)"])
 supplier_inf_annual = float(case_row["Annual Supplier Inflation (%)"])
 wage_inf_annual = float(case_row["Annual Wage Inflation (%)"])
 
-# Convert annual compounding matrix metrics down to exact monthly index vectors
+# Convert annual compounding targets down to exact monthly index vectors
 vol_growth_monthly = (1 + (vol_growth_annual / 100.0)) ** (1/12) - 1
 supplier_inf_monthly = (1 + (supplier_inf_annual / 100.0)) ** (1/12) - 1
 wage_inf_monthly = (1 + (wage_inf_annual / 100.0)) ** (1/12) - 1
@@ -105,7 +107,6 @@ forecast_df = None
 # ==========================================
 if entry_method == "🎛️ Live Scenario Sliders":
     
-    # UX POP-UP NOTE FOR SLIDERS
     with st.sidebar.popover("ℹ️ Sliders: What, When & Why?"):
         st.markdown("### **🎛️ Live Scenario Sliders**")
         st.markdown("**WHAT:** Macro-level operational cost baselines applied linearly across your chosen month horizon.")
@@ -120,7 +121,6 @@ if entry_method == "🎛️ Live Scenario Sliders":
     st.sidebar.markdown("---")
     st.sidebar.subheader("⏳ Working Capital Timing")
     
-    # UX POP-UP NOTE FOR TIMING
     with st.sidebar.popover("ℹ️ Credit Terms: What, When & Why?"):
         st.markdown("### **⏳ Working Capital Credit Terms**")
         st.markdown("**WHAT:** Tracks debtor collection delays and creditor payment terms.")
@@ -227,7 +227,7 @@ else:
         st.info(f"💡 Please upload your baseline seasonal ledger template .csv file to activate modeling views.")
 
 # ==========================================
-# RENDER CONVENTIONAL INTERFACE ENGINE
+# RENDER ACCOUNTING ENGINE VIA DATA EDITORS
 # ==========================================
 if forecast_df is not None:
     cumulative_variance = forecast_df["Variance (£)"].iloc[-1]
@@ -246,6 +246,7 @@ if forecast_df is not None:
         "📈 Profit & Loss (P&L)", "⚖️ Balance Sheet (BS)", "💸 Cash Flow Statement (CF)", "🗃️ Master Data Ledger Grid"
     ])
     
+    # Statement Pivot and Transpose Mapping Function
     def create_accounting_statement(df: pd.DataFrame, row_mapping: dict) -> pd.DataFrame:
         statement_df = df[list(row_mapping.keys())].rename(columns=row_mapping)
         statement_df.index = df["Month"]
@@ -254,20 +255,31 @@ if forecast_df is not None:
     with tab_pl:
         st.markdown(f"### **Statement of Profit or Loss ({horizon_months}-Month Runway)** — *{selected_case}*")
         pl_rows = {"Turnover (£)": "Revenue (Turnover)", "Payroll Costs (£)": "  Less: Operating Overheads (Payroll)", "Net Profit (£)": "Net Operating Profit / (Loss)"}
-        st.dataframe(create_accounting_statement(forecast_df, pl_rows), use_container_width=True, hide_index=True)
+        pl_data = create_accounting_statement(forecast_df, pl_rows)
+        
+        # UPGRADED: st.data_editor layout preserves complete presentation cell modifications
+        st.data_editor(pl_data, use_container_width=True, hide_index=True, key="pl_view_editor")
         
     with tab_bs:
         st.markdown(f"### **Statement of Financial Position ({horizon_months}-Month Snapshot)** — *{selected_case}*")
         bs_rows = {"Bank Cash Position (£)": "Current Assets: Cash at Bank", "Debtors Asset (£)": "Current Assets: Accounts Receivable (Debtors)", "Creditors Under 1 Yr (£)": "Current Liabilities: Accounts Payable & Owed", "Retained Earnings Balance (£)": "Capital & Reserves: Retained Earnings", "Variance (£)": "Double-Entry Validation Variance"}
-        st.dataframe(create_accounting_statement(forecast_df, bs_rows), use_container_width=True, hide_index=True)
+        bs_data = create_accounting_statement(forecast_df, bs_rows)
+        
+        # UPGRADED: st.data_editor layer allows custom balancing-note overrides
+        st.data_editor(bs_data, use_container_width=True, hide_index=True, key="bs_view_editor")
         
     with tab_cf:
         st.markdown(f"### **Statement of Cash Flows ({horizon_months}-Month Indirect Reconciliation)**")
         cf_working = forecast_df[["Month", "Net Profit (£)", "Bank Cash Position (£)"]].copy()
         cf_working["Net Cash Flow Movement"] = cf_working["Bank Cash Position (£)"].diff().fillna(cf_working["Bank Cash Position (£)"] - STARTING_CASH_BASELINE)
         cf_rows = {"Net Profit (£)": "Net Profit from Operations", "Net Cash Flow Movement": "Net Inflow / (Outflow) for Period", "Bank Cash Position (£)": "Closing Cash Balance in Bank"}
-        st.dataframe(create_accounting_statement(cf_working, cf_rows), use_container_width=True, hide_index=True)
+        cf_data = create_accounting_statement(cf_working, cf_rows)
+        
+        # UPGRADED: st.data_editor layer allows local timeline auditing overrides
+        st.data_editor(cf_data, use_container_width=True, hide_index=True, key="cf_view_editor")
         
     with tab_master:
-        st.markdown("### **Master Data Ledger Grid**")
-        st.dataframe(forecast_df, use_container_width=True, hide_index=True)
+        st.markdown("### **Master Data Ledger Grid (Fully Editable Raw Rows)**")
+        
+        # UPGRADED: Full matrix data table is editable, tracking direct adjustments across the full database structure
+        st.data_editor(forecast_df, use_container_width=True, hide_index=True, key="master_grid_editor")
