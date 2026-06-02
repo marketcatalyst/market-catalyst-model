@@ -16,39 +16,33 @@ st.markdown("---")
 STARTING_CASH_BASELINE = 500000.00
 
 # ==========================================
-# 📈 INTERACTIVE SCENARIO MATRIX INPUT SHEET
+# 📈 INTERACTIVE SCENARIO MATRIX WITH PRICING
 # ==========================================
 st.subheader("🚀 Strategic Macro Scenario Configuration Suite")
 
 col_scen_title, col_scen_pop = st.columns([5, 1])
 with col_scen_title:
-    st.markdown("Select an economic case template below. **Double-click any numeric cell to edit or override parameters live!**")
+    st.markdown("Select an economic case template below. **Double-click any cell to manually edit/override growth, inflation, or price increases live!**")
 
 with col_scen_pop:
-    # --- CONTEXTUAL WHAT, WHEN & WHY POP-UP NOTE ---
     with st.popover("ℹ️ Cases: What, When & Why?", use_container_width=True):
         st.markdown("### **📋 Scenario Matrix Documentation**")
         st.markdown("---")
         st.markdown("**🟢 BASE CASE PLAN**")
-        st.markdown("* *What:* 12% Volume growth, standard inflation metrics.")
-        st.markdown("* *When:* Day-to-day operations and realistic budget charting.")
-        st.markdown("* *Why:* Reflects true operational baselines and historical market averages.")
+        st.markdown("* *What:* Balanced 12% volume growth, 5% defensive price increases matching macro inflation.")
         st.markdown("---")
         st.markdown("**🔥 BEST CASE EXPANSION**")
-        st.markdown("* *What:* 25% Volume explosion, maximized purchasing scale efficiency.")
-        st.markdown("* *When:* Capital fundraising pitches or aggressive territory expansion modeling.")
-        st.markdown("* *Why:* Illustrates upper bounds of profit margins under high product velocity.")
+        st.markdown("* *What:* High volume penetration (25%) with stable pricing (2%) due to economies of scale.")
         st.markdown("---")
         st.markdown("**⚠️ HIGH-INFLATION DOWNSIDE**")
-        st.markdown("* *What:* Stagnant demand (2%) crushed by severe cost creep (10% Supplier / 8% Wage).")
-        st.markdown("* *When:* Stress-testing liquidity buffers and planning defensive runways.")
-        st.markdown("* *Why:* Proves if your £500k cash cushion can absorb macro macroeconomic disruptions.")
+        st.markdown("* *What:* Stagnant demand (2%) where pricing must be forced up (12%) to combat extreme 10% supplier cost creep.")
 
 # Initialize scenario state storage within Streamlit's runtime memory session
 if "scenario_matrix" not in st.session_state:
     st.session_state.scenario_matrix = pd.DataFrame({
         "Scenario Case": ["🟢 Base Case Plan", "🔥 Best Case Expansion", "⚠️ High-Inflation Downside"],
         "Annual Volume Growth (%)": [12.0, 25.0, 2.0],
+        "Annual Price Increase (%)": [5.0, 2.0, 12.0],  # ◄── ADDED: New dedicated pricing power column row entries
         "Annual Supplier Inflation (%)": [4.0, 2.0, 10.0],
         "Annual Wage Inflation (%)": [5.0, 3.0, 8.0]
     })
@@ -59,8 +53,9 @@ edited_scenario_df = st.data_editor(
     use_container_width=True,
     hide_index=True,
     column_config={
-        "Scenario Case": st.column_config.TextColumn(disabled=True),  # Lock case identifiers to maintain stability
+        "Scenario Case": st.column_config.TextColumn(disabled=True),
         "Annual Volume Growth (%)": st.column_config.NumberColumn(format="%.1f%%", min_value=0.0, max_value=200.0),
+        "Annual Price Increase (%)": st.column_config.NumberColumn(format="%.1f%%", min_value=0.0, max_value=100.0), # ◄── Configured as editable
         "Annual Supplier Inflation (%)": st.column_config.NumberColumn(format="%.1f%%", min_value=0.0, max_value=100.0),
         "Annual Wage Inflation (%)": st.column_config.NumberColumn(format="%.1f%%", min_value=0.0, max_value=100.0),
     },
@@ -77,11 +72,13 @@ selected_case = st.radio(
 # Parse selected parameters out dynamically
 case_row = edited_scenario_df[edited_scenario_df["Scenario Case"] == selected_case].iloc[0]
 vol_growth_annual = float(case_row["Annual Volume Growth (%)"])
+price_inc_annual = float(case_row["Annual Price Increase (%)"])  # ◄── Fetch price input dynamically
 supplier_inf_annual = float(case_row["Annual Supplier Inflation (%)"])
 wage_inf_annual = float(case_row["Annual Wage Inflation (%)"])
 
 # Convert annual compounding targets down to exact monthly index vectors
 vol_growth_monthly = (1 + (vol_growth_annual / 100.0)) ** (1/12) - 1
+price_inc_monthly = (1 + (price_inc_annual / 100.0)) ** (1/12) - 1
 supplier_inf_monthly = (1 + (supplier_inf_annual / 100.0)) ** (1/12) - 1
 wage_inf_monthly = (1 + (wage_inf_annual / 100.0)) ** (1/12) - 1
 
@@ -99,20 +96,12 @@ st.sidebar.header("📅 Timeline Horizon Configuration")
 horizon_months = st.sidebar.slider("Forecast Horizon Runway (Months)", 12, 60, 36, 12)
 st.sidebar.markdown("---")
 
-# Initialize default runtime variable states
 forecast_df = None
 
 # ==========================================
 # MODE A: NATIVE INTERACTIVE SLIDERS
 # ==========================================
 if entry_method == "🎛️ Live Scenario Sliders":
-    
-    with st.sidebar.popover("ℹ️ Sliders: What, When & Why?"):
-        st.markdown("### **🎛️ Live Scenario Sliders**")
-        st.markdown("**WHAT:** Macro-level operational cost baselines applied linearly across your chosen month horizon.")
-        st.markdown("**WHEN:** Use during high-level strategic planning or rapid runway stress-testing.")
-        st.markdown("**WHY:** Updates your statements instantly, interacting natively with the active macro scenario metrics.")
-    
     st.sidebar.subheader("📊 Operational Baseline Parameters")
     sales_input = st.sidebar.slider("Base Monthly Revenue (£)", 10000.0, 500000.0, 100000.0, 5000.0, format="£%.2f")
     gp_input = st.sidebar.slider("Base Gross Profit Margin (%)", 10.0, 100.0, 65.0, 0.5)
@@ -120,13 +109,6 @@ if entry_method == "🎛️ Live Scenario Sliders":
     
     st.sidebar.markdown("---")
     st.sidebar.subheader("⏳ Working Capital Timing")
-    
-    with st.sidebar.popover("ℹ️ Credit Terms: What, When & Why?"):
-        st.markdown("### **⏳ Working Capital Credit Terms**")
-        st.markdown("**WHAT:** Tracks debtor collection delays and creditor payment terms.")
-        st.markdown("**WHEN:** Adjust when modeling shifts in client invoice compliance or supplier terms.")
-        st.markdown("**WHY:** Widening the gap between supplier terms (longer) and debtor days (shorter) unlocks free bank cash.")
-        
     debtor_days = st.sidebar.number_input("Debtor Days (Continuous Lag)", 0, 120, 30, 5, key="f_debtor")
     creditor_days = st.sidebar.number_input("Creditor Days (Payment Lag)", 0, 120, 30, 5, key="f_creditor")
 
@@ -137,11 +119,15 @@ if entry_method == "🎛️ Live Scenario Sliders":
     
     for m in range(1, horizon_months + 1):
         v_mult = (1 + vol_growth_monthly) ** (m - 1)
+        p_mult = (1 + price_inc_monthly) ** (m - 1)  # ◄── Pricing compound vector
         s_mult = (1 + supplier_inf_monthly) ** (m - 1)
         w_mult = (1 + wage_inf_monthly) ** (m - 1)
         
-        turnover = sales_input * v_mult
-        cogs = (turnover * (1 - (gp_input / 100.0))) * s_mult
+        # Turnover is scaled by organic demand volume AND pricing changes together
+        turnover = sales_input * v_mult * p_mult
+        
+        # COGS scales with unit volume and increases with supplier inflation, but ignores selling price hikes
+        cogs = (sales_input * v_mult * (1 - (gp_input / 100.0))) * s_mult
         
         wages_expense = wages_input * w_mult
         total_payroll = wages_expense * (1 + paye_ni_rate + pension_rate)
@@ -166,11 +152,6 @@ if entry_method == "🎛️ Live Scenario Sliders":
 # MODE B: ENTERPRISE CSV RECONCILIATION
 # ==========================================
 else:
-    with st.sidebar.popover("📋 CSV Blueprint: What, When & Why?", use_container_width=True):
-        st.markdown("### **📁 Bulk CSV Ledger Upload**")
-        st.markdown("Upload seasonal baseline operational values. The dynamic macro scenario matrix activated above will layer compounding trends over your uploaded file vectors automatically.")
-        st.code("Month,Revenue_Target,COGS_Absolute,Wages_Base\nMonth 1,125000.00,43750.00,8672.57", language="csv")
-        
     uploaded_file = st.sidebar.file_uploader("Drop financial profile .csv below:", type=["csv"])
     
     st.sidebar.markdown("---")
@@ -196,10 +177,11 @@ else:
                     turnover_base, cogs_base, wages_base = 100000.0, 35000.0, 8672.57
                 
                 v_mult = (1 + vol_growth_monthly) ** (m - 1)
+                p_mult = (1 + price_inc_monthly) ** (m - 1) # ◄── Pricing compound vector for CSV base
                 s_mult = (1 + supplier_inf_monthly) ** (m - 1)
                 w_mult = (1 + wage_inf_monthly) ** (m - 1)
                 
-                turnover = turnover_base * v_mult
+                turnover = turnover_base * v_mult * p_mult
                 cogs = (cogs_base * v_mult) * s_mult
                 wages_expense = wages_base * w_mult
                 
@@ -220,14 +202,14 @@ else:
                     "Creditors Under 1 Yr (£)": total_creditors, "Retained Earnings Balance (£)": current_retained_earnings, "Variance (£)": variance
                 })
             forecast_df = pd.DataFrame(records)
-            st.success("💾 Seasonal Excel Profile & Scenario Indices Synced!")
+            st.success("💾 Seasonal Excel Profile & Expanded Scenario Pricing Synced!")
         except Exception as e:
             st.error(f"❌ Error compiling custom CSV layout: {str(e)}")
     else:
         st.info(f"💡 Please upload your baseline seasonal ledger template .csv file to activate modeling views.")
 
 # ==========================================
-# RENDER ACCOUNTING ENGINE VIA DATA EDITORS
+# RENDER CONVENTIONAL INTERFACE ENGINE
 # ==========================================
 if forecast_df is not None:
     cumulative_variance = forecast_df["Variance (£)"].iloc[-1]
@@ -246,7 +228,6 @@ if forecast_df is not None:
         "📈 Profit & Loss (P&L)", "⚖️ Balance Sheet (BS)", "💸 Cash Flow Statement (CF)", "🗃️ Master Data Ledger Grid"
     ])
     
-    # Statement Pivot and Transpose Mapping Function
     def create_accounting_statement(df: pd.DataFrame, row_mapping: dict) -> pd.DataFrame:
         statement_df = df[list(row_mapping.keys())].rename(columns=row_mapping)
         statement_df.index = df["Month"]
@@ -255,31 +236,20 @@ if forecast_df is not None:
     with tab_pl:
         st.markdown(f"### **Statement of Profit or Loss ({horizon_months}-Month Runway)** — *{selected_case}*")
         pl_rows = {"Turnover (£)": "Revenue (Turnover)", "Payroll Costs (£)": "  Less: Operating Overheads (Payroll)", "Net Profit (£)": "Net Operating Profit / (Loss)"}
-        pl_data = create_accounting_statement(forecast_df, pl_rows)
-        
-        # UPGRADED: st.data_editor layout preserves complete presentation cell modifications
-        st.data_editor(pl_data, use_container_width=True, hide_index=True, key="pl_view_editor")
+        st.data_editor(create_accounting_statement(forecast_df, pl_rows), use_container_width=True, hide_index=True, key="pl_view_editor")
         
     with tab_bs:
         st.markdown(f"### **Statement of Financial Position ({horizon_months}-Month Snapshot)** — *{selected_case}*")
         bs_rows = {"Bank Cash Position (£)": "Current Assets: Cash at Bank", "Debtors Asset (£)": "Current Assets: Accounts Receivable (Debtors)", "Creditors Under 1 Yr (£)": "Current Liabilities: Accounts Payable & Owed", "Retained Earnings Balance (£)": "Capital & Reserves: Retained Earnings", "Variance (£)": "Double-Entry Validation Variance"}
-        bs_data = create_accounting_statement(forecast_df, bs_rows)
-        
-        # UPGRADED: st.data_editor layer allows custom balancing-note overrides
-        st.data_editor(bs_data, use_container_width=True, hide_index=True, key="bs_view_editor")
+        st.data_editor(create_accounting_statement(forecast_df, bs_rows), use_container_width=True, hide_index=True, key="bs_view_editor")
         
     with tab_cf:
         st.markdown(f"### **Statement of Cash Flows ({horizon_months}-Month Indirect Reconciliation)**")
         cf_working = forecast_df[["Month", "Net Profit (£)", "Bank Cash Position (£)"]].copy()
         cf_working["Net Cash Flow Movement"] = cf_working["Bank Cash Position (£)"].diff().fillna(cf_working["Bank Cash Position (£)"] - STARTING_CASH_BASELINE)
         cf_rows = {"Net Profit (£)": "Net Profit from Operations", "Net Cash Flow Movement": "Net Inflow / (Outflow) for Period", "Bank Cash Position (£)": "Closing Cash Balance in Bank"}
-        cf_data = create_accounting_statement(cf_working, cf_rows)
-        
-        # UPGRADED: st.data_editor layer allows local timeline auditing overrides
-        st.data_editor(cf_data, use_container_width=True, hide_index=True, key="cf_view_editor")
+        st.data_editor(create_accounting_statement(cf_working, cf_rows), use_container_width=True, hide_index=True, key="cf_view_editor")
         
     with tab_master:
         st.markdown("### **Master Data Ledger Grid (Fully Editable Raw Rows)**")
-        
-        # UPGRADED: Full matrix data table is editable, tracking direct adjustments across the full database structure
         st.data_editor(forecast_df, use_container_width=True, hide_index=True, key="master_grid_editor")
