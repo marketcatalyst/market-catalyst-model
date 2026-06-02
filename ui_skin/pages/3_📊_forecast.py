@@ -16,7 +16,7 @@ st.markdown("---")
 STARTING_CASH_BASELINE = 500000.00
 
 # ==========================================
-# 📈 INTERACTIVE SCENARIO MATRIX WITH PRICING
+# 📈 INTERACTIVE SCENARIO MATRIX INPUT SHEET
 # ==========================================
 st.subheader("🚀 Strategic Macro Scenario Configuration Suite")
 
@@ -42,7 +42,7 @@ if "scenario_matrix" not in st.session_state:
     st.session_state.scenario_matrix = pd.DataFrame({
         "Scenario Case": ["🟢 Base Case Plan", "🔥 Best Case Expansion", "⚠️ High-Inflation Downside"],
         "Annual Volume Growth (%)": [12.0, 25.0, 2.0],
-        "Annual Price Increase (%)": [5.0, 2.0, 12.0],  # ◄── ADDED: New dedicated pricing power column row entries
+        "Annual Price Increase (%)": [5.0, 2.0, 12.0],
         "Annual Supplier Inflation (%)": [4.0, 2.0, 10.0],
         "Annual Wage Inflation (%)": [5.0, 3.0, 8.0]
     })
@@ -55,7 +55,7 @@ edited_scenario_df = st.data_editor(
     column_config={
         "Scenario Case": st.column_config.TextColumn(disabled=True),
         "Annual Volume Growth (%)": st.column_config.NumberColumn(format="%.1f%%", min_value=0.0, max_value=200.0),
-        "Annual Price Increase (%)": st.column_config.NumberColumn(format="%.1f%%", min_value=0.0, max_value=100.0), # ◄── Configured as editable
+        "Annual Price Increase (%)": st.column_config.NumberColumn(format="%.1f%%", min_value=0.0, max_value=100.0),
         "Annual Supplier Inflation (%)": st.column_config.NumberColumn(format="%.1f%%", min_value=0.0, max_value=100.0),
         "Annual Wage Inflation (%)": st.column_config.NumberColumn(format="%.1f%%", min_value=0.0, max_value=100.0),
     },
@@ -72,7 +72,7 @@ selected_case = st.radio(
 # Parse selected parameters out dynamically
 case_row = edited_scenario_df[edited_scenario_df["Scenario Case"] == selected_case].iloc[0]
 vol_growth_annual = float(case_row["Annual Volume Growth (%)"])
-price_inc_annual = float(case_row["Annual Price Increase (%)"])  # ◄── Fetch price input dynamically
+price_inc_annual = float(case_row["Annual Price Increase (%)"])
 supplier_inf_annual = float(case_row["Annual Supplier Inflation (%)"])
 wage_inf_annual = float(case_row["Annual Wage Inflation (%)"])
 
@@ -104,6 +104,7 @@ forecast_df = None
 if entry_method == "🎛️ Live Scenario Sliders":
     st.sidebar.subheader("📊 Operational Baseline Parameters")
     sales_input = st.sidebar.slider("Base Monthly Revenue (£)", 10000.0, 500000.0, 100000.0, 5000.0, format="£%.2f")
+    opex_input = st.sidebar.slider("Base Monthly Overheads / OpEx (£)", 0.0, 100000.0, 15000.0, 1000.0, format="£%.2f")
     gp_input = st.sidebar.slider("Base Gross Profit Margin (%)", 10.0, 100.0, 65.0, 0.5)
     wages_input = st.sidebar.slider("Base Monthly Payroll / Wages (£)", 0.0, 100000.0, 8672.57, 500.0, format="£%.2f")
     
@@ -119,30 +120,33 @@ if entry_method == "🎛️ Live Scenario Sliders":
     
     for m in range(1, horizon_months + 1):
         v_mult = (1 + vol_growth_monthly) ** (m - 1)
-        p_mult = (1 + price_inc_monthly) ** (m - 1)  # ◄── Pricing compound vector
+        p_mult = (1 + price_inc_monthly) ** (m - 1)
         s_mult = (1 + supplier_inf_monthly) ** (m - 1)
         w_mult = (1 + wage_inf_monthly) ** (m - 1)
         
-        # Turnover is scaled by organic demand volume AND pricing changes together
         turnover = sales_input * v_mult * p_mult
         
-        # COGS scales with unit volume and increases with supplier inflation, but ignores selling price hikes
-        cogs = (sales_input * v_mult * (1 - (gp_input / 100.0))) * s_mult
+        # CORRECTED: Explicit breakdown of Direct Expenses (COGS) and Indirect Overheads (OpEx)
+        direct_expenses = (sales_input * v_mult * (1 - (gp_input / 100.0))) * s_mult
+        indirect_overheads = opex_input * w_mult
         
         wages_expense = wages_input * w_mult
         total_payroll = wages_expense * (1 + paye_ni_rate + pension_rate)
-        net_profit = (turnover - cogs) - total_payroll
+        
+        # True Net Profit Calculation Loop
+        net_profit = turnover - direct_expenses - indirect_overheads - total_payroll
         current_retained_earnings += net_profit
         
         debtors_balance = (turnover * (1 + vat_rate)) * (debtor_days / 30.0)
-        trade_creditors = (cogs * (1 + vat_rate)) * (creditor_days / 30.0)
+        trade_creditors = (direct_expenses * (1 + vat_rate)) * (creditor_days / 30.0)
         
-        total_creditors = trade_creditors + (wages_expense * paye_ni_rate) + (wages_expense * pension_rate) + ((turnover * vat_rate) - (cogs * vat_rate))
+        total_creditors = trade_creditors + (wages_expense * paye_ni_rate) + (wages_expense * pension_rate) + ((turnover * vat_rate) - (direct_expenses * vat_rate))
         current_cash = current_retained_earnings + total_creditors - debtors_balance
         variance = (current_cash + debtors_balance) - (total_creditors + current_retained_earnings)
         
         records.append({
-            "Month": f"Month {m}", "Turnover (£)": turnover, "Payroll Costs (£)": total_payroll,
+            "Month": f"Month {m}", "Turnover (£)": turnover, "Direct Expenses (COGS) (£)": direct_expenses,
+            "Indirect Overheads (£)": indirect_overheads, "Payroll Costs (£)": total_payroll,
             "Net Profit (£)": net_profit, "Bank Cash Position (£)": current_cash, "Debtors Asset (£)": debtors_balance,
             "Creditors Under 1 Yr (£)": total_creditors, "Retained Earnings Balance (£)": current_retained_earnings, "Variance (£)": variance
         })
@@ -172,39 +176,42 @@ else:
                 if idx < len(input_data):
                     turnover_base = float(input_data.loc[idx, "Revenue_Target"])
                     cogs_base = float(input_data.loc[idx, "COGS_Absolute"])
+                    opex_base = float(input_data.loc[idx, "OpEx_Absolute"]) if "OpEx_Absolute" in input_data.columns else 15000.0
                     wages_base = float(input_data.loc[idx, "Wages_Base"])
                 else:
-                    turnover_base, cogs_base, wages_base = 100000.0, 35000.0, 8672.57
+                    turnover_base, cogs_base, opex_base, wages_base = 100000.0, 35000.0, 15000.0, 8672.57
                 
                 v_mult = (1 + vol_growth_monthly) ** (m - 1)
-                p_mult = (1 + price_inc_monthly) ** (m - 1) # ◄── Pricing compound vector for CSV base
+                p_mult = (1 + price_inc_monthly) ** (m - 1)
                 s_mult = (1 + supplier_inf_monthly) ** (m - 1)
                 w_mult = (1 + wage_inf_monthly) ** (m - 1)
                 
                 turnover = turnover_base * v_mult * p_mult
-                cogs = (cogs_base * v_mult) * s_mult
+                direct_expenses = (cogs_base * v_mult) * s_mult
+                indirect_overheads = opex_base * w_mult
                 wages_expense = wages_base * w_mult
                 
                 total_payroll = wages_expense * (1 + paye_ni_rate + pension_rate)
-                net_profit = (turnover - cogs) - total_payroll
+                net_profit = turnover - direct_expenses - indirect_overheads - total_payroll
                 current_retained_earnings += net_profit
                 
                 debtors_balance = (turnover * (1 + vat_rate)) * (debtor_days / 30.0)
-                trade_creditors = (cogs * (1 + vat_rate)) * (creditor_days / 30.0)
+                trade_creditors = (direct_expenses * (1 + vat_rate)) * (creditor_days / 30.0)
                 
-                total_creditors = trade_creditors + (wages_expense * paye_ni_rate) + (wages_expense * pension_rate) + ((turnover * vat_rate) - (cogs * vat_rate))
+                total_creditors = trade_creditors + (wages_expense * paye_ni_rate) + (wages_expense * pension_rate) + ((turnover * vat_rate) - (direct_expenses * vat_rate))
                 current_cash = current_retained_earnings + total_creditors - debtors_balance
                 variance = (current_cash + debtors_balance) - (total_creditors + current_retained_earnings)
                 
                 records.append({
-                    "Month": f"Month {m}", "Turnover (£)": turnover, "Payroll Costs (£)": total_payroll,
+                    "Month": f"Month {m}", "Turnover (£)": turnover, "Direct Expenses (COGS) (£)": direct_expenses,
+                    "Indirect Overheads (£)": indirect_overheads, "Payroll Costs (£)": total_payroll,
                     "Net Profit (£)": net_profit, "Bank Cash Position (£)": current_cash, "Debtors Asset (£)": debtors_balance,
                     "Creditors Under 1 Yr (£)": total_creditors, "Retained Earnings Balance (£)": current_retained_earnings, "Variance (£)": variance
                 })
             forecast_df = pd.DataFrame(records)
-            st.success("💾 Seasonal Excel Profile & Expanded Scenario Pricing Synced!")
+            st.success("💾 Seasonal Excel Profile & Expense Matrices Synced!")
         except Exception as e:
-            st.error(f"❌ Error compiling custom CSV layout: {str(e)}")
+            st.error(f"❌ Error compiling custom CSV data structures: {str(e)}")
     else:
         st.info(f"💡 Please upload your baseline seasonal ledger template .csv file to activate modeling views.")
 
@@ -235,7 +242,13 @@ if forecast_df is not None:
         
     with tab_pl:
         st.markdown(f"### **Statement of Profit or Loss ({horizon_months}-Month Runway)** — *{selected_case}*")
-        pl_rows = {"Turnover (£)": "Revenue (Turnover)", "Payroll Costs (£)": "  Less: Operating Overheads (Payroll)", "Net Profit (£)": "Net Operating Profit / (Loss)"}
+        pl_rows = {
+            "Turnover (£)": "Revenue (Turnover)", 
+            "Direct Expenses (COGS) (£)": "  Less: Cost of Sales (Direct COGS)",
+            "Indirect Overheads (£)": "  Less: Operating Expenses (Indirect OpEx)",
+            "Payroll Costs (£)": "  Less: Operating Overheads (Payroll)", 
+            "Net Profit (£)": "Net Operating Profit / (Loss) EBITDA"
+        }
         st.data_editor(create_accounting_statement(forecast_df, pl_rows), use_container_width=True, hide_index=True, key="pl_view_editor")
         
     with tab_bs:
