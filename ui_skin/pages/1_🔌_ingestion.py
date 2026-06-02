@@ -15,7 +15,7 @@ st.markdown("---")
 st.subheader("🎙️ Voice Command Automation (Gemini Multimodal AI)")
 st.markdown(
     "Record a voice note to add or adjust accounts automatically "
-    "(e.g., *'Add a software account code 7500 for five hundred pounds under Gross Wages'*)."
+    "(e.g., *'Add a software account code 7500 for five hundred pounds under Indirect Overheads'*)."
 )
 
 st.caption("Click the microphone to record your voice command")
@@ -79,10 +79,10 @@ if "trial_balance_matrix" not in st.session_state:
     st.session_state.trial_balance_matrix = pd.DataFrame([
         {"Account Code": "1000", "Account Name": "Gross Sales Turnover", "Accounting Allocation Bucket": "Revenue", "Amount (£)": 50000.00},
         {"Account Code": "7000", "Account Name": "Staff Salaries Base", "Accounting Allocation Bucket": "Gross Wages", "Amount (£)": 4500.00},
-        {"Account Code": "2100", "Account Name": "Trade Creditors", "Accounting Allocation Bucket": "Accruals", "Amount (£)": 1200.00}
+        {"Account Code": "2100", "Account Name": "Trade Creditors", "Accounting Allocation Bucket": "Current Liabilities", "Amount (£)": 1200.00}
     ])
 
-# Render spreadsheet editor table with dynamic rows creation unlocked at the grid bottom line
+# Render spreadsheet editor table with complete granular balance sheet dropdown lists
 edited_tb_df = st.data_editor(
     st.session_state.trial_balance_matrix,
     use_container_width=True,
@@ -95,11 +95,15 @@ edited_tb_df = st.data_editor(
             options=[
                 "Revenue", 
                 "Gross Wages", 
-                "Direct Expenses (COGS)",      # ◄── UPDATED: Explicit Direct COGS notation
-                "Indirect Overheads (OpEx)",    # ◄── UPDATED: Explicit Indirect OpEx notation
-                "Accruals", 
+                "Direct Expenses (COGS)", 
+                "Indirect Overheads (OpEx)",
+                "Fixed Assets",                # ◄── FULLY RESTRUCTURED CATEGORIES
+                "Current Assets",              # ◄── FULLY RESTRUCTURED CATEGORIES
                 "Prepayments", 
-                "Equity Assets"
+                "Current Liabilities",         # ◄── FULLY RESTRUCTURED CATEGORIES
+                "Long-Term Liabilities",       # ◄── FULLY RESTRUCTURED CATEGORIES
+                "Accruals", 
+                "Equity & Reserves"            # ◄── FULLY RESTRUCTURED CATEGORIES
             ],
             required=True
         ),
