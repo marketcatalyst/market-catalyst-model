@@ -114,7 +114,7 @@ if entry_method == "🎛️ Live Scenario Sliders":
     debtor_days = st.sidebar.number_input("Debtor Days (Continuous Lag)", 0, 120, 30, 5, key="f_debtor")
     creditor_days = st.sidebar.number_input("Creditor Days (Payment Lag)", 0, 120, 30, 5, key="f_creditor")
 
-    # Safely connect parameters straight through to our central calculation engine file
+    # Pass all inputs and macro vector rates directly to our central formula package file
     forecast_df = ff.run_three_way_forecast(
         months=horizon_months, 
         starting_cash=STARTING_CASH_BASELINE, 
@@ -237,13 +237,46 @@ if forecast_df is not None:
         
     with tab_bs:
         st.markdown(f"### **Statement of Financial Position ({horizon_months}-Month Snapshot)** — *{selected_case}*")
-        bs_rows = {"Bank Cash Position (£)": "Current Assets: Cash at Bank", "Debtors Asset (£)": "Current Assets: Accounts Receivable (Debtors)", "Creditors Under 1 Yr (£)": "Current Liabilities: Accounts Payable & Owed", "Retained Earnings Balance (£)": "Capital & Reserves: Retained Earnings", "Variance (£)": "Double-Entry Validation Variance"}
-        st.data_editor(create_accounting_statement(forecast_df, bs_rows), use_container_width=True, hide_index=True, key="bs_view_editor")
+        
+        # --- GRANULAR CONSTITUENT ACCOUNT AUDIT TOGGLE ---
+        st.markdown("---")
+        audit_mode = st.toggle("🔍 Activate Granular Auditor View (Unpack Constituent Accounts)", key="bs_audit_toggle")
+        st.markdown("---")
+        
+        if not audit_mode:
+            # Standard High-Level Summary View
+            bs_rows = {
+                "Bank Cash Position (£)": "Current Assets: Cash at Bank", 
+                "Debtors Asset (£)": "Current Assets: Accounts Receivable (Debtors)", 
+                "Creditors Under 1 Yr (£)": "Current Liabilities: Accounts Payable & Owed", 
+                "Retained Earnings Balance (£)": "Capital & Reserves: Retained Earnings", 
+                "Variance (£)": "Double-Entry Validation Variance"
+            }
+            st.data_editor(create_accounting_statement(forecast_df, bs_rows), use_container_width=True, hide_index=True, key="bs_view_editor")
+        
+        else:
+            # Granular Breakdown View: Isolate and unpack structural accounting allocation buckets
+            st.info("📊 Deep-Dive Audit Active: Isolating constituent ledger rows assigned to baseline buckets.")
+            
+            if "trial_balance_matrix" in st.session_state:
+                raw_tb_df = st.session_state.trial_balance_matrix.copy()
+                
+                # Dynamic iteration across allocation tokens to showcase baseline ledger constituents
+                for bucket in raw_tb_df["Accounting Allocation Bucket"].unique():
+                    with st.expander(f"📁 Bucket Group: {bucket}", expanded=True):
+                        filtered_bucket_df = raw_tb_df[raw_tb_df["Accounting Allocation Bucket"] == bucket]
+                        st.dataframe(
+                            filtered_bucket_df[["Account Code", "Account Name", "Amount (£)"]],
+                            use_container_width=True,
+                            hide_index=True
+                        )
+            else:
+                st.warning("⚠️ No base trial balance matrix found in session memory to audit.")
         
     with tab_cf:
         st.markdown(f"### **Statement of Cash Flows ({horizon_months}-Month Indirect Reconciliation)**")
         cf_working = forecast_df[["Month", "Net Profit (£)", "Bank Cash Position (£)"]].copy()
-        cf_working["Net Cash Flow Movement"] = cf_working["Bank Cash Position (£)"].diff().fillna(cf_working["Bank Cash Position (£)"] - STARTING_CASH_BASELINE)
+        cf_working["Net Cash Flow Movement"] = cf_working["Bank Cash Position (£)"].diff().fillna(cf_working["Bank Cash Position (£)"].diff().fillna(cf_working["Bank Cash Position (£)"] - STARTING_CASH_BASELINE))
         cf_rows = {"Net Profit (£)": "Net Profit from Operations", "Net Cash Flow Movement": "Net Inflow / (Outflow) for Period", "Bank Cash Position (£)": "Closing Cash Balance in Bank"}
         st.data_editor(create_accounting_statement(cf_working, cf_rows), use_container_width=True, hide_index=True, key="cf_view_editor")
         
