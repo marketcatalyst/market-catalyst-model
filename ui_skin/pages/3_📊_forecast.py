@@ -18,26 +18,21 @@ STARTING_CASH_BASELINE = 500000.00
 # ==========================================
 # 📊 DATA AGGREGATION LINKAGE LAYER
 # ==========================================
-# Extract baseline figures directly from the user's live Ingestion Trial Balance matrix
 if "trial_balance_matrix" in st.session_state:
     tb_df = st.session_state.trial_balance_matrix.copy()
-    
-    # Coerce data types to ensure arithmetic stability
     tb_df["Amount (£)"] = pd.to_numeric(tb_df["Amount (£)"], errors="coerce").fillna(0.0)
     
-    # Dynamically extract and sum baseline rows assigned to each bucket
+    # Calculate sums for core tracking buckets
     derived_sales = float(tb_df[tb_df["Accounting Allocation Bucket"] == "Revenue"]["Amount (£)"].sum())
     derived_wages = float(tb_df[tb_df["Accounting Allocation Bucket"] == "Gross Wages"]["Amount (£)"].sum())
     derived_cogs  = float(tb_df[tb_df["Accounting Allocation Bucket"] == "Direct Expenses (COGS)"]["Amount (£)"].sum())
     derived_opex  = float(tb_df[tb_df["Accounting Allocation Bucket"] == "Indirect Overheads (OpEx)"]["Amount (£)"].sum())
     
-    # Dynamically compute base Gross Profit Margin from ingestion inputs
     if derived_sales > 0:
         derived_gp_pct = ((derived_sales - derived_cogs) / derived_sales) * 100.0
     else:
-        derived_gp_pct = 65.0 # Stable fallback if matrix sales are empty
+        derived_gp_pct = 65.0
 else:
-    # Safe fallback standards if the Ingestion matrix session layer hasn't initialized
     derived_sales, derived_wages, derived_opex, derived_gp_pct = 100000.00, 8672.57, 15000.00, 65.0
 
 # ==========================================
@@ -104,36 +99,21 @@ wage_inf_monthly = (1 + (wage_inf_annual / 100.0)) ** (1/12) - 1
 
 st.markdown("---")
 
-# --- SIDEBAR INTERFACE: DATA ENTRY METHOD SELECTION ---
+# --- SIDEBAR INTERFACE ---
 st.sidebar.header("📥 Data Entry Mode Configuration")
-entry_method = st.sidebar.radio(
-    "Select Input Mechanism:",
-    ["🔗 Synced Ingestion Ledger", "🎛️ Manual Override Sliders"]
-)
-
-st.sidebar.markdown("---")
-st.sidebar.header("📅 Timeline Horizon Configuration")
+entry_method = st.sidebar.radio("Select Input Mechanism:", ["🔗 Synced Ingestion Ledger", "🎛️ Manual Override Sliders"])
 horizon_months = st.sidebar.slider("Forecast Horizon Runway (Months)", 12, 60, 36, 12)
-st.sidebar.markdown("---")
 
-forecast_df = None
-
-# ==========================================
-# METHOD A: SYNCED INGESTION LEDGER DATA FLOW
-# ==========================================
 if entry_method == "🔗 Synced Ingestion Ledger":
     st.sidebar.subheader("🔒 Active Ingestion Ledger States")
-    st.sidebar.disabled = True
     st.sidebar.metric("Live Ledger Sales Base", f"£{derived_sales:,.2f}")
     st.sidebar.metric("Live Ledger Overheads (OpEx)", f"£{derived_opex:,.2f}")
     st.sidebar.metric("Calculated GP Margin", f"{derived_gp_pct:,.1f}%")
     st.sidebar.metric("Live Ledger Payroll Base", f"£{derived_wages:,.2f}")
     
-    st.sidebar.markdown("---")
     debtor_days = st.sidebar.number_input("Debtor Days (Continuous Lag)", 0, 120, 30, 5, key="f_debtor_sync")
     creditor_days = st.sidebar.number_input("Creditor Days (Payment Lag)", 0, 120, 30, 5, key="f_creditor_sync")
 
-    # Feed the inputs extracted directly from your ingestion grid down to the central forecasting module
     forecast_df = ff.run_three_way_forecast(
         months=horizon_months, starting_cash=STARTING_CASH_BASELINE, starting_retained_earnings=STARTING_CASH_BASELINE,
         monthly_sales=derived_sales, opex_input=derived_opex, gross_profit_percent=derived_gp_pct, monthly_wages=derived_wages,
@@ -141,10 +121,6 @@ if entry_method == "🔗 Synced Ingestion Ledger":
         vol_growth_monthly=vol_growth_monthly, price_inc_monthly=price_inc_monthly,
         supplier_inf_monthly=supplier_inf_monthly, wage_inf_monthly=wage_inf_monthly
     )
-
-# ==========================================
-# METHOD B: MANUAL OVERRIDE SLIDERS
-# ==========================================
 else:
     st.sidebar.subheader("📊 Operational Override Sliders")
     sales_input = st.sidebar.slider("Override Monthly Revenue (£)", 10000.0, 500000.0, 100000.0, 5000.0, format="£%.2f")
@@ -152,7 +128,6 @@ else:
     gp_input = st.sidebar.slider("Override Gross Profit Margin (%)", 10.0, 100.0, 65.0, 0.5)
     wages_input = st.sidebar.slider("Override Monthly Payroll / Wages (£)", 0.0, 100000.0, 8672.57, 500.0, format="£%.2f")
     
-    st.sidebar.markdown("---")
     debtor_days = st.sidebar.number_input("Debtor Days (Continuous Lag)", 0, 120, 30, 5, key="f_debtor_override")
     creditor_days = st.sidebar.number_input("Creditor Days (Payment Lag)", 0, 120, 30, 5, key="f_creditor_override")
 
@@ -165,7 +140,7 @@ else:
     )
 
 # ==========================================
-# RENDER STATEMENT VIEWS
+# RENDER RETAINED RECONCILIATION LAYERS
 # ==========================================
 if forecast_df is not None:
     cumulative_variance = forecast_df["Variance (£)"].iloc[-1]
@@ -190,7 +165,7 @@ if forecast_df is not None:
         return statement_df.T.reset_index().rename(columns={"index": "Financial Line Item"})
         
     with tab_pl:
-        st.markdown(f"### **Statement of Profit or Loss ({horizon_months}-Month Runway)** — *{selected_case}*")
+        st.markdown(f"### **Statement of Profit or Loss ({horizon_months}-Month Runway)**")
         pl_rows = {
             "Turnover (£)": "Revenue (Turnover)", 
             "Direct Expenses (COGS) (£)": "  Less: Cost of Sales (Direct COGS)",
@@ -201,13 +176,14 @@ if forecast_df is not None:
         st.data_editor(create_accounting_statement(forecast_df, pl_rows), use_container_width=True, hide_index=True, key="pl_view_editor")
         
     with tab_bs:
-        st.markdown(f"### **Statement of Financial Position ({horizon_months}-Month Snapshot)** — *{selected_case}*")
+        st.markdown(f"### **Statement of Financial Position ({horizon_months}-Month Snapshot)**")
         
         st.markdown("---")
         audit_mode = st.toggle("🔍 Activate Granular Auditor View (Unpack Constituent Accounts)", key="bs_audit_toggle")
         st.markdown("---")
         
         if not audit_mode:
+            # High-Level Summary
             bs_rows = {
                 "Bank Cash Position (£)": "Current Assets: Cash at Bank", 
                 "Debtors Asset (£)": "Current Assets: Accounts Receivable (Debtors)", 
@@ -217,15 +193,51 @@ if forecast_df is not None:
             }
             st.data_editor(create_accounting_statement(forecast_df, bs_rows), use_container_width=True, hide_index=True, key="bs_view_editor")
         else:
-            st.info("📊 Deep-Dive Audit Active: Isolating constituent ledger rows assigned to baseline buckets.")
+            # 💡 FIXED: True Time-Series Explosion mapping baseline metrics pro-rata across the forecast columns
+            st.info("📊 Deep-Dive Time-Series Audit Active: Unpacking structural line item columns into dynamic constituent accounts.")
+            
             if "trial_balance_matrix" in st.session_state:
                 raw_tb_df = st.session_state.trial_balance_matrix.copy()
-                for bucket in raw_tb_df["Accounting Allocation Bucket"].unique():
-                    with st.expander(f"📁 Bucket Group: {bucket}", expanded=True):
-                        filtered_bucket_df = raw_tb_df[raw_tb_df["Accounting Allocation Bucket"] == bucket]
-                        st.dataframe(filtered_bucket_df[["Account Code", "Account Name", "Amount (£)"]], use_container_width=True, hide_index=True)
+                raw_tb_df["Amount (£)"] = pd.to_numeric(raw_tb_df["Amount (£)"], errors="coerce").fillna(0.0)
+                
+                # Create maps connecting our explicit forecast table rows straight back to ingestion tokens
+                bucket_mapping = {
+                    "Revenue": "Turnover (£)",
+                    "Gross Wages": "Payroll Costs (£)",
+                    "Direct Expenses (COGS)": "Direct Expenses (COGS) (£)",
+                    "Indirect Overheads (OpEx)": "Indirect Overheads (£)",
+                    "Current Liabilities": "Creditors Under 1 Yr (£)"
+                }
+                
+                for ui_bucket, forecast_col in bucket_mapping.items():
+                    accounts_in_bucket = raw_tb_df[raw_tb_df["Accounting Allocation Bucket"] == ui_bucket]
+                    
+                    if not accounts_in_bucket.empty:
+                        with st.expander(f"📁 Dynamic Account Series Breakdown: {ui_bucket}", expanded=True):
+                            bucket_base_total = accounts_in_bucket["Amount (£)"].sum()
+                            exploded_records = []
+                            
+                            # Loop over every specific account row assigned to this financial bucket
+                            for _, acct_row in accounts_in_bucket.iterrows():
+                                acct_code = acct_row["Account Code"]
+                                acct_name = acct_row["Account Name"]
+                                base_val = acct_row["Amount (£)"]
+                                
+                                # Compute pro-rata ratio share of this specific ledger row
+                                ratio = (base_val / bucket_base_total) if bucket_base_total > 0 else 1.0
+                                
+                                row_series = {"Account": f"[{acct_code}] {acct_name}"}
+                                # Multiply each forecast column month value by this account's specific allocation ratio
+                                for m_idx in range(1, horizon_months + 1):
+                                    tot_for_month = forecast_df.loc[m_idx - 1, forecast_col]
+                                    row_series[f"Month {m_idx}"] = tot_for_month * ratio
+                                    
+                                exploded_records.append(row_series)
+                                
+                            exploded_df = pd.DataFrame(exploded_records)
+                            st.dataframe(exploded_df, use_container_width=True, hide_index=True)
             else:
-                st.warning("⚠️ No base trial balance matrix found in session memory.")
+                st.warning("⚠️ No initial trial balance matrix found in app memory to explode.")
         
     with tab_cf:
         st.markdown(f"### **Statement of Cash Flows ({horizon_months}-Month Indirect Reconciliation)**")
