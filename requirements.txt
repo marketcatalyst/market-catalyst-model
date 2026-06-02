@@ -1,4 +1,7 @@
-psycopg2-binary
+streamlit
 pandas
 numpy
+matplotlib
+openpyxl
 google-genai
+pydantic

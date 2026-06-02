@@ -2,58 +2,98 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+from pydantic import BaseModel, Field
+from google import genai
+from google.genai import types
 
 st.set_page_config(layout="wide", page_title="Ledger Ingestion & Hub")
 
 st.title("🔌 Ledger Ingestion & Voice Control Hub")
-st.caption("Active Workspace Layer • Manual Adjustments & Multi-Modal AI Automation Gateway")
+st.caption("Active Workspace Layer • Manual Adjustments & Native Google GenAI Automation Gateway")
 st.markdown("---")
 
 # ==========================================
-# 🎤 1. VOICE COMMAND AUTOMATION LAYER
+# 🎤 1. LIVE GOOGLE-GENAI VOICE AUTOMATION
 # ==========================================
-st.subheader("🎙️ Voice Command Automation (Gemini Multimodal AI)")
+st.subheader("🎙️ Voice Command Automation (Official Google GenAI SDK)")
 st.markdown(
     "Record a voice note to add or adjust accounts automatically "
-    "(e.g., *'Add a software account code 7500 for five hundred pounds under Indirect Overheads'*)."
+    "(e.g., *'Add a software account code 7500 for five hundred pounds under Indirect Overheads (OpEx)'*)."
 )
 
 st.caption("Click the microphone to record your voice command")
-
 audio_data = st.audio_input("Record voice instruction input sequence:", label_visibility="collapsed")
 
+# --- Define the Strict Target JSON Schema Structure via Pydantic ---
+class AccountingIntent(BaseModel):
+    account_code: str = Field(description="The unique numerical identifier code for the account ledger.")
+    account_name: str = Field(description="The descriptive account title or transaction source label.")
+    allocation_bucket: str = Field(description="Must map to one of: 'Revenue', 'Gross Wages', 'Direct Expenses (COGS)', 'Indirect Overheads (OpEx)', 'Fixed Assets', 'Current Assets', 'Prepayments', 'Current Liabilities', 'Long-Term Liabilities', 'Accruals', 'Equity & Reserves'.")
+    amount: float = Field(description="The absolute numerical transaction or balance sheet allocation value in pounds sterling.")
+
+# --- Real-Time Execution Pipeline ---
 if audio_data is not None:
-    st.info("⚡ Voice command captured successfully! Processing multimodal translation matrix...")
+    st.info("⚡ Voice command captured successfully! Compiling multi-modal payload...")
     
-    with st.spinner("Analyzing audio frequencies and mapping lexical accounting intents..."):
+    with st.spinner("Analyzing audio frequencies and running schema-enforced lexical parsing..."):
         try:
-            audio_bytes = audio_data.read()
+            # 1. Initialize the official GenAI SDK Client
+            # The client automatically searches your environment for st.secrets["GEMINI_API_KEY"] or os.environ["GEMINI_API_KEY"]
+            client = genai.Client()
             
-            simulated_extracted_payload = {
-                "Account Code": "7500",
-                "Account Name": "Software & SaaS Licensing",
-                "Accounting Allocation Bucket": "Indirect Overheads (OpEx)",
-                "Amount (£)": 500.00
+            # 2. Extract raw file bytes directly from the front-end stream
+            raw_audio_bytes = audio_data.read()
+            
+            # 3. Fire the request directly to the multi-modal flagship model
+            response = client.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=[
+                    types.Part.from_bytes(
+                        data=raw_audio_bytes,
+                        mime_type="audio/wav"
+                    ),
+                    "Analyze the provided accounting voice message. Extract the account code, description, target classification bucket, and numerical cash value. Map them strictly to the requested schema structure."
+                ],
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    response_schema=AccountingIntent,
+                    temperature=0.1  # Locked low for precise data extraction extraction stability
+                ),
+            )
+            
+            # 4. Parse the structurally validated response object back out
+            parsed_json = response.parsed
+            
+            # Map structural tokens cleanly over to match our active DataFrame names
+            structured_payload = {
+                "Account Code": str(parsed_json.account_code),
+                "Account Name": str(parsed_json.account_name),
+                "Accounting Allocation Bucket": str(parsed_json.allocation_bucket),
+                "Amount (£)": float(parsed_json.amount)
             }
             
-            st.markdown("#### 🧠 AI Lexical Analysis Results")
+            # Display real-time token breakdown metrics transparently to the user
+            st.markdown("#### 🧠 Live AI SDK Structural Mapping Results")
             col_ai1, col_ai2, col_ai3, col_ai4 = st.columns(4)
-            col_ai1.metric("Identified Code", simulated_extracted_payload["Account Code"])
-            col_ai2.metric("Parsed Name", simulated_extracted_payload["Account Name"])
-            col_ai3.metric("Mapped Bucket", simulated_extracted_payload["Accounting Allocation Bucket"])
-            col_ai4.metric("Extracted Value", f"£{simulated_extracted_payload['Amount (£)']:,.2f}")
+            col_ai1.metric("Identified Code", structured_payload["Account Code"])
+            col_ai2.metric("Parsed Name", structured_payload["Account Name"])
+            col_ai3.metric("Mapped Bucket", structured_payload["Accounting Allocation Bucket"])
+            col_ai4.metric("Extracted Value", f"£{structured_payload['Amount (£)']:,.2f}")
             
+            # Merge parsed data straight into our persistent front-end session states
             if "trial_balance_matrix" in st.session_state:
-                new_row = pd.DataFrame([simulated_extracted_payload])
-                if not st.session_state.trial_balance_matrix["Account Code"].astype(str).eq("7500").any():
+                new_row = pd.DataFrame([structured_payload])
+                # Duplication guard block checking account code constraints
+                if not st.session_state.trial_balance_matrix["Account Code"].astype(str).eq(structured_payload["Account Code"]).any():
                     st.session_state.trial_balance_matrix = pd.concat(
                         [st.session_state.trial_balance_matrix, new_row], 
                         ignore_index=True
                     )
-                    st.toast("🎯 Ledger auto-updated via Voice Command!", icon="🎙️")
+                    st.toast("🎯 Ledger table dynamically updated via Google GenAI!", icon="🎙️")
                     
-        except Exception as audio_err:
-            st.error(f"❌ Automation Engine Exception on lexical parse line: {str(audio_err)}")
+        except Exception as ai_err:
+            st.error(f"❌ SDK Automation Exception: {str(ai_err)}")
+            st.info("💡 Ensure your 'GEMINI_API_KEY' is added to your local .env file or Streamlit Cloud Secrets management dashboard panel.")
 
 st.markdown("---")
 
@@ -74,7 +114,6 @@ with col_tb_pop:
         st.markdown("**WHEN:** Adjust at baseline setup to map your company's actual opening balances or alter localized Chart of Accounts configurations.")
         st.markdown("**WHY:** Ensures accounting names match downstream database tracking requirements, preventing formula breaks across time horizons.")
 
-# Initialize default rows framework within persistent session cache memory if empty
 if "trial_balance_matrix" not in st.session_state:
     st.session_state.trial_balance_matrix = pd.DataFrame([
         {"Account Code": "1000", "Account Name": "Gross Sales Turnover", "Accounting Allocation Bucket": "Revenue", "Amount (£)": 50000.00},
@@ -82,7 +121,6 @@ if "trial_balance_matrix" not in st.session_state:
         {"Account Code": "2100", "Account Name": "Trade Creditors", "Accounting Allocation Bucket": "Current Liabilities", "Amount (£)": 1200.00}
     ])
 
-# Render spreadsheet editor table with complete granular balance sheet dropdown lists
 edited_tb_df = st.data_editor(
     st.session_state.trial_balance_matrix,
     use_container_width=True,
@@ -93,17 +131,9 @@ edited_tb_df = st.data_editor(
         "Accounting Allocation Bucket": st.column_config.SelectboxColumn(
             "Accounting Allocation Bucket",
             options=[
-                "Revenue", 
-                "Gross Wages", 
-                "Direct Expenses (COGS)", 
-                "Indirect Overheads (OpEx)",
-                "Fixed Assets",                # ◄── FULLY RESTRUCTURED CATEGORIES
-                "Current Assets",              # ◄── FULLY RESTRUCTURED CATEGORIES
-                "Prepayments", 
-                "Current Liabilities",         # ◄── FULLY RESTRUCTURED CATEGORIES
-                "Long-Term Liabilities",       # ◄── FULLY RESTRUCTURED CATEGORIES
-                "Accruals", 
-                "Equity & Reserves"            # ◄── FULLY RESTRUCTURED CATEGORIES
+                "Revenue", "Gross Wages", "Direct Expenses (COGS)", "Indirect Overheads (OpEx)",
+                "Fixed Assets", "Current Assets", "Prepayments", "Current Liabilities", 
+                "Long-Term Liabilities", "Accruals", "Equity & Reserves"
             ],
             required=True
         ),
@@ -112,7 +142,6 @@ edited_tb_df = st.data_editor(
     key="trial_balance_grid_editor"
 )
 
-# Persist and lock customized manually overwritten values back into session memory cache states
 if st.button("Commit Ledger Grid Modifications to Session Memory", use_container_width=False):
     st.session_state.trial_balance_matrix = edited_tb_df
     st.success("💾 Trial Balance states safely committed into central app session cache memory layers!")
