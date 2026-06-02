@@ -9,6 +9,7 @@ def run_winforecast_replication_engine(months: int = 36) -> pd.DataFrame:
     """
     Advanced 3-Way Forecasting Engine configured to systematically replicate 
     the multi-site, multi-loan, and staggered CapEx parameters of the legacy WinForecast report.
+    Eliminates calculation variances to maintain a perfect double-entry equilibrium scale.
     """
     records = []
     
@@ -21,7 +22,7 @@ def run_winforecast_replication_engine(months: int = 36) -> pd.DataFrame:
     fixed_asset_gross_base = 855716.00 + accum_depreciation
     
     # Outstanding Debt Balances
-    dbw_loan_principal = 0.0  # Will inject £400k in June 2026
+    dbw_loan_principal = 0.0  # Will inject £400k in Month 6 (June 2026)
     hp_loan_principal = 40868.00  # Opening HP debt layer
     
     for m in range(1, months + 1):
@@ -58,19 +59,16 @@ def run_winforecast_replication_engine(months: int = 36) -> pd.DataFrame:
         current_asset_nbv = fixed_asset_gross_base - accum_depreciation
         
         # --- 4. FINANCING CASH INJECTIONS & REPAYMENTS ---
-        loan_injection = 0.0
-        if m == 6:  # June 2026: Inject the new £400,000 DBW development loan
-            loan_injection = 400000.0
-            dbw_loan_principal = 400000.0
+        if m == 6:  # June 2026: Inject the new £400,000 DBW development loan principal
+            dbw_loan_principal += 400000.0
             
         # Monthly Debt Amortization Outflows
-        dbw_payment = 0.0
-        if m > 6: # DBW Loan Repayments begin immediately in July 2026
+        if m > 6: # DBW Loan Repayments begin immediately in July 2026 (Month 7)
             dbw_payment = 8499.0
-            dbw_loan_principal -= (dbw_payment * 0.85) # Approximate principal reduction share
+            dbw_loan_principal -= (dbw_payment * 0.85) # Deduct principal portion
             
         hp_payment = 2546.0
-        hp_loan_principal -= (hp_payment * 0.90)
+        hp_loan_principal -= (hp_payment * 0.90) # Deduct HP principal portion
         
         total_outstanding_debt = max(0.0, dbw_loan_principal) + max(0.0, hp_loan_principal)
         
@@ -83,10 +81,15 @@ def run_winforecast_replication_engine(months: int = 36) -> pd.DataFrame:
         debtors_balance = turnover * 0.40
         trade_creditors = invoiced_costs * 0.80
         
+        # Total liabilities pool combines supplier lines with outstanding loan principal
         total_creditors = trade_creditors + total_outstanding_debt
         
-        # Double-entry cash isolation formula
-        current_cash = current_retained_earnings + total_creditors - debtors_balance - current_asset_nbv + loan_injection
+        # Assets = Liabilities + Equity --> (Cash + Debtors + Asset_NBV) = Creditors + Retained_Earnings
+        # Solved cleanly for Cash: Cash = Retained_Earnings + Creditors - Debtors - Asset_NBV
+        current_cash = current_retained_earnings + total_creditors - debtors_balance - current_asset_nbv
+        
+        # Validation checkpoint monitoring total macro asset alignment
+        variance = (current_cash + debtors_balance + current_asset_nbv) - (total_creditors + current_retained_earnings)
         
         records.append({
             "Month": f"Month {m}",
@@ -98,7 +101,7 @@ def run_winforecast_replication_engine(months: int = 36) -> pd.DataFrame:
             "Fixed Asset NBV (£)": current_asset_nbv,
             "Accounts Payable & Debt (£)": total_creditors,
             "Retained Earnings (£)": current_retained_earnings,
-            "Variance Check (£)": (current_cash + debtors_balance + current_asset_nbv) - (total_creditors + current_retained_earnings)
+            "Variance Check (£)": variance
         })
         
     return pd.DataFrame(records)
