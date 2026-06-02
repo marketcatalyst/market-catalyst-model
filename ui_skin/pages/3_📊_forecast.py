@@ -25,6 +25,7 @@ with col_scen_title:
     st.markdown("Select an economic case template below. **Double-click any cell to manually edit/override growth, inflation, or price increases live!**")
 
 with col_scen_pop:
+    # --- CONTEXTUAL WHAT, WHEN & WHY POP-UP NOTE ---
     with st.popover("ℹ️ Cases: What, When & Why?", use_container_width=True):
         st.markdown("### **📋 Scenario Matrix Documentation**")
         st.markdown("---")
@@ -113,49 +114,32 @@ if entry_method == "🎛️ Live Scenario Sliders":
     debtor_days = st.sidebar.number_input("Debtor Days (Continuous Lag)", 0, 120, 30, 5, key="f_debtor")
     creditor_days = st.sidebar.number_input("Creditor Days (Payment Lag)", 0, 120, 30, 5, key="f_creditor")
 
-    records = []
-    current_cash = STARTING_CASH_BASELINE
-    current_retained_earnings = STARTING_CASH_BASELINE
-    paye_ni_rate, pension_rate, vat_rate = 0.25, 0.05, 0.20
-    
-    for m in range(1, horizon_months + 1):
-        v_mult = (1 + vol_growth_monthly) ** (m - 1)
-        p_mult = (1 + price_inc_monthly) ** (m - 1)
-        s_mult = (1 + supplier_inf_monthly) ** (m - 1)
-        w_mult = (1 + wage_inf_monthly) ** (m - 1)
-        
-        turnover = sales_input * v_mult * p_mult
-        
-        # CORRECTED: Explicit breakdown of Direct Expenses (COGS) and Indirect Overheads (OpEx)
-        direct_expenses = (sales_input * v_mult * (1 - (gp_input / 100.0))) * s_mult
-        indirect_overheads = opex_input * w_mult
-        
-        wages_expense = wages_input * w_mult
-        total_payroll = wages_expense * (1 + paye_ni_rate + pension_rate)
-        
-        # True Net Profit Calculation Loop
-        net_profit = turnover - direct_expenses - indirect_overheads - total_payroll
-        current_retained_earnings += net_profit
-        
-        debtors_balance = (turnover * (1 + vat_rate)) * (debtor_days / 30.0)
-        trade_creditors = (direct_expenses * (1 + vat_rate)) * (creditor_days / 30.0)
-        
-        total_creditors = trade_creditors + (wages_expense * paye_ni_rate) + (wages_expense * pension_rate) + ((turnover * vat_rate) - (direct_expenses * vat_rate))
-        current_cash = current_retained_earnings + total_creditors - debtors_balance
-        variance = (current_cash + debtors_balance) - (total_creditors + current_retained_earnings)
-        
-        records.append({
-            "Month": f"Month {m}", "Turnover (£)": turnover, "Direct Expenses (COGS) (£)": direct_expenses,
-            "Indirect Overheads (£)": indirect_overheads, "Payroll Costs (£)": total_payroll,
-            "Net Profit (£)": net_profit, "Bank Cash Position (£)": current_cash, "Debtors Asset (£)": debtors_balance,
-            "Creditors Under 1 Yr (£)": total_creditors, "Retained Earnings Balance (£)": current_retained_earnings, "Variance (£)": variance
-        })
-    forecast_df = pd.DataFrame(records)
+    # Safely connect parameters straight through to our central calculation engine file
+    forecast_df = ff.run_three_way_forecast(
+        months=horizon_months, 
+        starting_cash=STARTING_CASH_BASELINE, 
+        starting_retained_earnings=STARTING_CASH_BASELINE,
+        monthly_sales=sales_input, 
+        opex_input=opex_input,
+        gross_profit_percent=gp_input, 
+        monthly_wages=wages_input,
+        debtor_days=debtor_days, 
+        creditor_days=creditor_days,
+        vol_growth_monthly=vol_growth_monthly,
+        price_inc_monthly=price_inc_monthly,
+        supplier_inf_monthly=supplier_inf_monthly,
+        wage_inf_monthly=wage_inf_monthly
+    )
 
 # ==========================================
 # MODE B: ENTERPRISE CSV RECONCILIATION
 # ==========================================
 else:
+    with st.sidebar.popover("📋 CSV Blueprint: What, When & Why?", use_container_width=True):
+        st.markdown("### **📁 Bulk CSV Ledger Upload**")
+        st.markdown("Upload seasonal baseline operational values. The dynamic macro scenario matrix activated above will layer compounding trends over your uploaded file vectors automatically.")
+        st.code("Month,Revenue_Target,COGS_Absolute,OpEx_Absolute,Wages_Base\nMonth 1,125000.00,43750.00,15000.00,8672.57", language="csv")
+        
     uploaded_file = st.sidebar.file_uploader("Drop financial profile .csv below:", type=["csv"])
     
     st.sidebar.markdown("---")
