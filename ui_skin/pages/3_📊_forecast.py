@@ -45,40 +45,18 @@ if forecast_df is not None:
         statement_df.index = df["Month"]
         return statement_df.T.reset_index().rename(columns={"index": "Financial Line Item"})
         
-    # --- TAB 1: PROFIT & LOSS (WITH RE-ACTIVATED AUDITOR VIEW) ---
+    # --- TAB 1: PROFIT & LOSS ---
     with tab_pl:
         st.markdown(f"### **Statement of Profit or Loss ({horizon_months}-Month Runway)**")
-        pl_audit_mode = st.toggle("🔍 Activate Granular Auditor View (Explode Operational Accounts)", key="pl_audit_toggle")
-        st.markdown("---")
-        
-        if not pl_audit_mode:
-            pl_rows = {
-                "Turnover (£)": "Revenue (Turnover Summary)", 
-                "Direct Costs (£)": "  Less: Operating Cost of Sales (Direct COGS)",
-                "Depreciation Expense (£)": "  Less: Non-Cash Asset Impairments (Depreciation)",
-                "Net Profit (£)": "Net Operating Profit / (Loss) Retained Earnings"
-            }
-            st.data_editor(create_accounting_statement(forecast_df, pl_rows), use_container_width=True, hide_index=True, key="pl_view_editor")
-        else:
-            st.info("📊 Deep-Dive P&L Time-Series Audit Active: Unpacking statement columns into dynamic sub-ledgers.")
-            
-            # Replicate the detailed site performance streams extracted from WinForecast PDF Page 1 & 4
-            with st.expander("📁 Dynamic Account Performance Breakdown: Revenue (Turnover)", expanded=True):
-                rev_records = [
-                    {"Account": "[1010] Carmarthen Site Sales (Standard + Zero Mix)", **{f"Month {m}": forecast_df.loc[m-1, "Turnover (£)"] * 0.45 for m in range(1, horizon_months + 1)}},
-                    {"Account": "[1020] Wellfield Road Standard Rated Sales", **{f"Month {m}": forecast_df.loc[m-1, "Turnover (£)"] * 0.35 for m in range(1, horizon_months + 1)}},
-                    {"Account": "[1030] Bridgend & Cardiff Bay Expansion Pipeline", **{f"Month {m}": forecast_df.loc[m-1, "Turnover (£)"] * 0.20 for m in range(1, horizon_months + 1)}}
-                ]
-                st.dataframe(pd.DataFrame(rev_records), use_container_width=True, hide_index=True)
+        pl_rows = {
+            "Turnover (£)": "Revenue (Turnover Summary)", 
+            "Direct Costs (£)": "  Less: Operating Cost of Sales (Direct COGS)",
+            "Depreciation Expense (£)": "  Less: Non-Cash Asset Impairments (Depreciation)",
+            "Net Profit (£)": "Net Operating Profit / (Loss) Retained Earnings"
+        }
+        st.data_editor(create_accounting_statement(forecast_df, pl_rows), use_container_width=True, hide_index=True, key="pl_view_editor")
 
-            with st.expander("📁 Dynamic Account Performance Breakdown: Direct Expenses (COGS)", expanded=True):
-                cogs_records = [
-                    {"Account": "[5000] Productive Salaries & Staffing Base", **{f"Month {m}": forecast_df.loc[m-1, "Direct Costs (£)"] * 0.40 for m in range(1, horizon_months + 1)}},
-                    {"Account": "[5100] Invoiced Material Costs & Ingredient Runs", **{f"Month {m}": forecast_df.loc[m-1, "Direct Costs (£)"] * 0.60 for m in range(1, horizon_months + 1)}}
-                ]
-                st.dataframe(pd.DataFrame(cogs_records), use_container_width=True, hide_index=True)
-
-    # --- TAB 2: BALANCE SHEET (WITH RE-ACTIVATED AUDITOR VIEW) ---
+    # --- TAB 2: BALANCE SHEET (TRUE GRANULAR EXPLOSION UPGRADE) ---
     with tab_bs:
         st.markdown(f"### **Statement of Financial Position ({horizon_months}-Month Snapshot)**")
         bs_audit_mode = st.toggle("🔍 Activate Granular Auditor View (Unpack Constituent Accounts)", key="bs_audit_toggle")
@@ -94,21 +72,82 @@ if forecast_df is not None:
             }
             st.data_editor(create_accounting_statement(forecast_df, bs_rows), use_container_width=True, hide_index=True, key="bs_view_editor")
         else:
-            st.info("📊 Deep-Dive Balance Sheet Audit Active: Isolating constituent long-term asset structures and active debt pools.")
+            st.info("📊 Deep-Dive Balance Sheet Audit Active: Unpacking statement columns into true asset and liability sub-ledgers.")
             
-            # Explode the heavy infrastructure balances extracted from WinForecast PDF Page 3 & 6
+            # 🏢 1. FIXED ASSETS REGISTRY SUB-LEDGER EXPLOSION (WinForecast Page 3 & 6 Replicated)
             with st.expander("📁 Dynamic Asset Series Breakdown: Non-Current Fixed Assets (NBV)", expanded=True):
-                asset_records = [
-                    {"Account": "[4100] Kitchen Equipment & Plant Property", **{f"Month {m}": forecast_df.loc[m-1, "Fixed Asset NBV (£)"] * 0.50 for m in range(1, horizon_months + 1)}},
-                    {"Account": "[4200] New Site Refurbishments (Bridgend/Cardiff/Penarth)", **{f"Month {m}": forecast_df.loc[m-1, "Fixed Asset NBV (£)"] * 0.50 for m in range(1, horizon_months + 1)}}
-                ]
+                asset_records = []
+                
+                # Baseline fixed assets core asset blocks
+                base_kitchen_equipment = 236438.00 [cite: 6, 21]
+                base_leasehold_improvements = 167818.00 [cite: 6, 21]
+                base_motor_vehicles = 139979.00 [cite: 6, 21]
+                
+                for m_idx in range(1, horizon_months + 1):
+                    # Reconstruct dynamic multi-site expansion additions chronologically
+                    fixtures_addition = sum(24000.0 for i in range(5, min(m_idx + 1, 10))) if m_idx >= 5 else 0.0 [cite: 6]
+                    bridgend_addition = 40000.0 if m_idx >= 6 else 0.0 [cite: 6, 21]
+                    cardiff_addition = 25000.0 if m_idx >= 6 else 0.0 [cite: 6, 21]
+                    penarth_addition = 200000.0 if m_idx >= 7 else 0.0 [cite: 6, 21]
+                    merthyr_addition = (60000.0 if m_idx == 11 else 120000.0) if m_idx >= 11 else 0.0 [cite: 6]
+                    
+                    # Track monthly accumulated non-cash depreciation decay steps
+                    rolling_depr_charge = 4355.0 * m_idx if m_idx <= 12 else (52260.0 + (8219.0 * (m_idx - 12))) [cite: 14]
+                    
+                    if m_idx == 1:
+                        asset_records = [
+                            {"Account": "[4010] Historical Fixed Asset Cost Core (Kitchen & Leasehold Equipment)"},
+                            {"Account": "[4110] New Fixtures & Fittings 2026 Expansion Asset Profile"},
+                            {"Account": "[4120] Bridgend Town Centre Refurbishment Asset Line"},
+                            {"Account": "[4130] Cardiff Bay Refurbishment Asset Line"},
+                            {"Account": "[4140] Penarth Business Acquisition Ledger"},
+                            {"Account": "[4150] Merthyr Site Asset Infrastructure Pipeline"},
+                            {"Account": "[4990] Less: Accumulated Depreciation Control Account"}
+                        ]
+                    
+                    # Distribute explicit asset values horizontally across columns
+                    asset_records[0][f"Month {m_idx}"] = base_kitchen_equipment + base_leasehold_improvements + base_motor_vehicles [cite: 6, 21]
+                    asset_records[1][f"Month {m_idx}"] = fixtures_addition [cite: 6]
+                    asset_records[2][f"Month {m_idx}"] = bridgend_addition [cite: 6, 21]
+                    asset_records[3][f"Month {m_idx}"] = cardiff_addition [cite: 6, 21]
+                    asset_records[4][f"Month {m_idx}"] = penarth_addition [cite: 6, 21]
+                    asset_records[5][f"Month {m_idx}"] = merthyr_addition [cite: 6]
+                    asset_records[6][f"Month {m_idx}"] = -rolling_depr_charge [cite: 14]
+                    
                 st.dataframe(pd.DataFrame(asset_records), use_container_width=True, hide_index=True)
                 
+            # 🏦 2. CORPORATE LIABILITY & CREDITORS SCHEDULE EXTRACTION (WinForecast Page 3 & 6 Replicated)
             with st.expander("📁 Dynamic Liability Series Breakdown: Current Liabilities & Loans", expanded=True):
-                liability_records = [
-                    {"Account": "[2100] Trade Creditors (Invoiced Supplier Balance Lags)", **{f"Month {m}": forecast_df.loc[m-1, "Accounts Payable & Debt (£)"] * 0.40 for m in range(1, horizon_months + 1)}},
-                    {"Account": "[2300] Development Loans (DBW Funding Injection Pool)", **{f"Month {m}": forecast_df.loc[m-1, "Accounts Payable & Debt (£)"] * 0.60 for m in range(1, horizon_months + 1)}}
-                ]
+                liability_records = []
+                
+                # Starting debt ledger principal balances
+                hp_remaining = 40868.00 [cite: 6, 22]
+                dbw_remaining = 0.0
+                
+                for m_idx in range(1, horizon_months + 1):
+                    # Simulate the explicit June 2026 loan drawdowns
+                    if m_idx == 6: 
+                        dbw_remaining = 400000.00 [cite: 6, 22]
+                    elif m_idx > 6: 
+                        dbw_remaining = max(0.0, 400000.00 - ((8499.00 * 0.85) * (m_idx - 6))) [cite: 6, 22]
+                        
+                    hp_remaining = max(0.0, 40868.00 - ((2546.00 * 0.90) * m_idx)) [cite: 6, 22]
+                    
+                    # Calculate net trade supplier lines from core engine data frame records
+                    total_creditors_block = forecast_df.loc[m_idx - 1, "Accounts Payable & Debt (£)"]
+                    calculated_trade_suppliers = total_creditors_block - dbw_remaining - hp_remaining
+                    
+                    if m_idx == 1:
+                        liability_records = [
+                            {"Account": "[2100] Trade Creditors Control Account (Invoiced Supplier Material Lags)"},
+                            {"Account": "[2310] New DBW Development Expansion Loan Pool (£400k Principal)"},
+                            {"Account": "[2340] Outstanding Hire Purchase Asset Finance Liability Account"}
+                        ]
+                        
+                    liability_records[0][f"Month {m_idx}"] = calculated_trade_suppliers
+                    liability_records[1][f"Month {m_idx}"] = dbw_remaining
+                    liability_records[2][f"Month {m_idx}"] = hp_remaining
+                    
                 st.dataframe(pd.DataFrame(liability_records), use_container_width=True, hide_index=True)
 
     # --- TAB 3: CASH FLOW ---
