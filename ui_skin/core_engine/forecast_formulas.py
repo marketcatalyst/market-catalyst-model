@@ -1,21 +1,23 @@
-# core_engine/forecast_formulas.py
+# ui_skin/core_engine/forecast_formulas.py
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
+import io
 
 def run_three_way_forecast(
     months: int = 36,
     starting_cash: float = 500000.00,
     starting_retained_earnings: float = 500000.00,
     monthly_sales: float = 100000.00,
-    opex_input: float = 15000.00,          # ◄── ADDED: Core Overhead Baseline Input
+    opex_input: float = 15000.00,
     gross_profit_percent: float = 65.0,
     monthly_wages: float = 8672.57,
     debtor_days: int = 30,
     creditor_days: int = 30,
-    vol_growth_monthly: float = 0.0,       # ◄── ADDED: Dynamic Index Hooks Passed Natively
-    price_inc_monthly: float = 0.0,        # ◄── ADDED: Dynamic Index Hooks Passed Natively
-    supplier_inf_monthly: float = 0.0,     # ◄── ADDED: Dynamic Index Hooks Passed Natively
-    wage_inf_monthly: float = 0.0          # ◄── ADDED: Dynamic Index Hooks Passed Natively
+    vol_growth_monthly: float = 0.0,
+    price_inc_monthly: float = 0.0,
+    supplier_inf_monthly: float = 0.0,
+    wage_inf_monthly: float = 0.0
 ) -> pd.DataFrame:
     """
     Executes a mathematically balanced 3-Way Financial Model over a flexible monthly horizon.
@@ -92,3 +94,54 @@ def run_three_way_forecast(
         })
         
     return pd.DataFrame(records)
+
+def generate_forecast_charts(forecast_df: pd.DataFrame) -> io.BytesIO:
+    """
+    Programmatically compiles a multi-pane operational dashboard chart 
+    and returns a clean, un-saved byte stream for injection into PDF and UI layouts.
+    """
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+    
+    # Chart A: Cash vs. Liability Runway Tracking
+    ax1.plot(forecast_df["Month"], forecast_df["Bank Cash Position (£)"], color="#00C0F2", label="Bank Cash Position", linewidth=2.5)
+    ax1.plot(forecast_df["Month"], forecast_df["Creditors Under 1 Yr (£)"], color="#FF4B4B", label="Current Liabilities", linestyle="--")
+    ax1.set_title("Liquidity & Runway Trajectory", fontsize=11, fontweight="bold")
+    ax1.set_ylabel("Value (£)")
+    ax1.legend()
+    ax1.grid(True, alpha=0.3)
+    
+    # Chart B: Net Profit Operational Scaling
+    ax2.bar(forecast_df["Month"], forecast_df["Turnover (£)"], color="#1E3A8A", alpha=0.15, label="Gross Turnover")
+    ax2.plot(forecast_df["Month"], forecast_df["Net Profit (£)"], color="#10B981", label="EBITDA Profit Line", linewidth=2.5)
+    ax2.set_title("Revenue Velocity vs. Earnings (EBITDA)", fontsize=11, fontweight="bold")
+    ax2.set_ylabel("Value (£)")
+    ax2.legend()
+    ax2.grid(True, alpha=0.3)
+    
+    # Auto-adjust tick display constraints for clean presentation
+    for ax in [ax1, ax2]:
+        ax.set_xticks(forecast_df["Month"][::max(1, len(forecast_df)//5)])
+        ax.tick_params(axis='x', rotation=15)
+        
+    plt.tight_layout()
+    img_buf = io.BytesIO()
+    plt.savefig(img_buf, format="png", dpi=200)
+    img_buf.seek(0)
+    plt.close()
+    return img_buf
+
+def convert_df_to_excel(forecast_df: pd.DataFrame) -> io.BytesIO:
+    """
+    Compiles an audit-ready multi-tab Excel Workbook containing deep-dive performance grids.
+    """
+    excel_buf = io.BytesIO()
+    with pd.ExcelWriter(excel_buf, engine="openpyxl") as writer:
+        # Export comprehensive consolidated calculations to sheet tab 1
+        forecast_df.to_excel(writer, sheet_name="Consolidated Runway Data", index=False)
+        
+        # Segment individual statement sub-schedules onto their own tabs for clarity
+        forecast_df[["Month", "Turnover (£)", "Direct Expenses (COGS) (£)", "Indirect Overheads (£)", "Payroll Costs (£)", "Net Profit (£)"]].to_excel(writer, sheet_name="Profit & Loss Schedule", index=False)
+        forecast_df[["Month", "Bank Cash Position (£)", "Debtors Asset (£)", "Creditors Under 1 Yr (£)", "Retained Earnings Balance (£)"]].to_excel(writer, sheet_name="Balance Sheet Schedule", index=False)
+        
+    excel_buf.seek(0)
+    return excel_buf
