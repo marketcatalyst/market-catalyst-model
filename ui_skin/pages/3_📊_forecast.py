@@ -3,8 +3,8 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 
-# Native Workspace Root Import targeting our verified nested path
-import ui_skin.core_engine.forecast_formulas as ff
+# Native Workspace Root Import (Corrected relative path for Streamlit Cloud execution context)
+import core_engine.forecast_formulas as ff
 
 st.set_page_config(layout="wide", page_title="3-Way Financial Forecast")
 
@@ -271,11 +271,9 @@ if forecast_df is not None:
         cf_rows = {"Net Profit (£)": "Net Profit from Operations", "Net Cash Flow Movement": "Net Inflow / (Outflow) for Period", "Bank Cash Position (£)": "Closing Cash Balance in Bank"}
         st.data_editor(create_accounting_statement(cf_working, cf_rows), use_container_width=True, hide_index=True, key="cf_view_editor")
         
-    # --- TAB 4: MASTER DATA LEDGER (FIXED: COLUMNAR SNAPSHOT TRANSFORMATION) ---
+    # --- TAB 4: MASTER DATA LEDGER ---
     with tab_master:
         st.markdown("### **Master Data Ledger Grid (Horizontal Time-Series Columns)**")
-        
-        # Transpose the entire dataframe so data rows run horizontally as columns, matching the statements
         master_transposed = forecast_df.set_index("Month").T.reset_index().rename(columns={"index": "Database Data Field Line Item"})
         st.data_editor(master_transposed, use_container_width=True, hide_index=True, key="master_grid_editor")
 
