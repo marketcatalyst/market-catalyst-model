@@ -3,8 +3,8 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 
-# Native Workspace Root Import
-import core_engine.forecast_formulas as ff
+# Native Workspace Root Import targeting our verified nested path
+import ui_skin.core_engine.forecast_formulas as ff
 
 st.set_page_config(layout="wide", page_title="3-Way Financial Forecast")
 
@@ -12,8 +12,33 @@ st.title("📊 Primary 3-Way Integrated Forecast")
 st.caption("Core Financial Reporting Layer • Professional Multi-Statement Ledger Framework")
 st.markdown("---")
 
-# --- GLOBAL MODELING BASELINES ---
+# Global Starting Baselines
 STARTING_CASH_BASELINE = 500000.00
+
+# ==========================================
+# 📊 DATA AGGREGATION LINKAGE LAYER
+# ==========================================
+# Extract baseline figures directly from the user's live Ingestion Trial Balance matrix
+if "trial_balance_matrix" in st.session_state:
+    tb_df = st.session_state.trial_balance_matrix.copy()
+    
+    # Coerce data types to ensure arithmetic stability
+    tb_df["Amount (£)"] = pd.to_numeric(tb_df["Amount (£)"], errors="coerce").fillna(0.0)
+    
+    # Dynamically extract and sum baseline rows assigned to each bucket
+    derived_sales = float(tb_df[tb_df["Accounting Allocation Bucket"] == "Revenue"]["Amount (£)"].sum())
+    derived_wages = float(tb_df[tb_df["Accounting Allocation Bucket"] == "Gross Wages"]["Amount (£)"].sum())
+    derived_cogs  = float(tb_df[tb_df["Accounting Allocation Bucket"] == "Direct Expenses (COGS)"]["Amount (£)"].sum())
+    derived_opex  = float(tb_df[tb_df["Accounting Allocation Bucket"] == "Indirect Overheads (OpEx)"]["Amount (£)"].sum())
+    
+    # Dynamically compute base Gross Profit Margin from ingestion inputs
+    if derived_sales > 0:
+        derived_gp_pct = ((derived_sales - derived_cogs) / derived_sales) * 100.0
+    else:
+        derived_gp_pct = 65.0 # Stable fallback if matrix sales are empty
+else:
+    # Safe fallback standards if the Ingestion matrix session layer hasn't initialized
+    derived_sales, derived_wages, derived_opex, derived_gp_pct = 100000.00, 8672.57, 15000.00, 65.0
 
 # ==========================================
 # 📈 INTERACTIVE SCENARIO MATRIX INPUT SHEET
@@ -25,7 +50,6 @@ with col_scen_title:
     st.markdown("Select an economic case template below. **Double-click any cell to manually edit/override growth, inflation, or price increases live!**")
 
 with col_scen_pop:
-    # --- CONTEXTUAL WHAT, WHEN & WHY POP-UP NOTE ---
     with st.popover("ℹ️ Cases: What, When & Why?", use_container_width=True):
         st.markdown("### **📋 Scenario Matrix Documentation**")
         st.markdown("---")
@@ -38,7 +62,6 @@ with col_scen_pop:
         st.markdown("**⚠️ HIGH-INFLATION DOWNSIDE**")
         st.markdown("* *What:* Stagnant demand (2%) where pricing must be forced up (12%) to combat extreme 10% supplier cost creep.")
 
-# Initialize scenario state storage within Streamlit's runtime memory session
 if "scenario_matrix" not in st.session_state:
     st.session_state.scenario_matrix = pd.DataFrame({
         "Scenario Case": ["🟢 Base Case Plan", "🔥 Best Case Expansion", "⚠️ High-Inflation Downside"],
@@ -48,7 +71,6 @@ if "scenario_matrix" not in st.session_state:
         "Annual Wage Inflation (%)": [5.0, 3.0, 8.0]
     })
 
-# RENDER FULLY EDITABLE INTERACTIVE SCENARIO MATRIX
 edited_scenario_df = st.data_editor(
     st.session_state.scenario_matrix,
     use_container_width=True,
@@ -63,21 +85,18 @@ edited_scenario_df = st.data_editor(
     key="macro_scenario_editor"
 )
 
-# Active Case Radio Selector
 selected_case = st.radio(
     "Activate Macro Matrix Tracking Profile:",
     options=edited_scenario_df["Scenario Case"].tolist(),
     horizontal=True
 )
 
-# Parse selected parameters out dynamically
 case_row = edited_scenario_df[edited_scenario_df["Scenario Case"] == selected_case].iloc[0]
 vol_growth_annual = float(case_row["Annual Volume Growth (%)"])
 price_inc_annual = float(case_row["Annual Price Increase (%)"])
 supplier_inf_annual = float(case_row["Annual Supplier Inflation (%)"])
 wage_inf_annual = float(case_row["Annual Wage Inflation (%)"])
 
-# Convert annual compounding targets down to exact monthly index vectors
 vol_growth_monthly = (1 + (vol_growth_annual / 100.0)) ** (1/12) - 1
 price_inc_monthly = (1 + (price_inc_annual / 100.0)) ** (1/12) - 1
 supplier_inf_monthly = (1 + (supplier_inf_annual / 100.0)) ** (1/12) - 1
@@ -89,7 +108,7 @@ st.markdown("---")
 st.sidebar.header("📥 Data Entry Mode Configuration")
 entry_method = st.sidebar.radio(
     "Select Input Mechanism:",
-    ["🎛️ Live Scenario Sliders", "📁 Bulk CSV Ledger Upload"]
+    ["🔗 Synced Ingestion Ledger", "🎛️ Manual Override Sliders"]
 )
 
 st.sidebar.markdown("---")
@@ -100,107 +119,53 @@ st.sidebar.markdown("---")
 forecast_df = None
 
 # ==========================================
-# MODE A: NATIVE INTERACTIVE SLIDERS
+# METHOD A: SYNCED INGESTION LEDGER DATA FLOW
 # ==========================================
-if entry_method == "🎛️ Live Scenario Sliders":
-    st.sidebar.subheader("📊 Operational Baseline Parameters")
-    sales_input = st.sidebar.slider("Base Monthly Revenue (£)", 10000.0, 500000.0, 100000.0, 5000.0, format="£%.2f")
-    opex_input = st.sidebar.slider("Base Monthly Overheads / OpEx (£)", 0.0, 100000.0, 15000.0, 1000.0, format="£%.2f")
-    gp_input = st.sidebar.slider("Base Gross Profit Margin (%)", 10.0, 100.0, 65.0, 0.5)
-    wages_input = st.sidebar.slider("Base Monthly Payroll / Wages (£)", 0.0, 100000.0, 8672.57, 500.0, format="£%.2f")
+if entry_method == "🔗 Synced Ingestion Ledger":
+    st.sidebar.subheader("🔒 Active Ingestion Ledger States")
+    st.sidebar.disabled = True
+    st.sidebar.metric("Live Ledger Sales Base", f"£{derived_sales:,.2f}")
+    st.sidebar.metric("Live Ledger Overheads (OpEx)", f"£{derived_opex:,.2f}")
+    st.sidebar.metric("Calculated GP Margin", f"{derived_gp_pct:,.1f}%")
+    st.sidebar.metric("Live Ledger Payroll Base", f"£{derived_wages:,.2f}")
     
     st.sidebar.markdown("---")
-    st.sidebar.subheader("⏳ Working Capital Timing")
-    debtor_days = st.sidebar.number_input("Debtor Days (Continuous Lag)", 0, 120, 30, 5, key="f_debtor")
-    creditor_days = st.sidebar.number_input("Creditor Days (Payment Lag)", 0, 120, 30, 5, key="f_creditor")
+    debtor_days = st.sidebar.number_input("Debtor Days (Continuous Lag)", 0, 120, 30, 5, key="f_debtor_sync")
+    creditor_days = st.sidebar.number_input("Creditor Days (Payment Lag)", 0, 120, 30, 5, key="f_creditor_sync")
 
-    # Pass all inputs and macro vector rates directly to our central formula package file
+    # Feed the inputs extracted directly from your ingestion grid down to the central forecasting module
     forecast_df = ff.run_three_way_forecast(
-        months=horizon_months, 
-        starting_cash=STARTING_CASH_BASELINE, 
-        starting_retained_earnings=STARTING_CASH_BASELINE,
-        monthly_sales=sales_input, 
-        opex_input=opex_input,
-        gross_profit_percent=gp_input, 
-        monthly_wages=wages_input,
-        debtor_days=debtor_days, 
-        creditor_days=creditor_days,
-        vol_growth_monthly=vol_growth_monthly,
-        price_inc_monthly=price_inc_monthly,
-        supplier_inf_monthly=supplier_inf_monthly,
-        wage_inf_monthly=wage_inf_monthly
+        months=horizon_months, starting_cash=STARTING_CASH_BASELINE, starting_retained_earnings=STARTING_CASH_BASELINE,
+        monthly_sales=derived_sales, opex_input=derived_opex, gross_profit_percent=derived_gp_pct, monthly_wages=derived_wages,
+        debtor_days=debtor_days, creditor_days=creditor_days,
+        vol_growth_monthly=vol_growth_monthly, price_inc_monthly=price_inc_monthly,
+        supplier_inf_monthly=supplier_inf_monthly, wage_inf_monthly=wage_inf_monthly
     )
 
 # ==========================================
-# MODE B: ENTERPRISE CSV RECONCILIATION
+# METHOD B: MANUAL OVERRIDE SLIDERS
 # ==========================================
 else:
-    with st.sidebar.popover("📋 CSV Blueprint: What, When & Why?", use_container_width=True):
-        st.markdown("### **📁 Bulk CSV Ledger Upload**")
-        st.markdown("Upload seasonal baseline operational values. The dynamic macro scenario matrix activated above will layer compounding trends over your uploaded file vectors automatically.")
-        st.code("Month,Revenue_Target,COGS_Absolute,OpEx_Absolute,Wages_Base\nMonth 1,125000.00,43750.00,15000.00,8672.57", language="csv")
-        
-    uploaded_file = st.sidebar.file_uploader("Drop financial profile .csv below:", type=["csv"])
+    st.sidebar.subheader("📊 Operational Override Sliders")
+    sales_input = st.sidebar.slider("Override Monthly Revenue (£)", 10000.0, 500000.0, 100000.0, 5000.0, format="£%.2f")
+    opex_input = st.sidebar.slider("Override Monthly Overheads / OpEx (£)", 0.0, 100000.0, 15000.0, 1000.0, format="£%.2f")
+    gp_input = st.sidebar.slider("Override Gross Profit Margin (%)", 10.0, 100.0, 65.0, 0.5)
+    wages_input = st.sidebar.slider("Override Monthly Payroll / Wages (£)", 0.0, 100000.0, 8672.57, 500.0, format="£%.2f")
     
     st.sidebar.markdown("---")
-    st.sidebar.subheader("⏳ Working Capital Timing")
-    debtor_days = st.sidebar.number_input("Debtor Days (Continuous Lag)", 0, 120, 30, 5, key="f_debtor_csv")
-    creditor_days = st.sidebar.number_input("Creditor Days (Payment Lag)", 0, 120, 30, 5, key="f_creditor_csv")
+    debtor_days = st.sidebar.number_input("Debtor Days (Continuous Lag)", 0, 120, 30, 5, key="f_debtor_override")
+    creditor_days = st.sidebar.number_input("Creditor Days (Payment Lag)", 0, 120, 30, 5, key="f_creditor_override")
 
-    if uploaded_file is not None:
-        try:
-            input_data = pd.read_csv(uploaded_file)
-            records = []
-            current_cash = STARTING_CASH_BASELINE
-            current_retained_earnings = STARTING_CASH_BASELINE
-            paye_ni_rate, pension_rate, vat_rate = 0.25, 0.05, 0.20
-            
-            for m in range(1, horizon_months + 1):
-                idx = m - 1
-                if idx < len(input_data):
-                    turnover_base = float(input_data.loc[idx, "Revenue_Target"])
-                    cogs_base = float(input_data.loc[idx, "COGS_Absolute"])
-                    opex_base = float(input_data.loc[idx, "OpEx_Absolute"]) if "OpEx_Absolute" in input_data.columns else 15000.0
-                    wages_base = float(input_data.loc[idx, "Wages_Base"])
-                else:
-                    turnover_base, cogs_base, opex_base, wages_base = 100000.0, 35000.0, 15000.0, 8672.57
-                
-                v_mult = (1 + vol_growth_monthly) ** (m - 1)
-                p_mult = (1 + price_inc_monthly) ** (m - 1)
-                s_mult = (1 + supplier_inf_monthly) ** (m - 1)
-                w_mult = (1 + wage_inf_monthly) ** (m - 1)
-                
-                turnover = turnover_base * v_mult * p_mult
-                direct_expenses = (cogs_base * v_mult) * s_mult
-                indirect_overheads = opex_base * w_mult
-                wages_expense = wages_base * w_mult
-                
-                total_payroll = wages_expense * (1 + paye_ni_rate + pension_rate)
-                net_profit = turnover - direct_expenses - indirect_overheads - total_payroll
-                current_retained_earnings += net_profit
-                
-                debtors_balance = (turnover * (1 + vat_rate)) * (debtor_days / 30.0)
-                trade_creditors = (direct_expenses * (1 + vat_rate)) * (creditor_days / 30.0)
-                
-                total_creditors = trade_creditors + (wages_expense * paye_ni_rate) + (wages_expense * pension_rate) + ((turnover * vat_rate) - (direct_expenses * vat_rate))
-                current_cash = current_retained_earnings + total_creditors - debtors_balance
-                variance = (current_cash + debtors_balance) - (total_creditors + current_retained_earnings)
-                
-                records.append({
-                    "Month": f"Month {m}", "Turnover (£)": turnover, "Direct Expenses (COGS) (£)": direct_expenses,
-                    "Indirect Overheads (£)": indirect_overheads, "Payroll Costs (£)": total_payroll,
-                    "Net Profit (£)": net_profit, "Bank Cash Position (£)": current_cash, "Debtors Asset (£)": debtors_balance,
-                    "Creditors Under 1 Yr (£)": total_creditors, "Retained Earnings Balance (£)": current_retained_earnings, "Variance (£)": variance
-                })
-            forecast_df = pd.DataFrame(records)
-            st.success("💾 Seasonal Excel Profile & Expense Matrices Synced!")
-        except Exception as e:
-            st.error(f"❌ Error compiling custom CSV data structures: {str(e)}")
-    else:
-        st.info(f"💡 Please upload your baseline seasonal ledger template .csv file to activate modeling views.")
+    forecast_df = ff.run_three_way_forecast(
+        months=horizon_months, starting_cash=STARTING_CASH_BASELINE, starting_retained_earnings=STARTING_CASH_BASELINE,
+        monthly_sales=sales_input, opex_input=opex_input, gross_profit_percent=gp_input, monthly_wages=wages_input,
+        debtor_days=debtor_days, creditor_days=creditor_days,
+        vol_growth_monthly=vol_growth_monthly, price_inc_monthly=price_inc_monthly,
+        supplier_inf_monthly=supplier_inf_monthly, wage_inf_monthly=wage_inf_monthly
+    )
 
 # ==========================================
-# RENDER CONVENTIONAL INTERFACE ENGINE
+# RENDER STATEMENT VIEWS
 # ==========================================
 if forecast_df is not None:
     cumulative_variance = forecast_df["Variance (£)"].iloc[-1]
@@ -238,13 +203,11 @@ if forecast_df is not None:
     with tab_bs:
         st.markdown(f"### **Statement of Financial Position ({horizon_months}-Month Snapshot)** — *{selected_case}*")
         
-        # --- GRANULAR CONSTITUENT ACCOUNT AUDIT TOGGLE ---
         st.markdown("---")
         audit_mode = st.toggle("🔍 Activate Granular Auditor View (Unpack Constituent Accounts)", key="bs_audit_toggle")
         st.markdown("---")
         
         if not audit_mode:
-            # Standard High-Level Summary View
             bs_rows = {
                 "Bank Cash Position (£)": "Current Assets: Cash at Bank", 
                 "Debtors Asset (£)": "Current Assets: Accounts Receivable (Debtors)", 
@@ -253,30 +216,21 @@ if forecast_df is not None:
                 "Variance (£)": "Double-Entry Validation Variance"
             }
             st.data_editor(create_accounting_statement(forecast_df, bs_rows), use_container_width=True, hide_index=True, key="bs_view_editor")
-        
         else:
-            # Granular Breakdown View: Isolate and unpack structural accounting allocation buckets
             st.info("📊 Deep-Dive Audit Active: Isolating constituent ledger rows assigned to baseline buckets.")
-            
             if "trial_balance_matrix" in st.session_state:
                 raw_tb_df = st.session_state.trial_balance_matrix.copy()
-                
-                # Dynamic iteration across allocation tokens to showcase baseline ledger constituents
                 for bucket in raw_tb_df["Accounting Allocation Bucket"].unique():
                     with st.expander(f"📁 Bucket Group: {bucket}", expanded=True):
                         filtered_bucket_df = raw_tb_df[raw_tb_df["Accounting Allocation Bucket"] == bucket]
-                        st.dataframe(
-                            filtered_bucket_df[["Account Code", "Account Name", "Amount (£)"]],
-                            use_container_width=True,
-                            hide_index=True
-                        )
+                        st.dataframe(filtered_bucket_df[["Account Code", "Account Name", "Amount (£)"]], use_container_width=True, hide_index=True)
             else:
-                st.warning("⚠️ No base trial balance matrix found in session memory to audit.")
+                st.warning("⚠️ No base trial balance matrix found in session memory.")
         
     with tab_cf:
         st.markdown(f"### **Statement of Cash Flows ({horizon_months}-Month Indirect Reconciliation)**")
         cf_working = forecast_df[["Month", "Net Profit (£)", "Bank Cash Position (£)"]].copy()
-        cf_working["Net Cash Flow Movement"] = cf_working["Bank Cash Position (£)"].diff().fillna(cf_working["Bank Cash Position (£)"].diff().fillna(cf_working["Bank Cash Position (£)"] - STARTING_CASH_BASELINE))
+        cf_working["Net Cash Flow Movement"] = cf_working["Bank Cash Position (£)"].diff().fillna(cf_working["Bank Cash Position (£)"] - STARTING_CASH_BASELINE)
         cf_rows = {"Net Profit (£)": "Net Profit from Operations", "Net Cash Flow Movement": "Net Inflow / (Outflow) for Period", "Bank Cash Position (£)": "Closing Cash Balance in Bank"}
         st.data_editor(create_accounting_statement(cf_working, cf_rows), use_container_width=True, hide_index=True, key="cf_view_editor")
         
