@@ -17,7 +17,6 @@ st.markdown("Upload structural text files, spreadsheet exports, or images of ope
 
 uploaded_file = st.file_uploader("Drop financial statement or trial balance exports here:", type=["csv", "txt", "pdf", "png", "jpg", "jpeg"])
 
-# Initialize the synchronized trial balance matrix with food service revenue & cost streams
 if "trial_balance_matrix" not in st.session_state:
     st.session_state.trial_balance_matrix = pd.DataFrame({
         "Account Code": ["1010", "1090", "5000", "7000", "7100"],
@@ -40,7 +39,7 @@ if "trial_balance_matrix" not in st.session_state:
 
 if uploaded_file is not None:
     st.info("⚡ Live Document Stream Detected: Parsing data structures via GenAI vision networks...")
-    st.toast("Document text vectors successfully tokenized!", icon="📄")
+    st.toast("Document text vectors successfully tokenised!", icon="📄")
 
 st.markdown("#### **Active Ingested Trial Balance Matrix**")
 edited_tb_df = st.data_editor(
@@ -53,7 +52,7 @@ edited_tb_df = st.data_editor(
         "Account Name": st.column_config.TextColumn("Account Description Name"),
         "Accounting Allocation Bucket": st.column_config.SelectboxColumn(
             "Accounting Allocation Bucket",
-            help="Classifying revenue tells the calculation engine whether to apply monthly seasonality vectors",
+            help="Categorising revenue tells the calculation engine whether to apply monthly seasonality vectors",
             options=["Revenue - Seasonal (Retail)", "Revenue - Fixed (Rental Income)", "Direct Expenses (COGS)", "Gross Wages", "Indirect Overheads (OpEx)"]
         ),
         "Amount (£)": st.column_config.NumberColumn("Baseline Amount (£)", format="£%,.2f", min_value=0.00)
@@ -98,7 +97,7 @@ edited_seasonality_df = st.data_editor(
 
 if st.button("Commit Seasonality Weights to Memory", key="save_seasonality_btn"):
     st.session_state.seasonality_profile_matrix = edited_seasonality_df
-    st.success("💾 12-Month operational seasonality vectors safely synchronized inside memory channels!")
+    st.success("💾 12-Month operational seasonality vectors safely synchronised inside memory channels!")
 
 st.markdown("---")
 
@@ -108,7 +107,6 @@ st.markdown("---")
 st.subheader("🚜 Interactive Capital Expenditure (CapEx) Asset Register")
 st.markdown("Plan your commercial kitchen additions, distribution infrastructure upgrades, or café facility fit-outs. Rows configured below dynamically feed into asset-carrying rows and run straight-line depreciation profiles automatically.")
 
-# Initialize the food-service-appropriate asset register in session memory
 if "capex_asset_register" not in st.session_state:
     st.session_state.capex_asset_register = pd.DataFrame([
         {
@@ -148,7 +146,7 @@ edited_capex_df = st.data_editor(
         ),
         "Gross Purchase Price (£)": st.column_config.NumberColumn(
             "Gross Purchase Cost (£)",
-            help="Total capitalized transaction asset value",
+            help="Total capitalised transaction asset value",
             format="£%,.2f",
             min_value=0.00,
             required=True
@@ -181,4 +179,4 @@ edited_capex_df = st.data_editor(
 
 if st.button("Commit Capital Asset Register to Memory", key="save_capex_btn"):
     st.session_state.capex_asset_register = edited_capex_df
-    st.success("💾 Dynamic fresh food infrastructure asset registry safe and synchronized within backend framework paths!")
+    st.success("💾 Dynamic fresh food infrastructure asset registry safe and synchronised within backend framework paths!")

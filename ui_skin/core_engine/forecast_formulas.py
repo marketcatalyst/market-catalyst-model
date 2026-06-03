@@ -14,7 +14,7 @@ def run_winforecast_replication_engine(months: int = 36, scenario: str = "Baseli
     records = []
     
     # --- 1. OPENING STATEMENT VALUATIONS ---
-    current_retained_earnings = -82005.00  # Exact Opening Retained Earnings deficit
+    current_retained_earnings = -82005.00  # Exact WinForecast Opening Retained Earnings deficit
     historical_asset_gross = 855716.00
     historical_accum_depr = 188514.00
     
@@ -188,7 +188,6 @@ def convert_df_to_excel(forecast_df: pd.DataFrame) -> io.BytesIO:
     """
     excel_buf = io.BytesIO()
     
-    # Define corporate row label mapping architectures matching the UI statement viewports exactly
     pl_rows = {
         "Turnover (£)": "Revenue (Turnover Summary)", 
         "Direct Costs (£)": "  Less: Operating Cost of Sales (Direct COGS)",
@@ -212,7 +211,6 @@ def convert_df_to_excel(forecast_df: pd.DataFrame) -> io.BytesIO:
     }
     
     def transpose_statement_frame(df: pd.DataFrame, row_mapping: dict) -> pd.DataFrame:
-        """Filters, renames, and transposes time rows into clean horizontal account tracks."""
         extracted_df = df[list(row_mapping.keys())].rename(columns=row_mapping)
         extracted_df.index = df["Month"]
         transposed = extracted_df.T
@@ -224,7 +222,6 @@ def convert_df_to_excel(forecast_df: pd.DataFrame) -> io.BytesIO:
         transpose_statement_frame(forecast_df, bs_rows).to_excel(writer, sheet_name="Balance Sheet (BS)", index=False)
         transpose_statement_frame(forecast_df, cf_rows).to_excel(writer, sheet_name="Cash Flow Statement (CF)", index=False)
         
-        # Include an audit tab of the flat vertical database schema for data analysis needs
         master_transposed = forecast_df.set_index("Month").T
         master_transposed.index.name = "Database Structural Field"
         master_transposed.reset_index().to_excel(writer, sheet_name="Master Data Ledger Grid", index=False)
