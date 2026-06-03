@@ -16,12 +16,11 @@ st.markdown("---")
 st.subheader("🏢 Sector & Underwriting Benchmark Alignment")
 st.markdown("Align your enterprise model with standardized industrial parameters. This pulls regional and operational compliance thresholds directly from your local market registry.")
 
-# Safe parsing of the background validation dataset
 try:
     if os.path.exists("static_data/sic_benchmarks.csv"):
         sic_df = pd.read_csv("static_data/sic_benchmarks.csv")
     else:
-        # Resilient baseline fallback matrix if file is initializing
+        # Resilient baseline fallback matrix if background registry file is unpopulated
         sic_df = pd.DataFrame({
             "sic_code": ["10710", "56101", "47110"],
             "industry_title": ["Manufacture of bread, fresh pastry goods and cakes", "Licensed restaurants & cafés", "Retail sale in non-specialised stores"],
@@ -36,7 +35,6 @@ except Exception:
         "max_allowable_labor_pct": [35.0]
     })
 
-# Format presentation string for user dropdown clarity
 sic_df["display_name"] = sic_df["sic_code"].astype(str) + " - " + sic_df["industry_title"]
 
 if "selected_sic_profile" not in st.session_state:
@@ -48,7 +46,6 @@ chosen_sic_string = st.selectbox(
     index=0
 )
 
-# Extract and lock selected sector row parameters into global state
 selected_row = sic_df[sic_df["display_name"] == chosen_sic_string].iloc[0]
 st.session_state.selected_sic_profile = {
     "sic_code": str(selected_row["sic_code"]),
@@ -66,33 +63,59 @@ st.info(
 st.markdown("---")
 
 # ==========================================
-# 📄 1. TRIAL BALANCE INGESTION
+# 📄 1. TRIAL BALANCE INGESTION CONTROL ENGINE
 # ==========================================
 st.subheader("📄 Automated Ledger & Trial Balance Ingestion")
-st.markdown("Upload historical accounting records. The system translates annual trial balance inputs into run-rate monthly operational baselines (Divided by 12) while preserving balance sheet snapshots at 100% face value.")
+st.markdown("Upload historical accounting records. The system enforces strict segregation between annual flows and snapshot balances.")
 
 uploaded_file = st.file_uploader("Drop financial statement or trial balance exports here:", type=["csv", "txt", "pdf", "png", "jpg", "jpeg"])
 
+# Uniform chart allocation keys used across calculation systems
+VALID_ACCOUNTING_BUCKETS = [
+    "Revenue - Seasonal (Retail)",
+    "Revenue - Fixed (Contractual)",
+    "Direct Expenses (COGS)",
+    "Gross Wages (Operational)",
+    "Indirect Overheads (OpEx)",
+    "Balance Sheet - Cash Asset",
+    "Balance Sheet - Existing Fixed Assets",
+    "Balance Sheet - Accounts Receivable",
+    "Balance Sheet - Accounts Payable",
+    "Balance Sheet - Long-Term Debt",
+    "Balance Sheet - Retained Earnings"
+]
+
 if "trial_balance_matrix" not in st.session_state:
+    # Double-entry balanced default data seed (Total Assets = Liabilities + Equity = £180,000.00)
     st.session_state.trial_balance_matrix = pd.DataFrame({
-        "Account Code": ["1010", "5000", "7000", "7100", "1200", "3000"],
+        "Account Code": ["1010", "1020", "5000", "7000", "7100", "1200", "1500", "1600", "2100", "2600", "3000"],
         "Account Name": [
-            "Core Retail & Site Sales Pool", 
+            "Core Retail & Site Sales Pool",
+            "Contractual Wholesale B2B Income",
             "Direct Ingredient Costs & Material COGS", 
             "Gross Staff & Kitchen Prep Salaries Ledger", 
             "Indirect Operational Overheads (OpEx)",
             "Bank Liquidity Main Clearing Account",      
+            "Production Ovens & Carrying Van Asset NBV",
+            "Outstanding Customer Invoices Debtors",
+            "Outstanding Supplier Invoices Creditors",
+            "Commercial Term Capital Facility Loan",
             "Accumulated Retained Earnings Reserves"     
         ],
         "Accounting Allocation Bucket": [
-            "Revenue - Seasonal (Retail)", 
+            "Revenue - Seasonal (Retail)",
+            "Revenue - Fixed (Contractual)",
             "Direct Expenses (COGS)", 
-            "Gross Wages", 
+            "Gross Wages (Operational)", 
             "Indirect Overheads (OpEx)",
             "Balance Sheet - Cash Asset",                
+            "Balance Sheet - Existing Fixed Assets",
+            "Balance Sheet - Accounts Receivable",
+            "Balance Sheet - Accounts Payable",
+            "Balance Sheet - Long-Term Debt",
             "Balance Sheet - Retained Earnings"          
         ],
-        "Amount (£)": [600000.00, 264000.00, 144000.00, 96000.00, 18500.00, 15000.00]
+        "Amount (£)": [600000.00, 60000.00, 240000.00, 180000.00, 72000.00, 20000.00, 150000.00, 10000.00, 8000.00, 50000.00, 122000.00]
     })
 
 if uploaded_file is not None:
@@ -110,18 +133,11 @@ edited_tb_df = st.data_editor(
         "Account Name": st.column_config.TextColumn("Account Description Name"),
         "Accounting Allocation Bucket": st.column_config.SelectboxColumn(
             "Accounting Allocation Bucket",
-            help="Categorising metrics routes values to the correct monthly calculation channels.",
-            options=[
-                "Revenue - Seasonal (Retail)", 
-                "Revenue - Fixed (Rental Income)", 
-                "Direct Expenses (COGS)", 
-                "Gross Wages", 
-                "Indirect Overheads (OpEx)",
-                "Balance Sheet - Cash Asset",
-                "Balance Sheet - Retained Earnings"
-            ]
+            help="Categorizing metrics routes values to the correct monthly calculation pipelines universally.",
+            options=VALID_ACCOUNTING_BUCKETS,
+            required=True
         ),
-        "Amount (£)": st.column_config.NumberColumn("Historical Annual Amount (£)", format="£%,.2f", min_value=0.00)
+        "Amount (£)": st.column_config.NumberColumn("Historical Trial Balance Amount (£)", format="£%,.2f", min_value=0.00)
     },
     key="production_tb_editor"
 )
@@ -129,10 +145,17 @@ edited_tb_df = st.data_editor(
 st.markdown("---")
 
 # ==========================================
-# 📊 2. 12-MONTH REVENUE SEASONALITY MATRIX
+# 📊 2. 12-MONTH REVENUE SEASONALITY ENGINE
 # ==========================================
 st.subheader("📊 12-Month Revenue Seasonality Coefficient Profile")
 st.markdown("Configure monthly trading parameters. **1.00 represents a completely flat trend context**.")
+
+# The master toggle checkbox tracking conditional strategy
+ui_use_seasonality = st.checkbox(
+    "Apply seasonal revenue vector scaling to retail turnover channels", 
+    value=True,
+    help="If unchecked, the platform overrides the table inputs and passes flat neutral weights down the calculation wire."
+)
 
 if "seasonality_profile_matrix" not in st.session_state:
     st.session_state.seasonality_profile_matrix = pd.DataFrame({
@@ -140,18 +163,17 @@ if "seasonality_profile_matrix" not in st.session_state:
         "Seasonality Factor Weight": [0.85, 0.80, 0.95, 1.00, 1.10, 1.25, 1.30, 1.20, 1.00, 0.95, 1.15, 1.45]
     })
 
+if not ui_use_seasonality:
+    st.caption("ℹ️ *Seasonality disabled. The coefficient values below will be ignored during synchronization overrides.*")
+
 edited_seasonality_df = st.data_editor(
     st.session_state.seasonality_profile_matrix,
     use_container_width=True,
     hide_index=True,
+    disabled=not ui_use_seasonality,
     column_config={
         "Calendar Month": st.column_config.TextColumn("Calendar Month", disabled=True),
-        "Seasonality Factor Weight": st.column_config.NumberColumn(
-            "Seasonality Factor Weight",
-            format="%.2fx",
-            min_value=0.00,
-            max_value=5.00
-        )
+        "Seasonality Factor Weight": st.column_config.NumberColumn("Seasonality Factor Weight", format="%.2fx", min_value=0.00, max_value=5.00)
     },
     key="seasonality_grid_editor"
 )
@@ -159,10 +181,10 @@ edited_seasonality_df = st.data_editor(
 st.markdown("---")
 
 # ==========================================
-# 🚜 3. INTERACTIVE CAPEX ASSET REGISTER GRID
+# 🚜 3. INTERACTIVE CAPEX ASSET REGISTER
 # ==========================================
 st.subheader("🚜 Interactive Capital Expenditure (CapEx) Asset Register")
-st.markdown("Plan infrastructural additions. Items entered here will pipe downstream into asset-carrying schedules.")
+st.markdown("Plan future infrastructural upgrades or café facility fit-outs.")
 
 if "capex_asset_register" not in st.session_state:
     st.session_state.capex_asset_register = pd.DataFrame([
@@ -198,40 +220,58 @@ st.markdown("---")
 # 💾 4. CENTRAL PLATFORM STATE SYNCHRONIZATION
 # ==========================================
 st.subheader("💾 Central Platform State Synchronization")
-st.markdown("Executing this synchronization maps your flat accounting rows into functional monthly operational parameters across the simulation environment.")
 
 if st.button("🔥 Synchronize & Populate Complete App Pipeline", use_container_width=True, type="primary"):
-    # Cache immediate tabular updates
     st.session_state.trial_balance_matrix = edited_tb_df
     st.session_state.seasonality_profile_matrix = edited_seasonality_df
     st.session_state.capex_asset_register = edited_capex_df
     
-    # Extract structural dictionary mapping from data editor
+    # Compress input frames down to programmatic ledger maps
     summary_map = edited_tb_df.groupby("Accounting Allocation Bucket")["Amount (£)"].sum().to_dict()
     
-    # Flow elements (P&L) -> Scaled down dynamically to reflect standard monthly increments
+    # Apply dynamic weight selection based on the toggle state
+    if ui_use_seasonality:
+        ordered_weights = edited_seasonality_df["Seasonality Factor Weight"].tolist()
+    else:
+        ordered_weights = [1.0] * 12
+    
+    # 🌟 ACCOUNTING PIPELINE SPLIT 🌟
+    # Pipeline Category A: Flow Accounts (Divided by 12 to build true monthly parameters)
     m_sales_seasonal = summary_map.get("Revenue - Seasonal (Retail)", 0.0) / 12
-    m_sales_fixed = summary_map.get("Revenue - Fixed (Rental Income)", 0.0) / 12
+    m_sales_fixed = summary_map.get("Revenue - Fixed (Contractual)", 0.0) / 12
     m_cogs = summary_map.get("Direct Expenses (COGS)", 0.0) / 12
-    m_wages = summary_map.get("Gross Wages", 0.0) / 12
+    m_wages = summary_map.get("Gross Wages (Operational)", 0.0) / 12
     m_opex = summary_map.get("Indirect Overheads (OpEx)", 0.0) / 12
     
-    # Snapshot elements (Balance Sheet) -> Maintained at absolute literal values
-    bs_opening_cash = summary_map.get("Balance Sheet - Cash Asset", 18500.0)
-    bs_opening_equity = summary_map.get("Balance Sheet - Retained Earnings", 15000.0)
+    # Pipeline Category B: Snapshot Accounts (Preserved at 100% to track static opening health)
+    bs_cash = summary_map.get("Balance Sheet - Cash Asset", 0.0)
+    bs_assets = summary_map.get("Balance Sheet - Existing Fixed Assets", 0.0)
+    bs_debtors = summary_map.get("Balance Sheet - Accounts Receivable", 0.0)
+    bs_creditors = summary_map.get("Balance Sheet - Accounts Payable", 0.0)
+    bs_debt = summary_map.get("Balance Sheet - Long-Term Debt", 0.0)
+    bs_equity = summary_map.get("Balance Sheet - Retained Earnings", 0.0)
     
-    # Inject directly into global memory cache for downstream modeling runs
+    # Distribute global uniform cache box down the wire to master orchestration
     st.session_state.baseline_inputs = {
-        "target_monthly_sales": round(m_sales_seasonal + m_sales_fixed, 2),
-        "direct_costs_monthly": round(m_cogs, 2),
+        # Nominal Base Flows
+        "nominal_seasonal_sales_base": round(m_sales_seasonal, 2),
+        "fixed_contractual_sales_base": round(m_sales_fixed, 2),
+        "nominal_cogs_base": round(m_cogs, 2),
         "base_monthly_gross_wages": round(m_wages, 2),
         "admin_overheads_monthly": round(m_opex, 2),
         "directors_salaries_monthly": 5000.0,
         "pension_opt_out": False,
         
-        # Injected as clean, un-divided absolute snapshots
-        "opening_cash_balance": round(bs_opening_cash, 2),
-        "opening_retained_earnings": round(bs_opening_equity, 2)
+        # Unified Seasonality Array Interface Pass
+        "seasonality_weights": ordered_weights,
+        
+        # Absolute Face Value Snapshots
+        "opening_cash_balance": round(bs_cash, 2),
+        "opening_fixed_assets_nbv": round(bs_assets, 2),
+        "opening_accounts_receivable": round(bs_debtors, 2),
+        "opening_accounts_payable": round(bs_creditors, 2),
+        "opening_long_term_debt": round(bs_debt, 2),
+        "opening_retained_earnings": round(bs_equity, 2)
     }
     
-    st.success("🎯 **Pipeline Connected Safely!** P&L items averaged, Balance Sheet metrics preserved at 100% value.")
+    st.success("🎯 **Pipeline Connected Safely!** Operating values balanced, seasonality locked, and snapshots preserved.")
