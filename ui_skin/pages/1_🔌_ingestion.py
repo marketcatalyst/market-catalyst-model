@@ -2,39 +2,97 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import os
 
 st.set_page_config(layout="wide", page_title="Data Ingestion Hub")
 
 st.title("🔌 Data Ingestion & Capital Register Hub")
-st.caption("Secure Data Entry Gateway • AI Document Processing & Operational Vector Configuration")
+st.caption("Secure Data Entry Gateway • Industry Benchmark Alignment & Operational Vector Configuration")
 st.markdown("---")
 
 # ==========================================
-# 📄 1. ACTIVE TRIAL BALANCE INGESTION
+# 🏢 0. SECTOR & INDUSTRY BENCHMARK ALIGNMENT
+# ==========================================
+st.subheader("🏢 Sector & Underwriting Benchmark Alignment")
+st.markdown("Align your enterprise model with standardized industrial parameters. This pulls regional and operational compliance thresholds directly from your local market registry.")
+
+# Safe parsing of the background validation dataset
+try:
+    if os.path.exists("static_data/sic_benchmarks.csv"):
+        sic_df = pd.read_csv("static_data/sic_benchmarks.csv")
+    else:
+        # Resilient baseline fallback matrix if file is initializing
+        sic_df = pd.DataFrame({
+            "sic_code": ["10710", "56101", "47110"],
+            "industry_title": ["Manufacture of bread, fresh pastry goods and cakes", "Licensed restaurants & cafés", "Retail sale in non-specialised stores"],
+            "target_gross_margin_pct": [45.0, 65.0, 25.0],
+            "max_allowable_labor_pct": [35.0, 40.0, 18.0]
+        })
+except Exception:
+    sic_df = pd.DataFrame({
+        "sic_code": ["10710"],
+        "industry_title": ["Manufacture of bread, fresh pastry goods and cakes"],
+        "target_gross_margin_pct": [45.0],
+        "max_allowable_labor_pct": [35.0]
+    })
+
+# Format presentation string for user dropdown clarity
+sic_df["display_name"] = sic_df["sic_code"].astype(str) + " - " + sic_df["industry_title"]
+
+if "selected_sic_profile" not in st.session_state:
+    st.session_state.selected_sic_profile = sic_df.iloc[0].to_dict()
+
+chosen_sic_string = st.selectbox(
+    "Select Target UK Standard Industrial Classification (SIC) Horizon Profile:",
+    options=sic_df["display_name"].tolist(),
+    index=0
+)
+
+# Extract and lock selected sector row parameters into global state
+selected_row = sic_df[sic_df["display_name"] == chosen_sic_string].iloc[0]
+st.session_state.selected_sic_profile = {
+    "sic_code": str(selected_row["sic_code"]),
+    "industry_title": str(selected_row["industry_title"]),
+    "target_gross_margin_pct": float(selected_row["target_gross_margin_pct"]),
+    "max_allowable_labor_pct": float(selected_row["max_allowable_labor_pct"])
+}
+
+st.info(
+    f"📊 **Active Benchmark Bounds:** Underwriters will evaluate your run-rate against a "
+    f"**{st.session_state.selected_sic_profile['target_gross_margin_pct']}% Target Gross Margin** "
+    f"and a **{st.session_state.selected_sic_profile['max_allowable_labor_pct']}% Labor Overhead Ceiling**."
+)
+
+st.markdown("---")
+
+# ==========================================
+# 📄 1. TRIAL BALANCE INGESTION
 # ==========================================
 st.subheader("📄 Automated Ledger & Trial Balance Ingestion")
-st.markdown("Upload structural text files, spreadsheet exports, or images of operational ledger sheets. The system tracks your baseline fresh food account distributions below.")
+st.markdown("Upload historical accounting records. The system translates annual trial balance inputs into run-rate monthly operational baselines (Divided by 12) while preserving balance sheet snapshots at 100% face value.")
 
 uploaded_file = st.file_uploader("Drop financial statement or trial balance exports here:", type=["csv", "txt", "pdf", "png", "jpg", "jpeg"])
 
 if "trial_balance_matrix" not in st.session_state:
     st.session_state.trial_balance_matrix = pd.DataFrame({
-        "Account Code": ["1010", "1090", "5000", "7000", "7100"],
+        "Account Code": ["1010", "5000", "7000", "7100", "1200", "3000"],
         "Account Name": [
-            "Core Retail & Site Sales Pool (Healthy Fresh Menu)", 
-            "Sub-Let Commercial Café Rental Income", 
+            "Core Retail & Site Sales Pool", 
             "Direct Ingredient Costs & Material COGS", 
             "Gross Staff & Kitchen Prep Salaries Ledger", 
-            "Indirect Operational Overheads (Utilities/Cleaning/POS)"
+            "Indirect Operational Overheads (OpEx)",
+            "Bank Liquidity Main Clearing Account",      
+            "Accumulated Retained Earnings Reserves"     
         ],
         "Accounting Allocation Bucket": [
             "Revenue - Seasonal (Retail)", 
-            "Revenue - Fixed (Rental Income)", 
             "Direct Expenses (COGS)", 
             "Gross Wages", 
-            "Indirect Overheads (OpEx)"
+            "Indirect Overheads (OpEx)",
+            "Balance Sheet - Cash Asset",                
+            "Balance Sheet - Retained Earnings"          
         ],
-        "Amount (£)": [451500.00, 12500.00, 217976.00, 69900.00, 15400.00]
+        "Amount (£)": [600000.00, 264000.00, 144000.00, 96000.00, 18500.00, 15000.00]
     })
 
 if uploaded_file is not None:
@@ -52,17 +110,21 @@ edited_tb_df = st.data_editor(
         "Account Name": st.column_config.TextColumn("Account Description Name"),
         "Accounting Allocation Bucket": st.column_config.SelectboxColumn(
             "Accounting Allocation Bucket",
-            help="Categorising revenue tells the calculation engine whether to apply monthly seasonality vectors",
-            options=["Revenue - Seasonal (Retail)", "Revenue - Fixed (Rental Income)", "Direct Expenses (COGS)", "Gross Wages", "Indirect Overheads (OpEx)"]
+            help="Categorising metrics routes values to the correct monthly calculation channels.",
+            options=[
+                "Revenue - Seasonal (Retail)", 
+                "Revenue - Fixed (Rental Income)", 
+                "Direct Expenses (COGS)", 
+                "Gross Wages", 
+                "Indirect Overheads (OpEx)",
+                "Balance Sheet - Cash Asset",
+                "Balance Sheet - Retained Earnings"
+            ]
         ),
-        "Amount (£)": st.column_config.NumberColumn("Baseline Amount (£)", format="£%,.2f", min_value=0.00)
+        "Amount (£)": st.column_config.NumberColumn("Historical Annual Amount (£)", format="£%,.2f", min_value=0.00)
     },
     key="production_tb_editor"
 )
-
-if st.button("Commit Ledger Modifications to Production Cache", key="save_tb_btn"):
-    st.session_state.trial_balance_matrix = edited_tb_df
-    st.success("💾 Base trial balance configurations safely locked into master session framework!")
 
 st.markdown("---")
 
@@ -70,7 +132,7 @@ st.markdown("---")
 # 📊 2. 12-MONTH REVENUE SEASONALITY MATRIX
 # ==========================================
 st.subheader("📊 12-Month Revenue Seasonality Coefficient Profile")
-st.markdown("Configure your monthly hospitality and retail volume weights. **1.0 represents a flat baseline month**. 1.45 represents a 45% holiday trading spike (e.g., December surge). **Contractual rental income bypasses this completely**.")
+st.markdown("Configure monthly trading parameters. **1.00 represents a completely flat trend context**.")
 
 if "seasonality_profile_matrix" not in st.session_state:
     st.session_state.seasonality_profile_matrix = pd.DataFrame({
@@ -86,7 +148,6 @@ edited_seasonality_df = st.data_editor(
         "Calendar Month": st.column_config.TextColumn("Calendar Month", disabled=True),
         "Seasonality Factor Weight": st.column_config.NumberColumn(
             "Seasonality Factor Weight",
-            help="Baseline multiplier value applied directly to variable seasonal retail turnover channels",
             format="%.2fx",
             min_value=0.00,
             max_value=5.00
@@ -95,17 +156,13 @@ edited_seasonality_df = st.data_editor(
     key="seasonality_grid_editor"
 )
 
-if st.button("Commit Seasonality Weights to Memory", key="save_seasonality_btn"):
-    st.session_state.seasonality_profile_matrix = edited_seasonality_df
-    st.success("💾 12-Month operational seasonality vectors safely synchronised inside memory channels!")
-
 st.markdown("---")
 
 # ==========================================
 # 🚜 3. INTERACTIVE CAPEX ASSET REGISTER GRID
 # ==========================================
 st.subheader("🚜 Interactive Capital Expenditure (CapEx) Asset Register")
-st.markdown("Plan your commercial kitchen additions, distribution infrastructure upgrades, or café facility fit-outs. Rows configured below dynamically feed into asset-carrying rows and run straight-line depreciation profiles automatically.")
+st.markdown("Plan infrastructural additions. Items entered here will pipe downstream into asset-carrying schedules.")
 
 if "capex_asset_register" not in st.session_state:
     st.session_state.capex_asset_register = pd.DataFrame([
@@ -116,14 +173,6 @@ if "capex_asset_register" not in st.session_state:
             "Transaction Month": 6,
             "Useful Life (Years)": 5,
             "Funding Mechanism": "Hire Purchase"
-        },
-        {
-            "Asset Class": "Leasehold Improvements",
-            "Item Description": "Merthyr Town Centre Cafe Frontage & Servery Fit-out",
-            "Gross Purchase Price (£)": 45000.00,
-            "Transaction Month": 12,
-            "Useful Life (Years)": 10,
-            "Funding Mechanism": "Upfront Cash"
         }
     ])
 
@@ -133,50 +182,56 @@ edited_capex_df = st.data_editor(
     num_rows="dynamic",
     hide_index=True,
     column_config={
-        "Asset Class": st.column_config.SelectboxColumn(
-            "Asset Class Category",
-            help="Target accounting asset group for Balance Sheet historical cost row placement",
-            options=["Kitchen Equipment", "Leasehold Improvements", "Office & Cafe Equipment", "Motor Vehicles"],
-            required=True
-        ),
-        "Item Description": st.column_config.TextColumn(
-            "Item Description / Project Milestone Location",
-            help="Provide descriptive equipment details or rollout regional tags",
-            required=True
-        ),
-        "Gross Purchase Price (£)": st.column_config.NumberColumn(
-            "Gross Purchase Cost (£)",
-            help="Total capitalised transaction asset value",
-            format="£%,.2f",
-            min_value=0.00,
-            required=True
-        ),
-        "Transaction Month": st.column_config.NumberColumn(
-            "Transaction Month",
-            help="The explicit forecast timeline month index when investment executes (e.g., Month 6)",
-            format="Month %d",
-            min_value=1,
-            max_value=120,
-            required=True
-        ),
-        "Useful Life (Years)": st.column_config.NumberColumn(
-            "Useful Life (Years)",
-            help="Estimated legal or economic lifespan used to determine straight-line depreciation velocity",
-            format="%d Years",
-            min_value=1,
-            max_value=50,
-            required=True
-        ),
-        "Funding Mechanism": st.column_config.SelectboxColumn(
-            "Funding Mechanism",
-            help="Upfront Cash impacts bank instantly; Hire Purchase records matching rolling debt obligations",
-            options=["Upfront Cash", "Hire Purchase"],
-            required=True
-        )
+        "Asset Class": st.column_config.SelectboxColumn("Asset Class Category", options=["Kitchen Equipment", "Leasehold Improvements", "Office & Cafe Equipment", "Motor Vehicles"], required=True),
+        "Item Description": st.column_config.TextColumn("Item Description / Project Milestone Location", required=True),
+        "Gross Purchase Price (£)": st.column_config.NumberColumn("Gross Purchase Cost (£)", format="£%,.2f", min_value=0.00, required=True),
+        "Transaction Month": st.column_config.NumberColumn("Transaction Month", format="Month %d", min_value=1, required=True),
+        "Useful Life (Years)": st.column_config.NumberColumn("Useful Life (Years)", format="%d Years", min_value=1, required=True),
+        "Funding Mechanism": st.column_config.SelectboxColumn("Funding Mechanism", options=["Upfront Cash", "Hire Purchase"], required=True)
     },
     key="capex_register_grid_editor"
 )
 
-if st.button("Commit Capital Asset Register to Memory", key="save_capex_btn"):
+st.markdown("---")
+
+# ==========================================
+# 💾 4. CENTRAL PLATFORM STATE SYNCHRONIZATION
+# ==========================================
+st.subheader("💾 Central Platform State Synchronization")
+st.markdown("Executing this synchronization maps your flat accounting rows into functional monthly operational parameters across the simulation environment.")
+
+if st.button("🔥 Synchronize & Populate Complete App Pipeline", use_container_width=True, type="primary"):
+    # Cache immediate tabular updates
+    st.session_state.trial_balance_matrix = edited_tb_df
+    st.session_state.seasonality_profile_matrix = edited_seasonality_df
     st.session_state.capex_asset_register = edited_capex_df
-    st.success("💾 Dynamic fresh food infrastructure asset registry safe and synchronised within backend framework paths!")
+    
+    # Extract structural dictionary mapping from data editor
+    summary_map = edited_tb_df.groupby("Accounting Allocation Bucket")["Amount (£)"].sum().to_dict()
+    
+    # Flow elements (P&L) -> Scaled down dynamically to reflect standard monthly increments
+    m_sales_seasonal = summary_map.get("Revenue - Seasonal (Retail)", 0.0) / 12
+    m_sales_fixed = summary_map.get("Revenue - Fixed (Rental Income)", 0.0) / 12
+    m_cogs = summary_map.get("Direct Expenses (COGS)", 0.0) / 12
+    m_wages = summary_map.get("Gross Wages", 0.0) / 12
+    m_opex = summary_map.get("Indirect Overheads (OpEx)", 0.0) / 12
+    
+    # Snapshot elements (Balance Sheet) -> Maintained at absolute literal values
+    bs_opening_cash = summary_map.get("Balance Sheet - Cash Asset", 18500.0)
+    bs_opening_equity = summary_map.get("Balance Sheet - Retained Earnings", 15000.0)
+    
+    # Inject directly into global memory cache for downstream modeling runs
+    st.session_state.baseline_inputs = {
+        "target_monthly_sales": round(m_sales_seasonal + m_sales_fixed, 2),
+        "direct_costs_monthly": round(m_cogs, 2),
+        "base_monthly_gross_wages": round(m_wages, 2),
+        "admin_overheads_monthly": round(m_opex, 2),
+        "directors_salaries_monthly": 5000.0,
+        "pension_opt_out": False,
+        
+        # Injected as clean, un-divided absolute snapshots
+        "opening_cash_balance": round(bs_opening_cash, 2),
+        "opening_retained_earnings": round(bs_opening_equity, 2)
+    }
+    
+    st.success("🎯 **Pipeline Connected Safely!** P&L items averaged, Balance Sheet metrics preserved at 100% value.")
