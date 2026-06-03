@@ -1,87 +1,108 @@
-# core_engine/fixed_assets.py
+# ui_skin/core_engine/fixed_assets.py
+import pandas as pd
+import numpy as np
+from typing import List, Dict, Any
 
-def calculate_fixed_asset_lifecycle(
-    asset_cost: float,
-    purchase_month_index: int,
-    useful_life_months: int,
-    residual_value: float = 0.0,
-    tax_allowance_code: str = "WDA_MAIN",  # "AIA_100", "FYA_100", "WDA_MAIN", "WDA_SPECIAL"
-    systemic_multiplier: float = 1.0,      # Abstract modifier for core engine capacity modeling
-    systemic_note: str = "Standard asset deployment.",
-    uk_corp_tax_rate: float = 0.25,        # Calibrated for current UK corporate tax baselines
-    forecast_horizon_months: int = 60
-) -> dict:
+def calculate_multi_asset_depreciation_matrix(
+    opening_nbv: float,
+    planned_capex_list: List[Dict[str, Any]],
+    total_months: int = 60,
+    estimated_existing_residual_months: int = 48
+) -> Dict[str, np.ndarray]:
     """
-    Decoupled SaaS Engine: Processes any capital expenditure asset from purchase to disposal.
-    Accepts standardized tax configuration codes and abstract physical multipliers, 
-    ensuring the engine remains entirely agnostic to the subscriber's specific industry.
-    """
-    # Initialize empty timeline arrays for the global 3-Way master orchestrator
-    capex_cash_outflow = [0.0] * forecast_horizon_months
-    pl_depreciation_expense = [0.0] * forecast_horizon_months
-    bs_net_book_value = [0.0] * forecast_horizon_months
+    Computes a synchronized 60-month time-series array tracking gross capital costs, 
+    monthly straight-line depreciation expenses, accumulated depreciation, and Net Book Value (NBV).
     
-    # Trigger the equipment invoice cash impact in the designated purchase month
-    if 0 <= purchase_month_index < forecast_horizon_months:
-        capex_cash_outflow[purchase_month_index] = asset_cost
+    Handles a point-in-time opening asset base alongside a dynamic stream of staggered future capex events.
+    """
+    # Initialize zero-filled tracking vectors for the entire horizon
+    timeline_gross_cost = np.zeros(total_months)
+    timeline_depreciation_expense = np.zeros(total_months)
+    timeline_accumulated_depreciation = np.zeros(total_months)
+    timeline_nbv = np.zeros(total_months)
+    
+    # --- PHASE 1: Existing Legacy Asset Base Run-Rate ---
+    # Safely unwind the opening balance sheet book value over its remaining lifecycle
+    if opening_nbv > 0 and estimated_existing_residual_months > 0:
+        monthly_legacy_depr = opening_nbv / estimated_existing_residual_months
+        current_legacy_nbv = opening_nbv
+        
+        for m in range(total_months):
+            if current_legacy_nbv > 0:
+                # Depreciate until carrying value hits zero floor
+                depr_charge = min(monthly_legacy_depr, current_legacy_nbv)
+                timeline_depreciation_expense[m] += depr_charge
+                current_legacy_nbv -= depr_charge
+    
+    # Set the initial seeding net book value for Month 0 context
+    running_opening_nbv = opening_nbv
 
-    # --- 1. Pure Accounting Depreciation Loop (Straight-Line with Salvage Protection) ---
-    depreciable_base = asset_cost - residual_value
-    monthly_depreciation_charge = depreciable_base / useful_life_months if useful_life_months > 0 else 0.0
-    running_nbv = asset_cost
-
-    for m in range(forecast_horizon_months):
-        if m < purchase_month_index:
-            bs_net_book_value[m] = 0.0
-            continue
+    # --- PHASE 2: Dynamic Staggered Future Capital Rollouts ---
+    # Track the cumulative cost additions over the time series vector
+    cumulative_additions_cost = 0.0
+    
+    for m in range(total_months):
+        month_index_1based = m + 1
+        
+        # Scan the planned asset list for items matching the active calendar month index
+        for asset in planned_capex_list:
+            purchase_month = int(asset.get("Transaction Month", -1))
+            cost = float(asset.get("Gross Purchase Price (£)", 0.0))
+            useful_life_years = float(asset.get("Useful Life (Years)", 5))
+            useful_life_months = max(useful_life_years * 12, 1.0)
             
-        # Guarantee the asset never depreciates past its designated residual market value
-        if running_nbv > residual_value:
-            actual_charge = min(monthly_depreciation_charge, running_nbv - residual_value)
-            pl_depreciation_expense[m] = round(actual_charge, 2)
-            running_nbv -= actual_charge
+            # If the item execution month hits our active index, activate its cost basis
+            if purchase_month == month_index_1based:
+                cumulative_additions_cost += cost
+        
+        # Capture current running asset base gross cost
+        timeline_gross_cost[m] = cumulative_additions_cost
+        
+        # Calculate active runtime depreciation for all executed assets up to this month
+        for asset in planned_capex_list:
+            purchase_month = int(asset.get("Transaction Month", -1))
+            cost = float(asset.get("Gross Purchase Price (£)", 0.0))
+            useful_life_years = float(asset.get("Useful Life (Years)", 5))
+            useful_life_months = max(useful_life_years * 12, 1.0)
+            
+            # An asset only depreciates if we are chronologically past its purchase date
+            if month_index_1based >= purchase_month and purchase_month > 0:
+                months_held = (month_index_1based - purchase_month) + 1
+                # Ensure the asset has not already exceeded its economic useful life span
+                if months_held <= useful_life_months:
+                    monthly_charge = cost / useful_life_months
+                    timeline_depreciation_expense[m] += monthly_charge
+                elif months_held == useful_life_months + 1:
+                    # Capture fractional remainder on expiration boundary if any
+                    pass
+
+    # --- PHASE 3: Consolidated Accounting Reconciliation ---
+    # Traverse the arrays to compound monthly accumulated totals and absolute net values
+    current_acc_depr = 0.0
+    current_calculated_nbv = running_opening_nbv
+    
+    for m in range(total_months):
+        monthly_expense = timeline_depreciation_expense[m]
+        current_acc_depr += monthly_expense
+        
+        # New NBV = Previous NBV + New Additions Added in Month - Monthly Depreciation Expense
+        # Determine additions explicitly occurring in this exact step
+        if m == 0:
+            additions_this_month = timeline_gross_cost[m]
         else:
-            pl_depreciation_expense[m] = 0.0
+            additions_this_month = timeline_gross_cost[m] - timeline_gross_cost[m - 1]
             
-        bs_net_book_value[m] = round(running_nbv, 2)
-
-    # --- 2. Abstractized UK HMRC Tax Planning Router ---
-    fya_tax_shield_saved = 0.0
-    tax_treatment_applied = "Standard Main Pool WDA (18%)"
-    
-    if tax_allowance_code == "AIA_100":
-        # Annual Investment Allowance / Full Expensing (100% upfront relief)
-        fya_tax_shield_saved = asset_cost * uk_corp_tax_rate
-        tax_treatment_applied = "100% Upfront Capital Allowance (AIA / Full Expensing)"
+        current_calculated_nbv = current_calculated_nbv + additions_this_month - monthly_expense
         
-    elif tax_allowance_code == "FYA_100":
-        # First-Year Allowance (100% upfront relief for specialized/green assets)
-        fya_tax_shield_saved = asset_cost * uk_corp_tax_rate
-        tax_treatment_applied = "100% First-Year Allowance (FYA)"
-        
-    elif tax_allowance_code == "WDA_SPECIAL":
-        # Special Rate Pool (6% writing down allowance on integral features/structures)
-        year_1_wda = asset_cost * 0.06
-        fya_tax_shield_saved = year_1_wda * uk_corp_tax_rate
-        tax_treatment_applied = "Special Rate Pool WDA (6%)"
-        
-    else:
-        # Default standard main pool writing down allowance (18% reducing balance)
-        year_1_wda = asset_cost * 0.18
-        fya_tax_shield_saved = year_1_wda * uk_corp_tax_rate
-        tax_treatment_applied = "Standard Main Pool WDA (18%)"
+        # Commit computed values safely into vector stores
+        timeline_accumulated_depreciation[m] = round(current_acc_depr, 2)
+        timeline_nbv[m] = round(max(current_calculated_nbv, 0.0), 2)
+        timeline_depreciation_expense[m] = round(monthly_expense, 2)
+        timeline_gross_cost[m] = round(timeline_gross_cost[m], 2)
 
     return {
-        # Timelines for the 3-Way output schedules
-        "timeline_cash_outflow": capex_cash_outflow,
-        "timeline_pl_depreciation": pl_depreciation_expense,
-        "timeline_bs_asset_nbv": bs_net_book_value,
-        
-        # Regulatory/Tax Planning metadata
-        "tax_treatment_applied": tax_treatment_applied,
-        "immediate_tax_cash_saving": round(fya_tax_shield_saved, 2),
-        
-        # Causal Systems-Thinking Metadata
-        "systemic_multiplier": systemic_multiplier,
-        "systemic_note": systemic_note
+        "timeline_gross_cost": timeline_gross_cost,
+        "timeline_depreciation_expense": timeline_depreciation_expense,
+        "timeline_accumulated_depreciation": timeline_accumulated_depreciation,
+        "timeline_nbv": timeline_nbv
     }
