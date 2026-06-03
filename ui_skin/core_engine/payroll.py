@@ -1,5 +1,5 @@
 # core_engine/payroll.py
-from typing import Optional, dict
+from typing import Optional, Dict
 
 # Default configuration registry calibrated for UK Statutory Tax Rules (2026/27)
 # Moving this to a dictionary ensures the code remains generic and multi-year compatible
