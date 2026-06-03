@@ -48,7 +48,6 @@ def run_winforecast_replication_engine(months: int = 36, scenario: str = "Baseli
         base_invoiced_costs = float(tb_df[tb_df["Accounting Allocation Bucket"] == "Direct Expenses (COGS)"]["Amount (£)"].sum())
         base_kitchen_salaries = float(tb_df[tb_df["Accounting Allocation Bucket"] == "Gross Wages"]["Amount (£)"].sum())
     else:
-        # Core alignment constants
         base_seasonal_sales = 451500.00
         base_fixed_sales = 12500.00
         base_invoiced_costs = 217976.00
@@ -72,7 +71,6 @@ def run_winforecast_replication_engine(months: int = 36, scenario: str = "Baseli
         month_modulo_index = (m - 1) % 12
         current_month_seasonality_multiplier = seasonality_factors[month_modulo_index]
         
-        # Calculate the step trend scaling coefficient uniformly
         if m <= 12:  # 2026 Horizon Step Trend
             step_scale = 1.0 if m == 1 else (1.10 if m < 6 else 1.30)
         else:  # 2027+ Horizon Scaling Multiplier
@@ -81,10 +79,7 @@ def run_winforecast_replication_engine(months: int = 36, scenario: str = "Baseli
         admin_salaries = 5400.00 if m <= 12 else 5562.00
         directors_salaries = 5000.00 if m <= 12 else 5150.00
         
-        # Dynamic Revenue Math: Apply modifiers uniformly to the base accounts
         turnover = ((base_seasonal_sales * step_scale * current_month_seasonality_multiplier) + (base_fixed_sales * step_scale)) * revenue_modifier
-        
-        # Corrected Direct Costs Logic: Scale the original baseline costs proportionally to fix the bug
         variable_ingredient_costs = (base_invoiced_costs * step_scale * current_month_seasonality_multiplier) * cost_modifier
         scaled_kitchen_labor = base_kitchen_salaries * step_scale
         total_direct_costs = variable_ingredient_costs + scaled_kitchen_labor
@@ -138,6 +133,8 @@ def run_winforecast_replication_engine(months: int = 36, scenario: str = "Baseli
             "Month": f"Month {m}",
             "Turnover (£)": turnover,
             "Direct Costs (£)": total_direct_costs,
+            "Admin Overheads (£)": admin_salaries,
+            "Directors Salaries (£)": directors_salaries,
             "Depreciation Expense (£)": total_combined_depreciation_expense,
             "Net Profit (£)": net_profit,
             "Bank Cash Position (£)": current_cash,
@@ -182,15 +179,15 @@ def generate_forecast_charts(forecast_df: pd.DataFrame) -> io.BytesIO:
     return img_buf
 
 def convert_df_to_excel(forecast_df: pd.DataFrame) -> io.BytesIO:
-    """
-    Transforms vertical database time-series records into a conventional horizontal 
-    WinForecast Multi-Tab workbook structure, tracking accounts down rows and months across columns.
-    """
+    """Transforms database records into a conventional horizontal horizontal Excel statement."""
     excel_buf = io.BytesIO()
     
+    # Fixed row mapping to explicitly print your hidden administrative overhead tracks
     pl_rows = {
         "Turnover (£)": "Revenue (Turnover Summary)", 
         "Direct Costs (£)": "  Less: Operating Cost of Sales (Direct COGS)",
+        "Admin Overheads (£)": "  Less: Administrative Overheads",
+        "Directors Salaries (£)": "  Less: Directors' Salaries",
         "Depreciation Expense (£)": "  Less: Non-Cash Asset Impairments (Depreciation)",
         "Net Profit (£)": "Net Operating Profit / (Loss) Retained Earnings"
     }

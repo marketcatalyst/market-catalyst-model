@@ -15,7 +15,6 @@ st.sidebar.header("📅 Timeline Horizon Configuration")
 horizon_months = st.sidebar.slider("Forecast Horizon Runway (Months)", 12, 60, 36, 12)
 st.sidebar.markdown("---")
 
-# Dynamically track the shared global scenario state across layout views
 active_scenario_setting = st.session_state.get("global_strategic_scenario", "Baseline Case")
 st.sidebar.info(f"Active Strategy Track: **{active_scenario_setting}**")
 
@@ -42,7 +41,6 @@ if forecast_df is not None:
         "📈 Profit & Loss (P&L)", "⚖️ Balance Sheet (BS)", "💸 Cash Flow Statement (CF)", "🗃️ Master Data Ledger Grid"
     ])
     
-    # Reusable structural row transposition utility 
     def create_accounting_statement(df: pd.DataFrame, row_mapping: dict) -> pd.DataFrame:
         statement_df = df[list(row_mapping.keys())].rename(columns=row_mapping)
         statement_df.index = df["Month"]
@@ -54,6 +52,8 @@ if forecast_df is not None:
         pl_rows = {
             "Turnover (£)": "Revenue (Turnover Summary)", 
             "Direct Costs (£)": "  Less: Operating Cost of Sales (Direct COGS)",
+            "Admin Overheads (£)": "  Less: Administrative Overheads",
+            "Directors Salaries (£)": "  Less: Directors' Salaries",
             "Depreciation Expense (£)": "  Less: Non-Cash Asset Impairments (Depreciation)",
             "Net Profit (£)": "Net Operating Profit / (Loss) Retained Earnings"
         }
@@ -66,12 +66,11 @@ if forecast_df is not None:
             "Fixed Asset NBV (£)": "Non-Current Assets: Fixed Assets Carrying NBV",
             "Bank Cash Position (£)": "Current Assets: Bank Liquidity Clearing Balance", 
             "Accounts Payable & Debt (£)": "Current Liabilities: Accounts Payable & Loan Obligations", 
-            "Retained Earnings (£)": "Capital & Reserves: Accumulated Retained Earnings Pool", 
-            "Variance Check (£)": "Double-Entry Validation Variance"
+            "Retained Earnings (£)": "Capital & Reserves: Accumulated Retained Earnings Pool"
         }
         st.data_editor(create_accounting_statement(forecast_df, bs_rows), use_container_width=True, hide_index=True, key="bs_view_editor")
         
-    # --- TAB 3: CASH FLOW STATEMENT (INDIRECT BRIDGE RECONCILIATION) ---
+    # --- TAB 3: CASH FLOW STATEMENT ---
     with tab_cf:
         st.markdown(f"### **Statement of Cash Flows ({horizon_months}-Month Indirect Reconciliation)**")
         st.markdown("---")
@@ -96,7 +95,7 @@ if forecast_df is not None:
     # 📥 THE STRATEGIC EXPORT PANEL
     # ==========================================
     st.markdown("---")
-    st.subheader("📊 Executive Data Visualization & Reporting Suite")
+    st.subheader("📊 Executive Data Visualisation & Reporting Suite")
     
     chart_bytes = ff.generate_forecast_charts(forecast_df)
     st.image(chart_bytes, caption="Dynamic 3-Way Forecasting Performance Dashboard Chart")
@@ -124,14 +123,8 @@ if forecast_df is not None:
             use_container_width=True
         )
     with col_dl3:
-        # Dynamically evaluate the ReportLab generation stream
         import core_engine.report_generator as rg
-        
-        pdf_report_bytes = rg.compile_pdf_executive_report(
-            forecast_df=forecast_df, 
-            scenario_name=active_scenario_setting
-        )
-        
+        pdf_report_bytes = rg.compile_pdf_executive_report(forecast_df=forecast_df, scenario_name=active_scenario_setting)
         st.download_button(
             label="📋 Download PDF Executive Management Report (.pdf)",
             data=pdf_report_bytes,
