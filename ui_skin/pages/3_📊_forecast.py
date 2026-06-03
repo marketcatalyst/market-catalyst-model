@@ -1,8 +1,8 @@
 # ui_skin/pages/3_📊_forecast.py
 import streamlit as st
 import pandas as pd
-import numpy as np
-import core_engine.forecast_formulas as ff
+import io
+from core_engine.master_model import generate_integrated_3way_forecast
 
 st.set_page_config(layout="wide", page_title="3-Way Financial Forecast")
 
@@ -12,20 +12,52 @@ st.markdown("---")
 
 # --- SIDEBAR Horizon Timeline Configuration ---
 st.sidebar.header("📅 Timeline Horizon Configuration")
-horizon_months = st.sidebar.slider("Forecast Horizon Runway (Months)", 12, 60, 36, 12)
+horizon_months = st.sidebar.slider("Forecast Horizon Runway (Months)", 12, 60, 60, 12)
 st.sidebar.markdown("---")
 
+# Read global scenario tracking option from common session state
 active_scenario_setting = st.session_state.get("global_strategic_scenario", "Baseline Case")
 st.sidebar.info(f"Active Strategy Track: **{active_scenario_setting}**")
 
-# Run the centralised calculation engine
-forecast_df = ff.run_winforecast_replication_engine(months=horizon_months, scenario=active_scenario_setting)
+# --- 1. Dynamic Baseline Inputs Package Builder ---
+# This page pulls default parameters to feed the central engine pass
+inputs_package = {
+    "target_monthly_sales": 50000.0,
+    "base_monthly_gross_wages": 12000.0,
+    "pension_opt_out": False,
+    "direct_costs_monthly": 22000.0,
+    "admin_overheads_monthly": 8000.0,
+    "directors_salaries_monthly": 5000.0,
+    "opening_cash_balance": 15000.0,
+    "opening_retained_earnings": 15000.0,
+    
+    # Empty default CapEx slots to keep the background loop happy
+    "planned_asset_cost": 0.0,
+    "planned_asset_purchase_month_index": -1,
+    "planned_asset_uel_months": 36,
+    "planned_asset_residual_value": 0.0,
+    "planned_asset_tax_code": "WDA_MAIN",
+    "planned_asset_systemic_multiplier": 1.0
+}
+
+# Apply global macro scenario mutations automatically if switched on from Sandbox
+if active_scenario_setting == "Growth Expansion Case":
+    inputs_package["target_monthly_sales"] = 50000.0 * 1.15
+elif active_scenario_setting == "Supply-Chain Stress Case":
+    inputs_package["target_monthly_sales"] = 50000.0 * 0.80
+
+# --- 2. Fire the Core Upgraded Master Engine ---
+forecast_matrix_full = generate_integrated_3way_forecast(inputs_package)
+
+# Slice row horizons to match user selected timeline configuration slider
+forecast_df = forecast_matrix_full.iloc[:horizon_months].copy()
 
 # ==========================================
 # RENDER STATEMENT VIEWS
 # ==========================================
 if forecast_df is not None:
-    cumulative_variance = forecast_df["Variance Check (£)"].iloc[-1]
+    # Read the balance sheet verification value directly from our new schema column
+    cumulative_variance = forecast_df["Double_Entry_Check"].iloc[-1]
     
     col_layout_1, col_layout_2 = st.columns([3, 1])
     with col_layout_1:
@@ -95,21 +127,26 @@ if forecast_df is not None:
     # 📥 THE STRATEGIC EXPORT PANEL
     # ==========================================
     st.markdown("---")
-    st.subheader("📊 Executive Data Visualisation & Reporting Suite")
+    st.subheader("📊 Executive Data Visualisation Suite")
     
-    chart_bytes = ff.generate_forecast_charts(forecast_df)
-    st.image(chart_bytes, caption="Dynamic 3-Way Forecasting Performance Dashboard Chart")
+    # Modernised Interactive Dashboard Chart Layout
+    st.line_chart(forecast_df[["Turnover (£)", "Net Profit (£)", "Bank Cash Position (£)"]], y_label="Value (£)")
     
     st.markdown("---")
     st.markdown("### **📥 Downstream Document Export Gateway**")
     col_dl1, col_dl2, col_dl3 = st.columns(3)
     
     with col_dl1:
-        xlsx_data = ff.convert_df_to_excel(forecast_df)
+        # Decoupled Excel Converter utility run natively inside the page memory space
+        output_buffer = io.BytesIO()
+        with pd.ExcelWriter(output_buffer, engine='openpyxl') as writer:
+            forecast_df.to_excel(writer, sheet_name='Financial Forecast', index=False)
+        xlsx_data = output_buffer.getvalue()
+        
         st.download_button(
             label="📁 Download Multi-Tab Excel Workpack (.xlsx)",
             data=xlsx_data,
-            file_name="market_catalyst_winforecast_replication_pack.xlsx",
+            file_name="market_catalyst_forecast_pack.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             use_container_width=True
         )
@@ -118,7 +155,7 @@ if forecast_df is not None:
         st.download_button(
             label="📄 Download Raw Consolidated Data (.csv)",
             data=csv_data,
-            file_name="market_catalyst_flat_replication_ledger.csv",
+            file_name="market_catalyst_flat_ledger.csv",
             mime="text/csv",
             use_container_width=True
         )
