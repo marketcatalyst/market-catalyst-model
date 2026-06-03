@@ -182,8 +182,52 @@ def generate_forecast_charts(forecast_df: pd.DataFrame) -> io.BytesIO:
     return img_buf
 
 def convert_df_to_excel(forecast_df: pd.DataFrame) -> io.BytesIO:
+    """
+    Transforms vertical database time-series records into a conventional horizontal 
+    WinForecast Multi-Tab workbook structure, tracking accounts down rows and months across columns.
+    """
     excel_buf = io.BytesIO()
+    
+    # Define corporate row label mapping architectures matching the UI statement viewports exactly
+    pl_rows = {
+        "Turnover (£)": "Revenue (Turnover Summary)", 
+        "Direct Costs (£)": "  Less: Operating Cost of Sales (Direct COGS)",
+        "Depreciation Expense (£)": "  Less: Non-Cash Asset Impairments (Depreciation)",
+        "Net Profit (£)": "Net Operating Profit / (Loss) Retained Earnings"
+    }
+    bs_rows = {
+        "Fixed Asset NBV (£)": "Non-Current Assets: Fixed Assets Carrying NBV",
+        "Bank Cash Position (£)": "Current Assets: Bank Liquidity Clearing Balance", 
+        "Accounts Payable & Debt (£)": "Current Liabilities: Accounts Payable & Loan Obligations", 
+        "Retained Earnings (£)": "Capital & Reserves: Accumulated Retained Earnings Pool"
+    }
+    cf_rows = {
+        "Bridge: Net Profit": "Net Operating Profit / (Loss) (Accrued P&L Base)",
+        "Bridge: Depreciation": "  Add Back: Non-Cash Asset Depreciation Charges",
+        "Bridge: Operating CF": "👉 NET CASH FLOW FROM OPERATING ACTIVITIES",
+        "Bridge: Investing CF": "📁 Net Cash Outflows for Capital Expenditures (Investing CapEx)",
+        "Bridge: Financing CF": "🏦 Net Cash Flow Movements from Financing Events",
+        "Bridge: Net Movement": "🎯 NET PERIODIC CASH FLOW INCREASE / (DECREASE)",
+        "Bank Cash Position (£)": "💰 CLOSING LIQUID BANK CASH POSITION"
+    }
+    
+    def transpose_statement_frame(df: pd.DataFrame, row_mapping: dict) -> pd.DataFrame:
+        """Filters, renames, and transposes time rows into clean horizontal account tracks."""
+        extracted_df = df[list(row_mapping.keys())].rename(columns=row_mapping)
+        extracted_df.index = df["Month"]
+        transposed = extracted_df.T
+        transposed.index.name = "Financial Line Item"
+        return transposed.reset_index()
+
     with pd.ExcelWriter(excel_buf, engine="openpyxl") as writer:
-        forecast_df.to_excel(writer, sheet_name="WinForecast Replication", index=False)
+        transpose_statement_frame(forecast_df, pl_rows).to_excel(writer, sheet_name="Profit & Loss (P&L)", index=False)
+        transpose_statement_frame(forecast_df, bs_rows).to_excel(writer, sheet_name="Balance Sheet (BS)", index=False)
+        transpose_statement_frame(forecast_df, cf_rows).to_excel(writer, sheet_name="Cash Flow Statement (CF)", index=False)
+        
+        # Include an audit tab of the flat vertical database schema for data analysis needs
+        master_transposed = forecast_df.set_index("Month").T
+        master_transposed.index.name = "Database Structural Field"
+        master_transposed.reset_index().to_excel(writer, sheet_name="Master Data Ledger Grid", index=False)
+        
     excel_buf.seek(0)
     return excel_buf
