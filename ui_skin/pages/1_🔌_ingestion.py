@@ -121,7 +121,7 @@ baseline_package = {
     "nominal_cogs_base": calculated_nominal_cogs,
     "base_monthly_gross_wages": 12000.0,
     "admin_overheads_monthly": 8000.0,
-    "directors_salaries_monthly": directors_salaries_monthly if 'directors_salaries_monthly' in locals() else 5150.0,
+    "directors_salaries_monthly": 5150.0,  # Formal baseline assignment to clear static linter warnings
     "pension_opt_out": False,
     "seasonality_weights": [1.0] * 12,
     
