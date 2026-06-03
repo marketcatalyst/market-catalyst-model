@@ -1,131 +1,133 @@
-# ui_skin/pages/2_🧪_sandbox.py
+# ui_skin/pages/2_🔮_sandbox.py
 import streamlit as st
 import pandas as pd
-from core_engine.master_model import generate_integrated_3way_forecast
 
-st.set_page_config(layout="wide", page_title="Financial Sandbox")
+st.set_page_config(layout="wide", page_title="Stewardship Sandbox")
 
-st.title("🧪 Strategic Scenario Sandbox Playground")
-st.caption("Isolated Risk Assessment Environment • Stress-Test Market Projections Without Changing Core Ledger Values")
+st.title("🔮 Capital Stewardship Sandbox")
+st.caption("Path B: Tactical Optimization Challenges & Cost-of-Inaction Simulators")
 st.markdown("---")
 
-# --- SaaS Asset Class Mapping Configuration Bridge ---
-# Translates user-friendly business logic to our abstract core backend codes
-ASSET_TYPE_PRESETS = {
-    "Industrial Kitchen Machinery / Ovens": {"code": "AIA_100", "uel": 120, "residual_pct": 0.15, "mult": 1.25},
-    "Refrigerated Delivery Vans": {"code": "AIA_100", "uel": 60, "residual_pct": 0.20, "mult": 1.00},
-    "Facility Outfitting & Integral Features": {"code": "WDA_SPECIAL", "uel": 180, "residual_pct": 0.00, "mult": 1.10},
-    "Standard Office / Administrative Assets": {"code": "WDA_MAIN", "uel": 36, "residual_pct": 0.05, "mult": 1.00}
-}
+# --- 1. SESSION STATE FALLBACK CHECK ---
+# Ensure the sandbox doesn't crash if a user navigates here before clicking submit on page 1
+if "baseline_inputs" not in st.session_state:
+    st.warning("⚠️ No active ingestion data detected. Seeding sandbox with baseline AHOTG corporate data.")
+    st.session_state["baseline_inputs"] = {
+        "nominal_seasonal_sales_base": 120000.0,
+        "nominal_cogs_base": 48000.0,
+        "opening_cash_balance": 69488.0,
+        "opening_long_term_debt": 147110.0
+    }
 
-# Initialize global scenario option in session memory state
-if "global_strategic_scenario" not in st.session_state:
-    st.session_state.global_strategic_scenario = "Baseline Case"
+base = st.session_state["baseline_inputs"]
+raw_sales = base.get("nominal_seasonal_sales_base", 120000.0) * 2
 
-# --- Layout Grid: Macro Scenario Selector ---
-st.subheader("⚙️ Select Global Forecast Strategy Path")
-chosen_scenario = st.selectbox(
-    "Choose active scenario track to simulate across all core statements:",
-    options=["Baseline Case", "Growth Expansion Case", "Supply-Chain Stress Case"],
-    index=["Baseline Case", "Growth Expansion Case", "Supply-Chain Stress Case"].index(st.session_state.global_strategic_scenario),
-    key="sandbox_scenario_selector"
-)
+# --- 2. LAYOUT: TWO-COLUMN STRATEGIC ARENA ---
+col_controls, col_charts = st.columns([1, 1.2])
 
-# Apply context callout boxes explaining the parameters of each scenario
-if chosen_scenario == "Baseline Case":
-    st.success("🟢 **Baseline Mode Active:** Operating with direct user-defined slider metrics exactly.")
-elif chosen_scenario == "Growth Expansion Case":
-    st.info("🚀 **Growth Mode Active:** Simulating an automatic +15% surge in monthly turnover projections.")
-elif chosen_scenario == "Supply-Chain Stress Case":
-    st.warning("⚠️ **Stress-Test Mode Active:** Simulating an economic contraction that drops turnover by -20% across the board.")
-
-st.markdown("---")
-
-# --- Interactive Sidebar Controls ---
-st.sidebar.header("📅 Simulation Boundaries")
-sb_horizon = st.sidebar.slider("Simulation Horizon (Months)", 12, 60, 60, 12)
-
-st.sidebar.header("💸 Core Operational Controls")
-ui_sales = st.sidebar.number_input("Target Monthly Sales (£)", min_value=0.0, value=50000.0, step=2500.0)
-ui_direct_costs = st.sidebar.number_input("Baseline Direct Costs (£)", min_value=0.0, value=22000.0, step=1000.0)
-ui_admin = st.sidebar.number_input("Admin Overheads (£)", min_value=0.0, value=8000.0, step=500.0)
-ui_directors = st.sidebar.number_input("Directors Salaries (£)", min_value=0.0, value=5000.0, step=500.0)
-
-st.sidebar.header("👥 Workforce Payroll Controls")
-ui_gross_wages = st.sidebar.number_input("Monthly Staff Gross Wages (£)", min_value=0.0, value=12000.0, step=500.0)
-ui_pension_opt = st.sidebar.checkbox("Simulate Workforce Pension Opt-Out", value=False)
-
-st.sidebar.header("🏗️ Planned Capital Expenditures")
-enable_capex = st.sidebar.checkbox("Include Planned CapEx Event", value=False)
-
-# Initialize default empty CapEx variables
-ui_asset_cost = 0.0
-ui_purchase_month = -1
-ui_selected_preset = "Standard Office / Administrative Assets"
-ui_custom_residual = 0.0
-
-if enable_capex:
-    ui_asset_cost = st.sidebar.number_input("Asset Purchase Price (£)", min_value=0.0, value=25000.0, step=1000.0)
-    ui_purchase_month = st.sidebar.slider("Purchase Month Index", 0, sb_horizon - 1, 3)
-    ui_selected_preset = st.sidebar.selectbox("Infrastructure Type / Industry Profile", options=list(ASSET_TYPE_PRESETS.keys()))
-    ui_custom_residual = st.sidebar.number_input("Estimated Asset Residual Value (£)", min_value=0.0, value=ui_asset_cost * ASSET_TYPE_PRESETS[ui_selected_preset]["residual_pct"])
-
-# --- Macro Scenario Modifier Math ---
-# Apply systemic variations based on the active scenario toggle choice
-final_sales_input = ui_sales
-if chosen_scenario == "Growth Expansion Case":
-    final_sales_input = ui_sales * 1.15
-elif chosen_scenario == "Supply-Chain Stress Case":
-    final_sales_input = ui_sales * 0.80
-
-# --- Package Inputs for the Master Coordination Engine ---
-inputs_package = {
-    "target_monthly_sales": final_sales_input,
-    "base_monthly_gross_wages": ui_gross_wages,
-    "pension_opt_out": ui_pension_opt,
-    "direct_costs_monthly": ui_direct_costs,
-    "admin_overheads_monthly": ui_admin,
-    "directors_salaries_monthly": ui_directors,
-    "opening_cash_balance": 15000.0, # Seed baseline
-    "opening_retained_earnings": 15000.0,
+with col_controls:
+    st.subheader("🏆 Strategic Stewardship Levers")
+    st.markdown("Toggle these advanced corporate maneuvers to observe their compounding impact on cash runway and tax optimization.")
     
-    # CapEx parameters
-    "planned_asset_cost": ui_asset_cost,
-    "planned_asset_purchase_month_index": ui_purchase_month,
-    "planned_asset_uel_months": ASSET_TYPE_PRESETS[ui_selected_preset]["uel"],
-    "planned_asset_residual_value": ui_custom_residual,
-    "planned_asset_tax_code": ASSET_TYPE_PRESETS[ui_selected_preset]["code"],
-    "planned_asset_systemic_multiplier": ASSET_TYPE_PRESETS[ui_selected_preset]["mult"]
-}
-
-# --- Execution Row ---
-if st.button("Execute High-Speed Sandbox Simulation", use_container_width=True, type="primary"):
-    st.session_state.global_strategic_scenario = chosen_scenario
-    
-    # Fire the unified master forecast engine
-    sandbox_df = generate_integrated_3way_forecast(inputs_package)
-    
-    # Trim dataframe rows to match user selected horizon slider
-    sandbox_df = sandbox_df.iloc[:sb_horizon]
-    
-    if sandbox_df is not None:
-        st.markdown("### 📊 Scenario Trajectory Visualizations")
-        
-        # Split visualizations into clean columns for scannability
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.caption("📈 **Revenue vs. Net Profit Performance Runway (£)**")
-            st.line_chart(sandbox_df[["Turnover (£)", "Net Profit (£)"]], y_label="Value (£)")
+    # --- LEVER 1: INVOICE DISCOUNTING ---
+    with st.expander("🔗 Asset-Backed Lending (Invoice Discounting)", expanded=True):
+        id_enabled = st.checkbox("Enable Invoice Discounting Facility", value=False)
+        if id_enabled:
+            id_mode = st.radio(
+                "Drawdown Strategy Strategy",
+                options=["Defensive Minimum (Just-in-Time)", "Maximum Extraction"],
+                help="Minimum draws only what is required to meet monthly obligations, preserving headroom."
+            )
             
-        with col2:
-            st.caption("💰 **3-Way Cash Position & Capital Asset Net Book Value (£)**")
-            st.line_chart(sandbox_df[["Bank Cash Position (£)", "Fixed Asset NBV (£)"]], y_label="Value (£)")
+            # Parametric adjustments
+            advance_rate = st.slider("Invoice Advance Rate (%)", min_value=50, max_value=95, value=80)
+            dilution_haircut = st.slider("Expected Credit Note/Dilution Haircut (%)", min_value=0, max_value=15, value=3)
             
-        # Display workforce analytics
-        st.markdown("### 👥 Operational Resource Strain Analysis")
-        st.info(f"👷 **Simulated Kitchen / Team Capacity Allocation:** {sandbox_df['Ops_FTE_Strain'].iloc[0]} FTE Base Load Requirement.")
-        
-        # Dataframe Inspector Row
-        with st.expander("🗃️ Inspect Raw Simulation Output Ledger Data Frame", expanded=False):
-            st.dataframe(sandbox_df, use_container_width=True, hide_index=False)
+            # Early Settlement Arbitrage Switch
+            supplier_discount = st.checkbox("Utilize Headroom for 2% Early Supplier Settlement Discounts", value=False)
+        else:
+            id_mode = "None"
+            advance_rate = 0
+            supplier_discount = False
+
+    # --- LEVER 2: EV HP TAX SHIELD ---
+    with st.expander("⚡ Green Fleet CapEx (Tax Shielding)", expanded=False):
+        ev_enabled = st.checkbox("Execute £50,000 Electric Vehicle Fleet Rollout", value=False)
+        if ev_enabled:
+            st.info("💡 Structure: 5% Deposit (£2,500) via HP. Triggers 100% First-Year Capital Allowances (FYA).")
+            deposit_source = st.selectbox("Fund Deposit Via:", ["Clearing Bank Cash", "Invoice Discounting Headroom"] if id_enabled else ["Clearing Bank Cash"])
+
+    # --- LEVER 3: VAT SCHEME OPTIMIZATION ---
+    with st.expander("📊 HMRC VAT Scheme Selection", expanded=False):
+        vat_scheme = st.radio(
+            "Select VAT Accounting Framework",
+            options=["Standard Invoice Accounting", "HMRC Cash Accounting Scheme"],
+            help="Cash accounting allows you to delay output VAT liability until the customer physically settles their invoice."
+        )
+
+# --- 3. THE LIVE CALCULATION MATRIX (COL 2) ---
+with col_charts:
+    st.subheader("📊 Dynamic Impact Metrics")
+    
+    # A. PREDICTIVE VAT THRESHOLD MONITOR
+    st.markdown("### **1. Compliance Ceiling Monitor**")
+    rolling_turnover_projection = raw_sales * 1.10 # Assuming standard scaling growth
+    
+    if vat_scheme == "HMRC Cash Accounting Scheme":
+        if rolling_turnover_projection > 1600000.0:
+            st.error(f"""
+            **⚠️ CRITICAL THRESHOLD BREACH DETECTED**  
+            Your projected rolling 12-month taxable turnover of **£{rolling_turnover_projection:,.2f}** exceeds the statutory HMRC Cash Accounting ceiling of **£1,600,000**.  
+            *Action Matrix:* The simulation forces a structural transition back to Standard Invoice VAT in Month 25, creating a one-time working capital cash contraction.
+            """)
+        elif rolling_turnover_projection > 1350000.0:
+            st.warning(f"**⚠️ Entry Boundary Warning:** Rolling sales (£{rolling_turnover_projection:,.2f}) are past the initial £1.35m entry limit. New enrollment is blocked, but existing coverage is active until £1.6m.")
+        else:
+            st.success(f"✅ **Cash Accounting Compliant:** Projected rolling sales (£{rolling_turnover_projection:,.2f}) sit comfortably inside safe statutory limits.")
+    else:
+        st.caption("Standard Invoice Accounting selected. No turnover ceiling restrictions apply.")
+
+    st.markdown("---")
+
+    # B. ARBITRAGE AND HEADROOM CARD PRESENTATIONS
+    st.markdown("### **2. Liquidity Runway & Headroom Indicators**")
+    
+    # Calculate simulated available debtor pool from AR entries
+    simulated_ar = base.get("opening_accounts_receivable", 44886.0)
+    eligible_pool = simulated_ar * (1 - (dilution_haircut / 100 if id_enabled else 0))
+    max_facility_limit = eligible_pool * (advance_rate / 100)
+    
+    metric_col1, metric_col2 = st.columns(2)
+    
+    with metric_col1:
+        if id_enabled:
+            if id_mode == "Defensive Minimum (Just-in-Time)":
+                simulated_draw = 15000.0  # Simulated defensive requirement
+                headroom = max_facility_limit - simulated_draw
+                st.metric(label="Active Facility Headroom (Phantom Liquidity)", value=f"£{headroom:,.2f}", delta="Protected Buffer")
+            else:
+                st.metric(label="Active Facility Headroom", value="£0.00", delta="-100% Fully Extracted", delta_color="inverse")
+        else:
+            st.metric(label="Active Facility Headroom", value="£0.00", help="Enable Invoice Discounting to unlock credit facility tracking.")
+
+    with metric_col2:
+        if supplier_discount and id_enabled:
+            net_arbitrage_savings = (base.get("nominal_cogs_base", 48000.0) * 0.02) - (max_facility_limit * 0.0075)
+            st.metric(label="Net Supplier Arbitrage Yield", value=f"+£{net_arbitrage_savings:,.2f}", delta="Net Capital Saved")
+        else:
+            st.metric(label="Net Supplier Arbitrage Yield", value="£0.00", help="Activate early payment discount toggle to simulate gross profit margin preservation.")
+
+    st.markdown("---")
+
+    # C. THE TAX SHIELD CHRONOLOGY
+    st.markdown("### **3. Delayed Corporation Tax Chronology**")
+    if ev_enabled:
+        st.success("🏆 **EV Stewardship Challenge Activated!**")
+        st.markdown(f"""
+        *   **Month of Purchase:** Cash Account reflects a **-£2,500** initial layout for the {deposit_source.lower()}.
+        *   **Month 12 (Year End):** 100% First-Year Allowance completely shields £50,000 from taxable accounting profit.
+        *   **Month 21 (9 Months & 1 Day Post Year-End):** Your statutory Corporation Tax payment to HMRC drops cleanly by **£12,500**.
+        *   **Net Capital Stewardship Bonus:** **+£10,000 liquid cash advantage** realized at the exact moment tax falls due compared to your baseline timeline.
+        """)
+    else:
+        st.info("Challenge Opportunity: Enable the Green Fleet lever to observe how matching low-deposit HP contracts with accelerated allowances creates delayed liquid cash windfalls.")
