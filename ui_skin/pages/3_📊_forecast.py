@@ -18,7 +18,7 @@ st.sidebar.markdown("---")
 active_scenario_setting = st.session_state.get("global_strategic_scenario", "Baseline Case")
 st.sidebar.info(f"Active Strategy Track: **{active_scenario_setting}**")
 
-# Run the centralized calculation engine
+# Run the centralised calculation engine
 forecast_df = ff.run_winforecast_replication_engine(months=horizon_months, scenario=active_scenario_setting)
 
 # ==========================================
@@ -123,12 +123,25 @@ if forecast_df is not None:
             use_container_width=True
         )
     with col_dl3:
+        st.markdown("##### **PDF Landscape Export Configuration**")
+        pdf_year = st.selectbox(
+            "Select Targeted Year for 12-Month Print Pack:",
+            options=[1, 2, 3],
+            format_func=lambda x: f"Year {x} (Months {(x-1)*12 + 1} to {x*12})",
+            key="pdf_year_selector_widget"
+        )
+        
         import core_engine.report_generator as rg
-        pdf_report_bytes = rg.compile_pdf_executive_report(forecast_df=forecast_df, scenario_name=active_scenario_setting)
+        pdf_report_bytes = rg.compile_pdf_executive_report(
+            forecast_df=forecast_df, 
+            scenario_name=active_scenario_setting,
+            selected_year=pdf_year
+        )
+        
         st.download_button(
-            label="📋 Download PDF Executive Management Report (.pdf)",
+            label=f"📋 Download Year {pdf_year} PDF Pack (.pdf)",
             data=pdf_report_bytes,
-            file_name=f"AHOTG_Executive_Financial_Summary_{active_scenario_setting.replace(' ', '_')}.pdf",
+            file_name=f"AHOTG_Year_{pdf_year}_Financial_Forecast_{active_scenario_setting.replace(' ', '_')}.pdf",
             mime="application/pdf",
             use_container_width=True
         )
