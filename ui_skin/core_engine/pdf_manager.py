@@ -3,22 +3,23 @@ import io
 import numpy as np
 import pandas as pd
 from typing import Dict, Any
-from reportlab.lib.pagesizes import letter
+from reportlab.lib.pagesizes import letter, landscape
 from reportlab.lib import colors
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 
 def generate_three_way_pdf_pack(engine_output: Dict[str, Any], baseline_inputs: Dict[str, Any]) -> bytes:
     """
-    Compiles a fully branded, 3-way corporate presentation PDF pack.
-    Layout: Pages 1-2 Executive Summary Narrative & KPIs.
-    Appendices: Annualized P&L, Cash Flow, and Balance Sheet Financials (Rounded to nearest £1).
+    Compiles a premium, landscape corporate presentation PDF pack.
+    Layout: Pages 1-2 Executive Briefing & Core Strategic KPIs.
+    Appendices: Detailed 12-Month Schedules + Totals columns for each of the 5 Years.
     """
     buffer = io.BytesIO()
+    # BOARDROOM RESOLUTION: Switch entire document layout to Landscape for 14-column matrix support
     doc = SimpleDocTemplate(
         buffer, 
-        pagesize=letter,
-        rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40
+        pagesize=landscape(letter),
+        rightMargin=30, leftMargin=30, topMargin=35, bottomMargin=35
     )
     
     # --- Establish Typography Styles ---
@@ -28,10 +29,10 @@ def generate_three_way_pdf_pack(engine_output: Dict[str, Any], baseline_inputs: 
         'StrataTitle',
         parent=styles['Heading1'],
         fontName='Helvetica-Bold',
-        fontSize=24,
-        leading=28,
+        fontSize=26,
+        leading=30,
         textColor=colors.HexColor('#1E293B'),
-        spaceAfter=6
+        spaceAfter=4
     )
     
     subtitle_style = ParagraphStyle(
@@ -41,18 +42,18 @@ def generate_three_way_pdf_pack(engine_output: Dict[str, Any], baseline_inputs: 
         fontSize=10,
         leading=14,
         textColor=colors.HexColor('#0F766E'),
-        spaceAfter=20
+        spaceAfter=15
     )
     
     h2_style = ParagraphStyle(
         'StrataH2',
         parent=styles['Heading2'],
         fontName='Helvetica-Bold',
-        fontSize=14,
-        leading=18,
+        fontSize=15,
+        leading=19,
         textColor=colors.HexColor('#1E293B'),
-        spaceBefore=15,
-        spaceAfter=10
+        spaceBefore=12,
+        spaceAfter=8
     )
     
     body_style = ParagraphStyle(
@@ -68,19 +69,28 @@ def generate_three_way_pdf_pack(engine_output: Dict[str, Any], baseline_inputs: 
     th_style = ParagraphStyle(
         'StrataTH',
         fontName='Helvetica-Bold',
-        fontSize=9,
-        leading=11,
+        fontSize=7.5,
+        leading=9,
         textColor=colors.white,
-        alignment=0
+        alignment=1 # Centered headers
     )
     
     td_style = ParagraphStyle(
         'StrataTD',
         fontName='Helvetica',
-        fontSize=8,
-        leading=11,
+        fontSize=7,
+        leading=9,
         textColor=colors.HexColor('#1E293B'),
-        alignment=0
+        alignment=0 # Left-aligned labels
+    )
+    
+    td_num_style = ParagraphStyle(
+        'StrataTDNum',
+        fontName='Helvetica',
+        fontSize=6.5,
+        leading=9,
+        textColor=colors.HexColor('#1E293B'),
+        alignment=2 # Right-aligned figures
     )
 
     story = []
@@ -89,8 +99,8 @@ def generate_three_way_pdf_pack(engine_output: Dict[str, Any], baseline_inputs: 
     # PAGE 1: EXECUTIVE BRIEFING & CORE STRATEGIC KPIs
     # =========================================================================
     story.append(Paragraph("STRATA Financial Intelligence Report", title_style))
-    story.append(Paragraph("STRATA PLATFORM EXECUTIVE SUMMARIES • CONFIDENTIAL DOCUMENT", subtitle_style))
-    story.append(Spacer(1, 15))
+    story.append(Paragraph("STRATA PLATFORM EXECUTIVE SUMMARIES • CONFIDENTIAL LENDER PACK", subtitle_style))
+    story.append(Spacer(1, 10))
     
     story.append(Paragraph("Strategic Enterprise Briefing", h2_style))
     narrative_text = (
@@ -99,7 +109,6 @@ def generate_three_way_pdf_pack(engine_output: Dict[str, Any], baseline_inputs: 
         "accounts receivable collection curves alongside strategic capital allocations and structured raw inventory coverage cycles."
     )
     story.append(Paragraph(narrative_text, body_style))
-    story.append(Spacer(1, 15))
     
     story.append(Paragraph("Core Strategic KPI Projections", h2_style))
     
@@ -109,27 +118,26 @@ def generate_three_way_pdf_pack(engine_output: Dict[str, Any], baseline_inputs: 
     peak_cash = engine_output["Cash At Bank"].max()
     min_cash = engine_output["Cash At Bank"].min()
     
-    # BOARDROOM RESOLUTION: Format to nearest whole pound (.0f)
     kpi_data = [
-        [Paragraph("Performance Indicator Metric", th_style), Paragraph("Year 1", th_style), Paragraph("Year 3", th_style), Paragraph("Year 5", th_style)],
-        [Paragraph("Annual Gross Turnover Running Run-Rate", td_style), Paragraph(f"£{rev_5y[0]:,.0f}", td_style), Paragraph(f"£{rev_5y[2]:,.0f}", td_style), Paragraph(f"£{rev_5y[4]:,.0f}", td_style)],
-        [Paragraph("Consolidated Post-Tax Corporate Net Profit", td_style), Paragraph(f"£{np_5y[0]:,.0f}", td_style), Paragraph(f"£{np_5y[2]:,.0f}", td_style), Paragraph(f"£{np_5y[4]:,.0f}", td_style)],
-        [Paragraph("Target Year-End Warehouse Stock Inventory Asset Base", td_style), Paragraph(f"£{engine_output['Inventory Asset BS'][11]:,.0f}", td_style), Paragraph(f"£{engine_output['Inventory Asset BS'][35]:,.0f}", td_style), Paragraph(f"£{engine_output['Inventory Asset BS'][59]:,.0f}", td_style)],
-        [Paragraph("Outstanding Debt Balance Obligations Pool", td_style), Paragraph(f"£{engine_output['Outstanding Debt'][11]:,.0f}", td_style), Paragraph(f"£{engine_output['Outstanding Debt'][35]:,.0f}", td_style), Paragraph(f"£{engine_output['Outstanding Debt'][59]:,.0f}", td_style)]
+        [Paragraph("Performance Indicator Metric", th_style), Paragraph("Year 1 Total", th_style), Paragraph("Year 3 Total", th_style), Paragraph("Year 5 Total", th_style)],
+        [Paragraph("Annual Gross Turnover Running Run-Rate", td_style), Paragraph(f"£{rev_5y[0]:,.0f}", td_num_style), Paragraph(f"£{rev_5y[2]:,.0f}", td_num_style), Paragraph(f"£{rev_5y[4]:,.0f}", td_num_style)],
+        [Paragraph("Consolidated Post-Tax Corporate Net Profit", td_style), Paragraph(f"£{np_5y[0]:,.0f}", td_num_style), Paragraph(f"£{np_5y[2]:,.0f}", td_num_style), Paragraph(f"£{np_5y[4]:,.0f}", td_num_style)],
+        [Paragraph("Target Year-End Warehouse Stock Inventory Asset Base", td_style), Paragraph(f"£{engine_output['Inventory Asset BS'][11]:,.0f}", td_num_style), Paragraph(f"£{engine_output['Inventory Asset BS'][35]:,.0f}", td_num_style), Paragraph(f"£{engine_output['Inventory Asset BS'][59]:,.0f}", td_num_style)],
+        [Paragraph("Outstanding Debt Balance Obligations Pool", td_style), Paragraph(f"£{engine_output['Outstanding Debt'][11]:,.0f}", td_num_style), Paragraph(f"£{engine_output['Outstanding Debt'][35]:,.0f}", td_num_style), Paragraph(f"£{engine_output['Outstanding Debt'][59]:,.0f}", td_num_style)]
     ]
     
-    kpi_table = Table(kpi_data, colWidths=[240, 90, 90, 90])
+    kpi_table = Table(kpi_data, colWidths=[332, 130, 130, 130])
     kpi_table.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#1E293B')),
-        ('ALIGN', (0,0), (-1,-1), 'LEFT'),
-        ('BOTTOMPADDING', (0,0), (-1,0), 8),
-        ('TOPPADDING', (0,0), (-1,0), 8),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+        ('TOPPADDING', (0,0), (-1,-1), 6),
         ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#E2E8F0')),
         ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.HexColor('#F8FAFC')])
     ]))
     story.append(kpi_table)
     
-    story.append(Spacer(1, 20))
+    story.append(Spacer(1, 10))
     story.append(Paragraph("Liquid Reserve & Runway Positions", h2_style))
     runway_text = (
         f"Across the full 60-month operational horizon, the projected peak cash position encounters a maximum of "
@@ -139,7 +147,7 @@ def generate_three_way_pdf_pack(engine_output: Dict[str, Any], baseline_inputs: 
     story.append(Paragraph(runway_text, body_style))
     
     # =========================================================================
-    # PAGE 2: OPERATIONAL POLICIES & CAPITAL ACCUMULATION NARRATIVE
+    # PAGE 2: OPERATIONAL ATTESTATION FRAMEWORK
     # =========================================================================
     story.append(PageBreak())
     story.append(Paragraph("Operational Policy Framework", h2_style))
@@ -149,150 +157,202 @@ def generate_three_way_pdf_pack(engine_output: Dict[str, Any], baseline_inputs: 
         "by business unit channel to insulate core cash flow arrays from liquidity contractions."
     )
     story.append(Paragraph(policy_brief, body_style))
-    story.append(Spacer(1, 15))
+    story.append(Spacer(1, 10))
     
     story.append(Paragraph("Three-Way System Equilibrium Attestation", h2_style))
     attestation_text = (
         "We hereby attest that this document has been compiled via a synchronized three-way general ledger logic wheel. "
-        "Changes in operational parameters flow instantly through matched double-entry entries across the P&L, Cash Flow, "
+        "Changes in operational parameters flow instantly through matched entries across the P&L, Cash Flow, "
         "and Balance Sheet matrices. Dynamic systems balance has been computationally verified with zero structural variance "
         "across all periods."
     )
     story.append(Paragraph(attestation_text, body_style))
-    story.append(Spacer(1, 40))
-    
+    story.append(Spacer(1, 30))
     story.append(Paragraph("<b>STRATA Verification Seal</b><br/><i>Ledger Status: Verified Balanced</i>", subtitle_style))
-    
+
     # =========================================================================
-    # APPENDICES: 5-YEAR ANNUALIZED FINANCIAL REPORT STATEMENTS
+    # MULTI-YEAR GRANULAR 12+1 APPENDICES CONTROLLER
     # =========================================================================
-    def build_annual_table(data_dict: Dict[str, Any], labels: list, title: str, has_opening: bool = False):
-        append_block = [PageBreak(), Paragraph(title, h2_style), Spacer(1, 10)]
+    # Define exact horizontal spacing constraints for Landscape (732 points available)
+    data_column_width = 43.0
+    label_column_width = 176.0
+    appendix_widths = [label_column_width] + [data_column_width] * 13
+
+    for year_idx in range(5):
+        m_start = year_idx * 12
+        m_end = (year_idx + 1) * 12
         
-        # Configure headers to adapt dynamically if an opening column is injected
-        if has_opening:
-            header_row = [Paragraph("Financial Line Item Component (£)", th_style), Paragraph("Opening b/f", th_style)] + [Paragraph(f"Year {i+1}", th_style) for i in range(5)]
-            col_widths = [190, 57, 57, 57, 57, 57, 57]
-        else:
-            header_row = [Paragraph("Financial Line Item Component (£)", th_style)] + [Paragraph(f"Year {i+1}", th_style) for i in range(5)]
-            col_widths = [210, 64, 64, 64, 64, 64]
-            
-        table_rows = [header_row]
+        # Build headers row dynamically
+        header_row = [Paragraph("Financial Component Row Line", th_style)]
+        for m in range(m_start, m_end):
+            header_row.append(Paragraph(f"M{m+1}", th_style))
+        header_row.append(Paragraph("Annual Total" if year_idx < 5 else "Total", th_style))
         
-        for lbl in labels:
-            row_cells = [Paragraph(f"<b>{lbl}</b>" if lbl.startswith("**") or lbl.startswith("***") else lbl, td_style)]
-            vector = data_dict[lbl]
-            for val in vector:
-                row_cells.append(Paragraph(f"£{val:,.0f}" if val >= 0 else f"(£{abs(val):,.0f})", td_style))
-            table_rows.append(row_cells)
+        # --- APPENDIX A: DYNAMIC P&L SNAPSHOTS ---
+        story.append(PageBreak())
+        story.append(Paragraph(f"Appendix A.{year_idx+1}: Income Statement (P&L) - Year {year_idx+1}", h2_style))
+        story.append(Spacer(1, 5))
+        
+        pl_labels = ["Gross Revenue Turnover", "Cost of Goods Sold (COGS)", "Administrative Overheads", "**OPERATIONAL EBITDA**", "Book Depreciation", "Interest Paid Expense", "***NET PROFIT AFTER TAX***"]
+        
+        pl_rows = [header_row]
+        for lbl in pl_labels:
+            row_cells = [Paragraph(f"<b>{lbl}</b>" if lbl.startswith("**") else lbl, td_style)]
             
-        tbl = Table(table_rows, colWidths=col_widths)
-        tbl.setStyle(TableStyle([
+            # Extract the raw 12-month vector slice
+            if "Turnover" in lbl: v = engine_output["Revenue"][m_start:m_end]
+            elif "COGS" in lbl: v = -engine_output["COGS"][m_start:m_end]
+            elif "Overheads" in lbl: v = -engine_output["Overheads"][m_start:m_end]
+            elif "EBITDA" in lbl: v = (engine_output["Revenue"] - engine_output["COGS"] - engine_output["Overheads"])[m_start:m_end]
+            elif "Depreciation" in lbl: v = -engine_output["Depreciation"][m_start:m_end]
+            elif "Interest" in lbl: v = -engine_output["Interest Paid"][m_start:m_end]
+            else: v = engine_output["Net Profit"][m_start:m_end]
+            
+            for month_val in v:
+                row_cells.append(Paragraph(f"£{month_val:,.0f}" if month_val >= 0 else f"({abs(month_val):,.0f})", td_num_style))
+            
+            # Inject whole pound summation total column entry
+            tot = np.sum(v)
+            row_cells.append(Paragraph(f"£{tot:,.0f}" if tot >= 0 else f"({abs(tot):,.0f})", th_style if lbl.startswith("**") else td_num_style))
+            pl_rows.append(row_cells)
+            
+        pl_tbl = Table(pl_rows, colWidths=appendix_widths)
+        pl_tbl.setStyle(TableStyle([
             ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#0F766E')),
+            ('BACKGROUND', (-1,1), (-1,-1), colors.HexColor('#F1F5F9')), # Highlight Totals Column
             ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E1')),
-            ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.HexColor('#F8FAFC')]),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 5),
-            ('TOPPADDING', (0,0), (-1,-1), 5),
+            ('ROWBACKGROUNDS', (0,1), (-2,-1), [colors.white, colors.HexColor('#F8FAFC')]),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 4), ('TOPPADDING', (0,0), (-1,-1), 4),
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE')
         ]))
-        append_block.append(tbl)
-        return append_block
+        story.append(pl_tbl)
 
-    # --- Appendix A: P&L ---
-    cogs_5y = np.array([np.sum(engine_output["COGS"][i*12:(i+1)*12]) for i in range(5)])
-    oh_5y = np.array([np.sum(engine_output["Overheads"][i*12:(i+1)*12]) for i in range(5)])
-    ebitda_5y = rev_5y - cogs_5y - oh_5y
-    dep_5y = np.array([np.sum(engine_output["Depreciation"][i*12:(i+1)*12]) for i in range(5)])
-    int_5y = np.array([np.sum(engine_output["Interest Paid"][i*12:(i+1)*12]) for i in range(5)])
-    tax_5y = np.array([np.sum(engine_output["Tax Expense"][i*12:(i+1)*12]) for i in range(5)])
-    
-    pl_labels = ["Gross Revenue Turnover", "Cost of Goods Sold (COGS)", "Administrative Overheads", "**OPERATIONAL EBITDA**", "Book Depreciation", "Interest Paid Expense", "***NET PROFIT AFTER TAX***"]
-    pl_payload = {
-        "Gross Revenue Turnover": rev_5y,
-        "Cost of Goods Sold (COGS)": -cogs_5y,
-        "Administrative Overheads": -oh_5y,
-        "**OPERATIONAL EBITDA**": ebitda_5y,
-        "Book Depreciation": -dep_5y,
-        "Interest Paid Expense": -int_5y,
-        "***NET PROFIT AFTER TAX***": np_5y
-    }
-    story.extend(build_annual_table(pl_payload, pl_labels, "Appendix A: Annualized Income Statement (P&L)"))
-
-    # --- Appendix B: Cash Flow (Reconciliation Leak Patched) ---
-    stock_mov_5y = np.array([np.sum(engine_output["Stock Movement"][i*12:(i+1)*12]) for i in range(5)])
-    prip_5y = np.array([np.sum(engine_output["Principal Repayments"][i*12:(i+1)*12]) for i in range(5)])
-    txpd_5y = np.array([np.sum(engine_output["Tax Cash Paid"][i*12:(i+1)*12]) for i in range(5)])
-    proc_5y = np.array([np.sum(engine_output["Asset Disposal Proceeds"][i*12:(i+1)*12]) for i in range(5)])
-    
-    # SYSTEM FIX: Injected stock_mov_5y into the cash flow routine to prevent ledger leaks
-    net_cf_5y = (np_5y + dep_5y + stock_mov_5y - prip_5y - txpd_5y - int_5y + proc_5y)
-    cash_bs_5y = np.array([engine_output["Cash At Bank"][(i*12)+11] for i in range(5)])
-    
-    cf_labels = ["Net Profit Allocation", "Add: Depreciation Back", "Add/Less: Stock Movement Delta", "Less: Principal Repayments", "Less: Corp Tax Cash Paid", "Less: Finance Cost Outflows", "Add: Asset Disposal Proceeds", "**Net Annual Cash Flow Movement**", "***CLOSING BANK CASH POSITION***"]
-    cf_payload = {
-        "Net Profit Allocation": np_5y,
-        "Add: Depreciation Back": dep_5y,
-        "Add/Less: Stock Movement Delta": stock_mov_5y,
-        "Less: Principal Repayments": -prip_5y,
-        "Less: Corp Tax Cash Paid": -txpd_5y,
-        "Less: Finance Cost Outflows": -int_5y,
-        "Add: Asset Disposal Proceeds": proc_5y,
-        "**Net Annual Cash Flow Movement**": net_cf_5y,
-        "***CLOSING BANK CASH POSITION***": cash_bs_5y
-    }
-    story.extend(build_annual_table(cf_payload, cf_labels, "Appendix B: Annualized Cash Flow Statement"))
-
-    # --- Appendix C: Balance Sheet (Opening b/f Columns Injected) ---
-    cash_seed = float(baseline_inputs.get("opening_cash_balance", 69488.0))
-    fa_seed = float(baseline_inputs.get("opening_fixed_assets_nbv", 150000.0))
-    ar_seed = float(baseline_inputs.get("opening_accounts_receivable", 44886.0))
-    ap_seed = float(baseline_inputs.get("opening_accounts_payable", 8000.0))
-    debt_seed = float(baseline_inputs.get("opening_long_term_debt", 0.0))
-    inv_seed = engine_output["Inventory Asset BS"][0]
-    re_seed = (cash_seed + fa_seed + ar_seed + inv_seed) - (debt_seed + ap_seed)
-    
-    # Extract structural year-end array profiles
-    fa_bs_5y = np.array([engine_output["Fixed Asset NBV"][(i*12)+11] for i in range(5)])
-    inv_bs_5y = np.array([engine_output["Inventory Asset BS"][(i*12)+11] for i in range(5)])
-    ar_bs_5y = np.array([engine_output["Accounts Receivable BS"][(i*12)+11] for i in range(5)])
-    debt_bs_5y = np.array([engine_output["Outstanding Debt"][(i*12)+11] for i in range(5)])
-    tax_bs_5y = np.array([engine_output["Tax Liability BS"][(i*12)+11] for i in range(5)])
-    ap_bs_5y = np.full(5, ap_seed)
-    
-    # SYSTEM FIX: Prepend opening trial balance values to align with the UI forecast page layouts
-    fa_bs_render = np.insert(fa_bs_5y, 0, fa_seed)
-    inv_bs_render = np.insert(inv_bs_5y, 0, inv_seed)
-    ar_bs_render = np.insert(ar_bs_5y, 0, ar_seed)
-    cash_bs_render = np.insert(cash_bs_5y, 0, cash_seed)
-    debt_bs_render = np.insert(debt_bs_5y, 0, debt_seed)
-    tax_bs_render = np.insert(tax_bs_5y, 0, 0.0)
-    ap_bs_render = np.insert(ap_bs_5y, 0, ap_seed)
-    
-    # Compile 6-element totals (Opening b/f + 5 Years)
-    total_assets_render = fa_bs_render + cash_bs_render + inv_bs_render + ar_bs_render
-    total_liabs_render = debt_bs_render + tax_bs_render + ap_bs_render
-    net_assets_render = total_assets_render - total_liabs_render
-    
-    timeline_re = np.zeros(6)
-    timeline_re[0] = re_seed
-    running_re = re_seed
-    for i in range(5):
-        running_re += np_5y[i]
-        timeline_re[i+1] = running_re
+        # --- APPENDIX B: DYNAMIC CASH FLOW SNAPSHOTS ---
+        story.append(PageBreak())
+        story.append(Paragraph(f"Appendix B.{year_idx+1}: Cash Flow Statement - Year {year_idx+1}", h2_style))
+        story.append(Spacer(1, 5))
         
-    bs_labels = ["Fixed Assets Net Book Value", "Warehouse Stock Inventory Pool", "Accounts Receivable (AR) Debtors", "Liquid Bank Cash Position", "**TOTAL STRUCTURAL ASSETS**", "Outstanding Finance Debt Obligations", "Deferred Corporate Tax Liabilities", "Accounts Payable (AP) Creditors", "**TOTAL STRUCTURAL LIABILITIES**", "***NET NET ASSETS CAPITAL EQUITY***"]
-    bs_payload = {
-        "Fixed Assets Net Book Value": fa_bs_render,
-        "Warehouse Stock Inventory Pool": inv_bs_render,
-        "Accounts Receivable (AR) Debtors": ar_bs_render,
-        "Liquid Bank Cash Position": cash_bs_render,
-        "**TOTAL STRUCTURAL ASSETS**": total_assets_render,
-        "Outstanding Finance Debt Obligations": -debt_bs_render,
-        "Deferred Corporate Tax Liabilities": -tax_bs_render,
-        "Accounts Payable (AP) Creditors": -ap_bs_render,
-        "**TOTAL STRUCTURAL LIABILITIES**": -total_liabs_render,
-        "***NET NET ASSETS CAPITAL EQUITY***": net_assets_render
-    }
-    story.extend(build_annual_table(bs_payload, bs_labels, "Appendix C: Annualized Statement of Financial Position", has_opening=True))
+        cf_labels = ["Net Profit Allocation", "Add: Depreciation Back", "Add/Less: Stock Movement Delta", "Less: Principal Repayments", "Less: Corp Tax Cash Paid", "Less: Finance Cost Outflows", "Add: Asset Disposal Proceeds", "**Net Monthly Cash Flow Movement**", "***CLOSING BANK CASH POSITION***"]
+        
+        cf_rows = [header_row]
+        for lbl in cf_labels:
+            row_cells = [Paragraph(f"<b>{lbl}</b>" if lbl.startswith("**") else lbl, td_style)]
+            
+            if "Profit" in lbl: v = engine_output["Net Profit"][m_start:m_end]
+            elif "Depreciation" in lbl: v = engine_output["Depreciation"][m_start:m_end]
+            elif "Stock" in lbl: v = engine_output["Stock Movement"][m_start:m_end]
+            elif "Principal" in lbl: v = -engine_output["Principal Repayments"][m_start:m_end]
+            elif "Tax" in lbl: v = -engine_output["Tax Cash Paid"][m_start:m_end]
+            elif "Finance" in lbl: v = -engine_output["Interest Paid"][m_start:m_end]
+            elif "Disposal" in lbl: v = engine_output["Asset Disposal Proceeds"][m_start:m_end]
+            elif "Movement" in lbl:
+                v = (engine_output["Net Profit"] + engine_output["Depreciation"] + engine_output["Stock Movement"] - engine_output["Principal Repayments"] - engine_output["Tax Cash Paid"] - engine_output["Interest Paid"] + engine_output["Asset Disposal Proceeds"])[m_start:m_end]
+            else: v = engine_output["Cash At Bank"][m_start:m_end]
+            
+            for month_val in v:
+                row_cells.append(Paragraph(f"£{month_val:,.0f}" if month_val >= 0 else f"({abs(month_val):,.0f})", td_num_style))
+                
+            # Handle Flow Accumulations vs Closing Snapshot Rules for column 13
+            if "***CLOSING" in lbl:
+                final_snapshot = v[-1]
+                row_cells.append(Paragraph(f"£{final_snapshot:,.0f}", th_style))
+            else:
+                tot = np.sum(v)
+                row_cells.append(Paragraph(f"£{tot:,.0f}" if tot >= 0 else f"({abs(tot):,.0f})", th_style if lbl.startswith("**") else td_num_style))
+                
+            cf_rows.append(row_cells)
+            
+        cf_tbl = Table(cf_rows, colWidths=appendix_widths)
+        cf_tbl.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#0F766E')),
+            ('BACKGROUND', (-1,1), (-1,-1), colors.HexColor('#F1F5F9')),
+            ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E1')),
+            ('ROWBACKGROUNDS', (0,1), (-2,-1), [colors.white, colors.HexColor('#F8FAFC')]),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 4), ('TOPPADDING', (0,0), (-1,-1), 4),
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE')
+        ]))
+        story.append(cf_tbl)
+
+        # --- APPENDIX C: DYNAMIC BALANCE SHEET SNAPSHOTS ---
+        story.append(PageBreak())
+        story.append(Paragraph(f"Appendix C.{year_idx+1}: Statement of Financial Position - Year {year_idx+1}", h2_style))
+        story.append(Spacer(1, 5))
+        
+        # Build specific Balance Sheet snapshot header row (Column 1 is baseline b/f or starting anchor)
+        bs_header = [Paragraph("Financial Asset / Liability Component", th_style), Paragraph("Opening b/f" if year_idx == 0 else "Prior Y/E", th_style)]
+        for m in range(m_start, m_end):
+            bs_header.append(Paragraph(f"M{m+1}", th_style))
+        bs_header.append(Paragraph("Y/E Close", th_style))
+        
+        bs_labels = ["Fixed Assets Net Book Value", "Warehouse Stock Inventory Pool", "Accounts Receivable (AR) Debtors", "Liquid Bank Cash Position", "**TOTAL STRUCTURAL ASSETS**", "Outstanding Finance Debt Obligations", "Deferred Corporate Tax Liabilities", "Accounts Payable (AP) Creditors", "**TOTAL STRUCTURAL LIABILITIES**", "***NET NET ASSETS CAPITAL EQUITY***"]
+        
+        # Pull baseline references to initialize column 1 anchors
+        cash_seed = float(baseline_inputs.get("opening_cash_balance", 69488.0))
+        fa_seed = float(baseline_inputs.get("opening_fixed_assets_nbv", 150000.0))
+        ar_seed = float(baseline_inputs.get("opening_accounts_receivable", 44886.0))
+        ap_seed = float(baseline_inputs.get("opening_accounts_payable", 8000.0))
+        debt_seed = float(baseline_inputs.get("opening_long_term_debt", 0.0))
+        inv_seed = engine_output["Inventory Asset BS"][0]
+        re_seed = (cash_seed + fa_seed + ar_seed + inv_seed) - (debt_seed + ap_seed)
+        
+        bs_rows = [bs_header]
+        for lbl in bs_labels:
+            row_cells = [Paragraph(f"<b>{lbl}</b>" if lbl.startswith("**") or lbl.startswith("***") else lbl, td_style)]
+            
+            # Establish localized vectors
+            if "Fixed Assets" in lbl: v = engine_output["Fixed Asset NBV"]; seed = fa_seed
+            elif "Inventory" in lbl: v = engine_output["Inventory Asset BS"]; seed = inv_seed
+            elif "Receivable" in lbl: v = engine_output["Accounts Receivable BS"]; seed = ar_seed
+            elif "Cash" in lbl: v = engine_output["Cash At Bank"]; seed = cash_seed
+            elif "Outstanding Debt" in lbl: v = engine_output["Outstanding Debt"]; seed = debt_seed
+            elif "Tax Liabilities" in lbl: v = engine_output["Tax Liability BS"]; seed = 0.0
+            elif "Payable" in lbl: v = np.full(total_months, ap_seed); seed = ap_seed
+            elif "**TOTAL STRUCTURAL ASSETS" in lbl:
+                v = engine_output["Fixed Asset NBV"] + engine_output["Cash At Bank"] + engine_output["Inventory Asset BS"] + engine_output["Accounts Receivable BS"]
+                seed = fa_seed + cash_seed + inv_seed + ar_seed
+            elif "**TOTAL STRUCTURAL LIABILITIES" in lbl:
+                v = engine_output["Outstanding Debt"] + engine_output["Tax Liability BS"] + np.full(total_months, ap_seed)
+                seed = debt_seed + 0.0 + ap_seed
+            else: # Retained Reserves
+                v = np.zeros(total_months)
+                running_re = re_seed
+                for m_i in range(total_months):
+                    running_re += engine_output["Net Profit"][m_i]
+                    v[m_i] = running_re
+                seed = re_seed
+                
+            # Column 1 Anchor Placement (Opening balance forward calculation)
+            if year_idx == 0:
+                anchor_val = seed
+            else:
+                anchor_val = v[m_start - 1]
+                
+            sign = -1.0 if ("Obligations" in lbl or "Liabilities" in lbl or "Creditors" in lbl or "TOTAL STRUCTURAL LIABILITIES" in lbl) else 1.0
+            display_anchor = anchor_val * sign
+            row_cells.append(Paragraph(f"£{display_anchor:,.0f}" if display_anchor >= 0 else f"({abs(display_anchor):,.0f})", td_num_style))
+            
+            # Columns 2 through 13: 12 Months layout entries
+            slice_v = v[m_start:m_end]
+            for month_val in slice_v:
+                display_val = month_val * sign
+                row_cells.append(Paragraph(f"£{display_val:,.0f}" if display_val >= 0 else f"({abs(display_val):,.0f})", td_num_style))
+                
+            # Column 14: Closing snapshot mirror duplication
+            closing_val = slice_v[-1] * sign
+            row_cells.append(Paragraph(f"£{closing_val:,.0f}" if closing_val >= 0 else f"({abs(closing_val):,.0f})", th_style if lbl.startswith("**") else td_num_style))
+            bs_rows.append(row_cells)
+            
+        bs_tbl = Table(bs_rows, colWidths=appendix_widths)
+        bs_tbl.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#0F766E')),
+            ('BACKGROUND', (1,1), (1,-1), colors.HexColor('#F8FAFC')), # Highlight Opening anchor
+            ('BACKGROUND', (-1,1), (-1,-1), colors.HexColor('#F1F5F9')), # Highlight Closing anchor
+            ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E1')),
+            ('ROWBACKGROUNDS', (0,1), (-2,-1), [colors.white, colors.HexColor('#F8FAFC')]),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 4), ('TOPPADDING', (0,0), (-1,-1), 4),
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE')
+        ]))
+        story.append(bs_tbl)
 
     doc.build(story)
     return buffer.getvalue()
