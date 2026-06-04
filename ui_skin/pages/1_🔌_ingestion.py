@@ -44,7 +44,8 @@ default_loans_data = {
     "Current Balance (£)": [12485.0, 5967.0, 5340.0, 28160.0, 80554.0, 14753.0],
     "Monthly Payment (£)": [6252.0, 1431.0, 626.0, 468.0, 2221.0, 2546.0],
     "Original Term (Months)": [24, 12, 60, 60, 60, 36],
-    "Remaining Term (Months)": [2, 4, 9, 60, 36, 6]
+    "Remaining Term (Months)": [2, 4, 9, 60, 36, 6],
+    "Interest Rate (%)": [9.50, 12.00, 6.50, 7.00, 8.50, 10.00] # Restored interest dimension row
 }
 default_loans_df = pd.DataFrame(default_loans_data)
 
@@ -58,6 +59,7 @@ loan_editor_df = st.data_editor(
         "Monthly Payment (£)": st.column_config.NumberColumn("Monthly Cash Repayment (£)", format="£%.2f", min_value=0.0),
         "Original Term (Months)": st.column_config.NumberColumn("Original Term (M)", min_value=1),
         "Remaining Term (Months)": st.column_config.NumberColumn("Remaining Term (M)", min_value=0, max_value=60),
+        "Interest Rate (%)": st.column_config.NumberColumn("Interest Rate (%)", format="%.2f%%", min_value=0.0, max_value=100.0, step=0.1), # Restored input configuration
     }
 )
 
