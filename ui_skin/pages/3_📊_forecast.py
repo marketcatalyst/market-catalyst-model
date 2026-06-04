@@ -1,4 +1,3 @@
-# ui_skin/pages/3_📊_forecast.py
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -9,7 +8,7 @@ from ui_skin.core_engine.pdf_manager import generate_three_way_pdf_pack
 
 st.set_page_config(layout="wide", page_title="Financial Statements Forecast")
 
-st.title("📊 Synchronized 3-Way Financial Statements")
+st.title("📊 Synchronised 3-Way Financial Statements")
 st.caption("60-Month Institutional Forecast Engine Backed by Proactive Working Capital Modifiers")
 st.markdown("---")
 
@@ -17,7 +16,7 @@ st.markdown("---")
 # --- 1. SESSION STATE VERIFICATION & FALLBACK PROTECTION ---
 # =========================================================================
 if "baseline_inputs" not in st.session_state or "raw_loan_register" not in st.session_state or "raw_revenue_matrix" not in st.session_state:
-    st.warning("⚠️ **Upstream Data Missing:** Active session data not detected. Please initialize your parameters on the Ingestion page first.")
+    st.warning("⚠️ **Upstream Data Missing:** Active session data not detected. Please initialise your parameters on the Ingestion page first.")
     st.stop()
 
 # Reconstruct planned capex lists dynamically from active state
@@ -31,6 +30,74 @@ if "asset_ledger" in st.session_state:
             "Disposal Month": -1,
             "Disposal Proceeds (£)": 0.0
         })
+
+# =========================================================================
+# --- IN-CONTEXT INTERACTIVE INPUT CENTRE: STAGES 3 & 4 ---
+# =========================================================================
+st.header("⚙️ Operational Growth & Capacity Levers")
+st.markdown(
+    "Configure your core trading channel escalators and strategic capacity expansion overlays "
+    "directly before executing the centralized three-way engine."
+)
+
+# Extract baseline run-rates securely from active session data for contextual display
+base_inputs = st.session_state["baseline_inputs"]
+baseline_retail_monthly = float(base_inputs.get("opening_accounts_receivable", 45000.00)) # Fallback context anchors
+baseline_wholesale_monthly = float(base_inputs.get("opening_accounts_payable", 25000.00))
+
+# Interlocking Frictionless Inputs Layout
+with st.container(border=True):
+    rev_tab, exp_tab = st.tabs(["📈 Stage 3: Multi-Channel Revenue Modelling", "🔮 Stage 4: Strategic Capacity Expansions"])
+    
+    with rev_tab:
+        st.markdown("#### 🎛️ Core Trading Channel Growth Vectors")
+        col_ret, col_whl = st.columns(2, gap="large")
+        
+        with col_ret:
+            with st.container(border=True):
+                st.markdown("🔹 **Direct Retail Counter Sales (65% GP Baseline Target)**")
+                st.metric(label="Ingested Starting Baseline", value=f"£{baseline_retail_monthly:,.0f}/mo")
+                c1, c2 = st.columns(2)
+                with c1:
+                    ret_vol = st.number_input("Annual Volume Growth (%)", min_value=0.0, max_value=100.0, value=5.0, step=0.5, format="%.1f", key="ret_vol_key") / 100.0
+                with c2:
+                    ret_prc = st.number_input("Annual Price Ramp (%)", min_value=0.0, max_value=50.0, value=2.5, step=0.5, format="%.1f", key="ret_prc_key") / 100.0
+                    
+        with col_whl:
+            with st.container(border=True):
+                st.markdown("🔹 **B2B Wholesale Accounts (40% GP Baseline Target)**")
+                st.metric(label="Ingested Starting Baseline", value=f"£{baseline_wholesale_monthly:,.0f}/mo")
+                c3, c4 = st.columns(2)
+                with c3:
+                    whl_vol = st.number_input("Annual Volume Growth (%)", min_value=0.0, max_value=100.0, value=12.0, step=0.5, format="%.1f", key="whl_vol_key") / 100.0
+                with c4:
+                    whl_prc = st.number_input("Annual Price Ramp (%)", min_value=0.0, max_value=50.0, value=0.0, step=0.5, format="%.1f", key="whl_prc_key") / 100.0
+                    
+        # Update session states dynamically for master orchestrator lookup
+        st.session_state["retail_annual_volume_growth"] = ret_vol
+        st.session_state["retail_annual_price_ramp"] = ret_prc
+        st.session_state["wholesale_annual_volume_growth"] = whl_vol
+        st.session_state["wholesale_annual_price_ramp"] = whl_prc
+
+    with exp_tab:
+        st.markdown("#### 🏬 Physical Footprint & Step-Cost Modifiers")
+        expansion_active = st.toggle("Activate Strategic Footprint Expansion Scenario", value=False, key="expansion_active_key")
+        st.session_state["expansion_scenario_active"] = expansion_active
+        
+        if expansion_active:
+            exp_c1, exp_c2 = st.columns(2, gap="medium")
+            with exp_c1:
+                st.session_state["expansion_month"] = st.number_input("Launch Timeline Trigger (Month)", min_value=1, max_value=48, value=13, step=1)
+                st.session_state["incremental_revenue_start"] = st.number_input("Target Expansion Monthly Revenue Base (£)", min_value=0.0, value=20000.00, step=1000.00)
+                st.session_state["expansion_cogs_pct"] = st.number_input("Expansion Specific COGS (%)", min_value=0.0, max_value=100.0, value=40.0, step=1.0) / 100.0
+            with exp_c2:
+                st.session_state["incremental_rent"] = st.number_input("Incremental Facility Rent & Rates (£/mo)", min_value=0.0, value=2500.00, step=100.00)
+                st.session_state["incremental_insurance"] = st.number_input("Incremental Site Risk Premium (£/mo)", min_value=0.0, value=500.00, step=50.00)
+                st.session_state["logistics_overtime_premium"] = st.number_input("Logistics Route Overtime Load (£/mo)", min_value=0.0, value=750.00, step=50.00)
+        else:
+            st.info("Currently processing business-as-usual core metrics. Toggle the switch above to inject expansion adjustments.")
+
+st.markdown("---")
 
 # =========================================================================
 # --- 2. EXECUTE MASTER PIPELINE CALCULATIONS ---
@@ -84,7 +151,7 @@ st.markdown("---")
 # =========================================================================
 view_interval = st.radio(
     "Select Reporting View Profile Interval:",
-    ["📅 Detailed 60-Month Rolling Schedule", "📆 5-Year Annualized Summary Deck"],
+    ["📅 Detailed 60-Month Rolling Schedule", "📆 5-Year Annualised Summary Deck"],
     horizontal=True
 )
 st.markdown("---")
@@ -118,7 +185,7 @@ if "Detailed" in view_interval:
     tax_bs = engine_output["Tax Liability BS"]
     
 else:
-    # Build 5-Year Annualized Aggregations
+    # Build 5-Year Annualised Aggregations
     columns_layout = ["Year 1", "Year 2", "Year 3", "Year 4", "Year 5"]
     
     # Flow Statements (Summation over rolling 12-month buckets)
@@ -157,7 +224,7 @@ with tab_pl:
     pl_data = {
         "Gross Revenue Turnover (£)": rev,
         "Direct Raw Material Purchases (£)": -purchases,
-        "Add/Less: Capitalized Stock Movement (£)": stock_mov,
+        "Add/Less: Capitalised Stock Movement (£)": stock_mov,
         "**TOTAL COST OF GOODS SOLD (COGS) (£)**": -cogs,
         "Administrative Overheads (£)": -overheads,
         "**OPERATIONAL EBITDA (£)**": ebitda,
@@ -204,8 +271,8 @@ with tab_bs:
         bs_columns = columns_layout
         timeline_ap = np.full(60, ap_seed)
         
-        timeline_re = np.zeros(60)
         running_re = re_seed
+        timeline_re = np.zeros(60)
         for m in range(60):
             running_re += engine_output["Net Profit"][m]
             timeline_re[m] = running_re
@@ -217,7 +284,7 @@ with tab_bs:
         bs_columns = ["Opening b/f"] + columns_layout
         timeline_ap = np.full(6, ap_seed)
         
-        # Build annualized rolling equity reserves starting from baseline seed
+        # Build annualised rolling equity reserves starting from baseline seed
         timeline_re = np.zeros(6)
         timeline_re[0] = re_seed
         running_re = re_seed
