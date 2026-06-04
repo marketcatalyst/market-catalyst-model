@@ -9,15 +9,20 @@ st.title("📥 Enterprise Data Ingestion Hub")
 st.caption("Advanced Human-in-the-Loop Trial Balance Ingestion Pipeline")
 st.markdown("---")
 
-# --- STEP 1: MULTI-SOURCE TRIAL BALANCE UPLOAD ENGINE ---
+# =========================================================================
+# STEP 1: MULTI-SOURCE TRIAL BALANCE UPLOAD ENGINE
+# =========================================================================
 st.markdown("### **Step 1: Multi-Format Trial Balance Alignment Deck**")
-st.markdown("Upload your raw accounting data ledger (CSV, Excel, Text PDF, or OCR Scan Image). The AI engine will instantly run semantic confidence checks to map your custom accounts.")
+st.markdown("""
+Upload your raw accounting data ledger (CSV, Excel, Text PDF, or OCR Scan Image). 
+The AI engine will instantly run semantic confidence checks to map your custom accounts to structural platform variables.
+""")
 
 uploaded_file = st.file_uploader("Drop corporate statement here...", type=["csv", "xlsx", "xls", "pdf", "jpg", "jpeg", "png"])
 
 # Fallback Demo Data: If no file is uploaded, automatically seed the screen with raw unmapped rows
 if uploaded_file is None:
-    st.info("💡 Prototyping Mode: No active file uploaded. Seeding pipeline with unmapped raw corporate data rows.")
+    st.info("💡 **Prototyping Mode:** No active file uploaded. Seeding pipeline with unmapped raw corporate data rows.")
     raw_tb_df = pd.DataFrame({
         "Account Code": ["1200", "1100", "0020", "2200", "2150", "3000", "9999"],
         "Account Name": [
@@ -27,28 +32,27 @@ if uploaded_file is None:
             "Trade Creditors Purchases Allocation",
             "Development Bank of Wales (DBW) Term Loan",
             "B/Fwd Retained Profits Accumulation",
-            "Suspense Unallocated Entry Code" # Will trigger 🔴 UNRESOLVED status
+            "Suspense Unallocated Entry Code" # Triggers 🔴 UNRESOLVED status deliberately
         ],
         "Balance": [69488.0, 44886.0, 150000.0, -8000.0, -130176.0, 82005.0, 0.0]
     })
 else:
-    # In full production, this routes via our document_interpreter routing functions
-    # For this UI iteration, we capture the data frame representation safely
     st.success(f"Successfully received: {uploaded_file.name}")
+    # In a full multi-format production build, this routes directly via our document_interpreter
     raw_tb_df = pd.DataFrame({
         "Account Code": ["EXT-101", "EXT-102"],
         "Account Name": ["Uploaded Cash Item", "Uploaded Debt Item"],
         "Balance": [50000.0, -50000.0]
     })
 
-# Run the backend semantic confidence logic
+# Execute backend semantic lexicon confidence mapping routines
 analyzed_records = analyze_and_map_ledger(raw_tb_df)
 analyzed_df = pd.DataFrame(analyzed_records)
 
 st.markdown("#### **Interactive Account Mapping Matrix**")
-st.caption("Verify the AI's assignments below. Adjust any yellow or red flags using the dropdown menu before submitting.")
+st.caption("Verify the AI's assignments below. Adjust any yellow or red flags using the dropdown menu before submission.")
 
-# Build the interactive table configuration
+# Construct the interactive human-in-the-loop editing grid
 final_mapped_df = st.data_editor(
     analyzed_df,
     num_rows="fixed",
@@ -62,13 +66,13 @@ final_mapped_df = st.data_editor(
             "Target Platform Destination Slot",
             options=PLATFORM_TARGET_SLOTS,
             required=True,
-            help="Select the structural financial category for this ledger row"
+            help="Select the destination architectural asset or liability category for this row"
         ),
         "System Action Status": st.column_config.TextColumn("AI Confidence Status")
     }
 )
 
-# Parse mapped variables out of the user's interactive grid allocations
+# Extract users' interactive ledger entries to assign opening balance sheet vectors
 extracted_inputs = {}
 for _, row in final_mapped_df.iterrows():
     slot = row["Assigned Platform Destination"]
@@ -77,9 +81,14 @@ for _, row in final_mapped_df.iterrows():
 
 st.markdown("---")
 
-# --- STEP 2: THE MULTI-LOAN REGISTER GRID ---
+# =========================================================================
+# STEP 2: MULTI-FACILITY DEBT & LEASE REGISTER
+# =========================================================================
 st.markdown("### **Step 2: Multi-Facility Debt & Lease Register**")
-st.markdown("Input active corporate credit lines, asset-backed tranches, or HP agreements. The engine automatically terminates cash outflows as remaining terms expire.")
+st.markdown("""
+Input active corporate credit lines, asset-backed tranches, or HP agreements. 
+The core engine treats these as reducing-balance APR lines and automatically terminates outflows as terms expire.
+""")
 
 default_loans_data = {
     "Facility Name": ["Funding Circle", "IWOCA Loans", "DBW Loan 13 Aug 2021", "DBW Loan 27 Mar 23", "DBW Loan 6 Sep 2024", "Hire Purchase Loan"],
@@ -89,6 +98,7 @@ default_loans_data = {
     "Remaining Term (Months)": [2, 4, 9, 60, 36, 6],
     "Interest Rate (%)": [9.50, 12.00, 6.50, 7.00, 8.50, 10.00]
 }
+
 loan_editor_df = st.data_editor(
     pd.DataFrame(default_loans_data),
     num_rows="dynamic",
@@ -99,14 +109,35 @@ loan_editor_df = st.data_editor(
         "Monthly Payment (£)": st.column_config.NumberColumn("Monthly Cash Repayment (£)", format="£%.2f", min_value=0.0),
         "Original Term (Months)": st.column_config.NumberColumn("Original Term (M)", min_value=1),
         "Remaining Term (Months)": st.column_config.NumberColumn("Remaining Term (M)", min_value=0, max_value=60),
-        "Interest Rate (%)": st.column_config.NumberColumn("Interest Rate (%)", format="%.2f%%", min_value=0.0, max_value=100.0, step=0.1),
+        "Interest Rate (%)": st.column_config.NumberColumn("Interest Rate (APR %)", format="%.2f%%", min_value=0.0, max_value=100.0, step=0.1),
     }
 )
 
 st.markdown("---")
 
-# --- STEP 3: GRANULAR REVENUE, COGS, & VAT RATE MAPPING GRID ---
-st.markdown("### **Step 3: Strategic Profit Center & VAT Classification Matrix**")
+# =========================================================================
+# STEP 3: STRATEGIC PROFIT CENTER & OPERATIONAL POLICIES
+# =========================================================================
+st.markdown("### **Step 3: Strategic Profit Center & Operational Policies**")
+
+col_inv1, col_inv2 = st.columns([1, 2])
+with col_inv1:
+    inventory_days_cover = st.slider(
+        "Target Inventory Coverage (Days of Cover)", 
+        min_value=0, 
+        max_value=90, 
+        value=30, 
+        step=5,
+        help="How many days of next month's demand should be pre-procured and held in stock?"
+    )
+with col_inv2:
+    st.caption("""
+    💡 **Platform Inventory Note:** Increasing this slider simulates a 'Just-in-Case' safety strategy. 
+    The engine will look ahead at upcoming seasonal surges or growth activities and pull procurement cash outflows 
+    backward to fund the warehouse asset before the revenue lands.
+    """)
+
+st.write("") # Clear vertical spacer separator
 
 default_revenue_data = {
     "Channel / Site Name": [
@@ -122,6 +153,7 @@ default_revenue_data = {
         "Standard Rate (20%)", "Standard Rate (20%)", "Standard Rate (20%)", "Zero-Rated (0%)"
     ]
 }
+
 rev_editor_df = st.data_editor(
     pd.DataFrame(default_revenue_data),
     num_rows="dynamic",
@@ -138,7 +170,9 @@ rev_editor_df = st.data_editor(
     }
 )
 
-# --- STEP 4: PACKAGING DATA FOR THE MASTER ENGINE ---
+# =========================================================================
+# STEP 4: PACKAGING DATA FOR GLOBAL ORCHESTRATION ENGINE
+# =========================================================================
 calculated_nominal_sales = float(rev_editor_df["Monthly Base Volume (£)"].sum())
 calculated_nominal_cogs = float(rev_editor_df["Associated COGS Pool (£)"].sum())
 
@@ -152,7 +186,10 @@ baseline_package = {
     "pension_opt_out": False,
     "seasonality_weights": [1.0] * 12,
     
-    # Balance Sheet values pull dynamically from Step 1's interactive alignment matrix
+    # Policy Modifiers passed down dynamically to backend matrix arrays
+    "inventory_days_cover": float(inventory_days_cover),
+    
+    # Balance Sheet value arrays pull dynamically from Step 1's interactive alignment matrix
     "opening_cash_balance": extracted_inputs.get("Liquid Bank Cash Base", 69488.0),
     "opening_fixed_assets_nbv": extracted_inputs.get("Fixed Assets Gross Cost", 150000.0),
     "opening_accounts_receivable": extracted_inputs.get("Trade Accounts Receivable (AR)", 44886.0),
@@ -161,6 +198,7 @@ baseline_package = {
     "opening_retained_earnings": extracted_inputs.get("Retained Earnings Reserve", -82005.0)
 }
 
+# Bind metrics directly into global state loop memory keys
 st.session_state["baseline_inputs"] = baseline_package
 st.session_state["raw_loan_register"] = loan_editor_df
 st.session_state["raw_revenue_matrix"] = rev_editor_df
