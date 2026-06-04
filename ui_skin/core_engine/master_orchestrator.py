@@ -8,11 +8,11 @@ def run_master_three_way_engine(baseline_inputs: dict, loan_register_df, revenue
     Master 3-Way Financial Engine for STRATA.
     Chronologically unifies multi-channel revenue growth escalators, capacity 
     expansion overlays, and the hardwired 5-tier statutory UK payroll engine 
-    to output fully reconciled, dynamic financial statements.
+    to output fully reconciled, dynamic financial statements as NumPy arrays.
     """
     
     # =========================================================================
-    # 1. EXTRACT OPERATIONAL LEVERS FROM STREAMLIT STATE
+    # 1. FETCH INTERACTIVE LAGGING & GROWTH ESCALATORS FROM STATE
     # =========================================================================
     # Stage 3: Revenue Growth Levers (Pulls dynamically from frontend page inputs)
     ret_vol_growth = st.session_state.get("retail_annual_volume_growth", 0.05)
@@ -129,7 +129,7 @@ def run_master_three_way_engine(baseline_inputs: dict, loan_register_df, revenue
         # Consolidated P&L Trading Trackers for Month m
         out_revenue[m] = m_core_revenue + m_inc_revenue
         out_cogs[m] = m_core_cogs + m_inc_cogs
-        out_purchases[m] = out_cogs[m] * 0.95  # Dynamic proportional tracking variable
+        out_purchases[m] = out_cogs[m] * 0.95
         out_stock_mov[m] = out_purchases[m] - out_cogs[m]
 
         # ---------------------------------------------------------------------
@@ -181,7 +181,7 @@ def run_master_three_way_engine(baseline_inputs: dict, loan_register_df, revenue
             pass
             
         if m_interest == 0.0 and debt_seed > 0:
-            m_interest = (debt_seed * 0.05) / 12  # Dynamic interest roll fallback
+            m_interest = (debt_seed * 0.05) / 12
 
         # Process Scheduled additions via Capex allocations list
         m_depr = running_fa * (0.15 / 12)
@@ -229,25 +229,25 @@ def run_master_three_way_engine(baseline_inputs: dict, loan_register_df, revenue
         out_cash_at_bank[m] = running_cash
 
     # =========================================================================
-    # 5. RETURNING THE 18 EXPECTED MATRICES FOR PRESENTATION
+    # 5. RETURNING THE 18 EXPECTED MATRICES AS RAW NUMPY ARRAYS FOR VECTORS
     # =========================================================================
     return {
-        "Revenue": out_revenue.tolist(),
-        "Purchases": out_purchases.tolist(),
-        "Stock Movement": out_stock_mov.tolist(),
-        "COGS": out_cogs.tolist(),
-        "Overheads": out_overheads.tolist(),
-        "Depreciation": out_depr.tolist(),
-        "Interest Paid": out_interest.tolist(),
-        "Tax Expense": out_tax_exp.tolist(),
-        "Net Profit": out_net_profit.tolist(),
-        "Principal Repayments": out_principal.tolist(),
-        "Tax Cash Paid": out_tax_paid.tolist(),
-        "Asset Disposal Proceeds": out_proceeds.tolist(),
-        "Cash At Bank": out_cash_at_bank.tolist(),
-        "Fixed Asset NBV": out_fa_nbv.tolist(),
-        "Inventory Asset BS": out_inv_bs.tolist(),
-        "Accounts Receivable BS": out_ar_bs.tolist(),
-        "Outstanding Debt": out_debt_bs.tolist(),
-        "Tax Liability BS": out_tax_bs.tolist()
+        "Revenue": out_revenue,
+        "Purchases": out_purchases,
+        "Stock Movement": out_stock_mov,
+        "COGS": out_cogs,
+        "Overheads": out_overheads,
+        "Depreciation": out_depr,
+        "Interest Paid": out_interest,
+        "Tax Expense": out_tax_exp,
+        "Net Profit": out_net_profit,
+        "Principal Repayments": out_principal,
+        "Tax Cash Paid": out_tax_paid,
+        "Asset Disposal Proceeds": out_proceeds,
+        "Cash At Bank": out_cash_at_bank,
+        "Fixed Asset NBV": out_fa_nbv,
+        "Inventory Asset BS": out_inv_bs,
+        "Accounts Receivable BS": out_ar_bs,
+        "Outstanding Debt": out_debt_bs,
+        "Tax Liability BS": out_tax_bs
     }
