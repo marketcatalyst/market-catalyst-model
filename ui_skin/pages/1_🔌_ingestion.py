@@ -20,7 +20,6 @@ The AI engine will instantly run semantic confidence checks to map your custom a
 
 uploaded_file = st.file_uploader("Drop corporate statement here...", type=["csv", "xlsx", "xls", "pdf", "jpg", "jpeg", "png"])
 
-# Fallback Demo Data: If no file is uploaded, automatically seed the screen with raw unmapped rows
 if uploaded_file is None:
     st.info("💡 **Prototyping Mode:** No active file uploaded. Seeding pipeline with unmapped raw corporate data rows.")
     raw_tb_df = pd.DataFrame({
@@ -32,27 +31,24 @@ if uploaded_file is None:
             "Trade Creditors Purchases Allocation",
             "Development Bank of Wales (DBW) Term Loan",
             "B/Fwd Retained Profits Accumulation",
-            "Suspense Unallocated Entry Code" # Triggers 🔴 UNRESOLVED status deliberately
+            "Suspense Unallocated Entry Code"
         ],
         "Balance": [69488.0, 44886.0, 150000.0, -8000.0, -130176.0, 82005.0, 0.0]
     })
 else:
     st.success(f"Successfully received: {uploaded_file.name}")
-    # In a full multi-format production build, this routes directly via our document_interpreter
     raw_tb_df = pd.DataFrame({
         "Account Code": ["EXT-101", "EXT-102"],
         "Account Name": ["Uploaded Cash Item", "Uploaded Debt Item"],
         "Balance": [50000.0, -50000.0]
     })
 
-# Execute backend semantic lexicon confidence mapping routines
 analyzed_records = analyze_and_map_ledger(raw_tb_df)
 analyzed_df = pd.DataFrame(analyzed_records)
 
 st.markdown("#### **Interactive Account Mapping Matrix**")
 st.caption("Verify the AI's assignments below. Adjust any yellow or red flags using the dropdown menu before submission.")
 
-# Construct the interactive human-in-the-loop editing grid
 final_mapped_df = st.data_editor(
     analyzed_df,
     num_rows="fixed",
@@ -72,7 +68,6 @@ final_mapped_df = st.data_editor(
     }
 )
 
-# Extract users' interactive ledger entries to assign opening balance sheet vectors
 extracted_inputs = {}
 for _, row in final_mapped_df.iterrows():
     slot = row["Assigned Platform Destination"]
@@ -85,10 +80,6 @@ st.markdown("---")
 # STEP 2: MULTI-FACILITY DEBT & LEASE REGISTER
 # =========================================================================
 st.markdown("### **Step 2: Multi-Facility Debt & Lease Register**")
-st.markdown("""
-Input active corporate credit lines, asset-backed tranches, or HP agreements. 
-The core engine treats these as reducing-balance APR lines and automatically terminates outflows as terms expire.
-""")
 
 default_loans_data = {
     "Facility Name": ["Funding Circle", "IWOCA Loans", "DBW Loan 13 Aug 2021", "DBW Loan 27 Mar 23", "DBW Loan 6 Sep 2024", "Hire Purchase Loan"],
@@ -120,24 +111,37 @@ st.markdown("---")
 # =========================================================================
 st.markdown("### **Step 3: Strategic Profit Center & Operational Policies**")
 
+# Policy Module A: Inventory Cover
 col_inv1, col_inv2 = st.columns([1, 2])
 with col_inv1:
     inventory_days_cover = st.slider(
         "Target Inventory Coverage (Days of Cover)", 
-        min_value=0, 
-        max_value=90, 
-        value=30, 
-        step=5,
-        help="How many days of next month's demand should be pre-procured and held in stock?"
+        min_value=0, max_value=90, value=30, step=5
     )
 with col_inv2:
-    st.caption("""
-    💡 **Platform Inventory Note:** Increasing this slider simulates a 'Just-in-Case' safety strategy. 
-    The engine will look ahead at upcoming seasonal surges or growth activities and pull procurement cash outflows 
-    backward to fund the warehouse asset before the revenue lands.
-    """)
+    st.caption("💡 **Inventory Rule:** Adjusts forward-looking material procurement timelines to insulate upcoming revenue surges.")
 
-st.write("") # Clear vertical spacer separator
+st.markdown("#### **Accounts Receivable (AR) Credit Window Profiles**")
+st.markdown("Define how commercial channel billings clear into cash back at the bank across a 60-day aging horizon.")
+
+# Policy Module B: Dynamic Invoice Collection Lags
+col_ar1, col_ar2, col_ar3 = st.columns(3)
+with col_ar1:
+    p_current = st.slider("Collected in Month of Sale (Immediate Cash/Card %)", 0, 100, 70, step=5)
+with col_ar2:
+    p_m1 = st.slider("Collected in Month + 1 (30-Day Terms %)", 0, 100, 20, step=5)
+with col_ar3:
+    p_m2 = st.slider("Collected in Month + 2 (60-Day Terms %)", 0, 100, 10, step=5)
+
+# Guardrail balancing validation block
+total_profile_percentage = p_current + p_m1 + p_m2
+if total_profile_percentage != 100:
+    st.error(f"⚠️ **Allocation Mismatch:** Credit profile sums to {total_profile_percentage}%. Adjust metrics to equal exactly 100% to run model loops safely.")
+    st.stop()
+else:
+    st.success("⚖️ **Credit Profile Balanced:** Total allocation equals 100%. Flowing parameters to master matrix arrays.")
+
+st.write("") 
 
 default_revenue_data = {
     "Channel / Site Name": [
@@ -186,8 +190,11 @@ baseline_package = {
     "pension_opt_out": False,
     "seasonality_weights": [1.0] * 12,
     
-    # Policy Modifiers passed down dynamically to backend matrix arrays
+    # Policy Parameters
     "inventory_days_cover": float(inventory_days_cover),
+    "ar_collection_current_month": float(p_current / 100.0),
+    "ar_collection_month_plus_1": float(p_m1 / 100.0),
+    "ar_collection_month_plus_2": float(p_m2 / 100.0),
     
     # Balance Sheet value arrays pull dynamically from Step 1's interactive alignment matrix
     "opening_cash_balance": extracted_inputs.get("Liquid Bank Cash Base", 69488.0),
@@ -198,7 +205,6 @@ baseline_package = {
     "opening_retained_earnings": extracted_inputs.get("Retained Earnings Reserve", -82005.0)
 }
 
-# Bind metrics directly into global state loop memory keys
 st.session_state["baseline_inputs"] = baseline_package
 st.session_state["raw_loan_register"] = loan_editor_df
 st.session_state["raw_revenue_matrix"] = rev_editor_df
