@@ -15,7 +15,10 @@ def generate_three_way_pdf_pack(engine_output: Dict[str, Any], baseline_inputs: 
     Appendices: Detailed 12-Month Schedules + Totals columns for each of the 5 Years.
     """
     buffer = io.BytesIO()
-    # BOARDROOM RESOLUTION: Switch entire document layout to Landscape for 14-column matrix support
+    
+    # SYSTEM FIX: Dynamically determine total operational month span from dataset inputs
+    total_months = len(engine_output["Revenue"])
+    
     doc = SimpleDocTemplate(
         buffer, 
         pagesize=landscape(letter),
@@ -72,7 +75,7 @@ def generate_three_way_pdf_pack(engine_output: Dict[str, Any], baseline_inputs: 
         fontSize=7.5,
         leading=9,
         textColor=colors.white,
-        alignment=1 # Centered headers
+        alignment=1
     )
     
     td_style = ParagraphStyle(
@@ -81,7 +84,7 @@ def generate_three_way_pdf_pack(engine_output: Dict[str, Any], baseline_inputs: 
         fontSize=7,
         leading=9,
         textColor=colors.HexColor('#1E293B'),
-        alignment=0 # Left-aligned labels
+        alignment=0
     )
     
     td_num_style = ParagraphStyle(
@@ -90,7 +93,7 @@ def generate_three_way_pdf_pack(engine_output: Dict[str, Any], baseline_inputs: 
         fontSize=6.5,
         leading=9,
         textColor=colors.HexColor('#1E293B'),
-        alignment=2 # Right-aligned figures
+        alignment=2
     )
 
     story = []
@@ -173,7 +176,6 @@ def generate_three_way_pdf_pack(engine_output: Dict[str, Any], baseline_inputs: 
     # =========================================================================
     # MULTI-YEAR GRANULAR 12+1 APPENDICES CONTROLLER
     # =========================================================================
-    # Define exact horizontal spacing constraints for Landscape (732 points available)
     data_column_width = 43.0
     label_column_width = 176.0
     appendix_widths = [label_column_width] + [data_column_width] * 13
@@ -182,11 +184,10 @@ def generate_three_way_pdf_pack(engine_output: Dict[str, Any], baseline_inputs: 
         m_start = year_idx * 12
         m_end = (year_idx + 1) * 12
         
-        # Build headers row dynamically
         header_row = [Paragraph("Financial Component Row Line", th_style)]
         for m in range(m_start, m_end):
             header_row.append(Paragraph(f"M{m+1}", th_style))
-        header_row.append(Paragraph("Annual Total" if year_idx < 5 else "Total", th_style))
+        header_row.append(Paragraph("Annual Total", th_style))
         
         # --- APPENDIX A: DYNAMIC P&L SNAPSHOTS ---
         story.append(PageBreak())
@@ -199,7 +200,6 @@ def generate_three_way_pdf_pack(engine_output: Dict[str, Any], baseline_inputs: 
         for lbl in pl_labels:
             row_cells = [Paragraph(f"<b>{lbl}</b>" if lbl.startswith("**") else lbl, td_style)]
             
-            # Extract the raw 12-month vector slice
             if "Turnover" in lbl: v = engine_output["Revenue"][m_start:m_end]
             elif "COGS" in lbl: v = -engine_output["COGS"][m_start:m_end]
             elif "Overheads" in lbl: v = -engine_output["Overheads"][m_start:m_end]
@@ -211,7 +211,6 @@ def generate_three_way_pdf_pack(engine_output: Dict[str, Any], baseline_inputs: 
             for month_val in v:
                 row_cells.append(Paragraph(f"£{month_val:,.0f}" if month_val >= 0 else f"({abs(month_val):,.0f})", td_num_style))
             
-            # Inject whole pound summation total column entry
             tot = np.sum(v)
             row_cells.append(Paragraph(f"£{tot:,.0f}" if tot >= 0 else f"({abs(tot):,.0f})", th_style if lbl.startswith("**") else td_num_style))
             pl_rows.append(row_cells)
@@ -219,7 +218,7 @@ def generate_three_way_pdf_pack(engine_output: Dict[str, Any], baseline_inputs: 
         pl_tbl = Table(pl_rows, colWidths=appendix_widths)
         pl_tbl.setStyle(TableStyle([
             ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#0F766E')),
-            ('BACKGROUND', (-1,1), (-1,-1), colors.HexColor('#F1F5F9')), # Highlight Totals Column
+            ('BACKGROUND', (-1,1), (-1,-1), colors.HexColor('#F1F5F9')),
             ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E1')),
             ('ROWBACKGROUNDS', (0,1), (-2,-1), [colors.white, colors.HexColor('#F8FAFC')]),
             ('BOTTOMPADDING', (0,0), (-1,-1), 4), ('TOPPADDING', (0,0), (-1,-1), 4),
@@ -252,7 +251,6 @@ def generate_three_way_pdf_pack(engine_output: Dict[str, Any], baseline_inputs: 
             for month_val in v:
                 row_cells.append(Paragraph(f"£{month_val:,.0f}" if month_val >= 0 else f"({abs(month_val):,.0f})", td_num_style))
                 
-            # Handle Flow Accumulations vs Closing Snapshot Rules for column 13
             if "***CLOSING" in lbl:
                 final_snapshot = v[-1]
                 row_cells.append(Paragraph(f"£{final_snapshot:,.0f}", th_style))
@@ -278,7 +276,6 @@ def generate_three_way_pdf_pack(engine_output: Dict[str, Any], baseline_inputs: 
         story.append(Paragraph(f"Appendix C.{year_idx+1}: Statement of Financial Position - Year {year_idx+1}", h2_style))
         story.append(Spacer(1, 5))
         
-        # Build specific Balance Sheet snapshot header row (Column 1 is baseline b/f or starting anchor)
         bs_header = [Paragraph("Financial Asset / Liability Component", th_style), Paragraph("Opening b/f" if year_idx == 0 else "Prior Y/E", th_style)]
         for m in range(m_start, m_end):
             bs_header.append(Paragraph(f"M{m+1}", th_style))
@@ -286,7 +283,6 @@ def generate_three_way_pdf_pack(engine_output: Dict[str, Any], baseline_inputs: 
         
         bs_labels = ["Fixed Assets Net Book Value", "Warehouse Stock Inventory Pool", "Accounts Receivable (AR) Debtors", "Liquid Bank Cash Position", "**TOTAL STRUCTURAL ASSETS**", "Outstanding Finance Debt Obligations", "Deferred Corporate Tax Liabilities", "Accounts Payable (AP) Creditors", "**TOTAL STRUCTURAL LIABILITIES**", "***NET NET ASSETS CAPITAL EQUITY***"]
         
-        # Pull baseline references to initialize column 1 anchors
         cash_seed = float(baseline_inputs.get("opening_cash_balance", 69488.0))
         fa_seed = float(baseline_inputs.get("opening_fixed_assets_nbv", 150000.0))
         ar_seed = float(baseline_inputs.get("opening_accounts_receivable", 44886.0))
@@ -299,7 +295,6 @@ def generate_three_way_pdf_pack(engine_output: Dict[str, Any], baseline_inputs: 
         for lbl in bs_labels:
             row_cells = [Paragraph(f"<b>{lbl}</b>" if lbl.startswith("**") or lbl.startswith("***") else lbl, td_style)]
             
-            # Establish localized vectors
             if "Fixed Assets" in lbl: v = engine_output["Fixed Asset NBV"]; seed = fa_seed
             elif "Inventory" in lbl: v = engine_output["Inventory Asset BS"]; seed = inv_seed
             elif "Receivable" in lbl: v = engine_output["Accounts Receivable BS"]; seed = ar_seed
@@ -313,7 +308,7 @@ def generate_three_way_pdf_pack(engine_output: Dict[str, Any], baseline_inputs: 
             elif "**TOTAL STRUCTURAL LIABILITIES" in lbl:
                 v = engine_output["Outstanding Debt"] + engine_output["Tax Liability BS"] + np.full(total_months, ap_seed)
                 seed = debt_seed + 0.0 + ap_seed
-            else: # Retained Reserves
+            else:
                 v = np.zeros(total_months)
                 running_re = re_seed
                 for m_i in range(total_months):
@@ -321,7 +316,6 @@ def generate_three_way_pdf_pack(engine_output: Dict[str, Any], baseline_inputs: 
                     v[m_i] = running_re
                 seed = re_seed
                 
-            # Column 1 Anchor Placement (Opening balance forward calculation)
             if year_idx == 0:
                 anchor_val = seed
             else:
@@ -331,13 +325,11 @@ def generate_three_way_pdf_pack(engine_output: Dict[str, Any], baseline_inputs: 
             display_anchor = anchor_val * sign
             row_cells.append(Paragraph(f"£{display_anchor:,.0f}" if display_anchor >= 0 else f"({abs(display_anchor):,.0f})", td_num_style))
             
-            # Columns 2 through 13: 12 Months layout entries
             slice_v = v[m_start:m_end]
             for month_val in slice_v:
                 display_val = month_val * sign
                 row_cells.append(Paragraph(f"£{display_val:,.0f}" if display_val >= 0 else f"({abs(display_val):,.0f})", td_num_style))
                 
-            # Column 14: Closing snapshot mirror duplication
             closing_val = slice_v[-1] * sign
             row_cells.append(Paragraph(f"£{closing_val:,.0f}" if closing_val >= 0 else f"({abs(closing_val):,.0f})", th_style if lbl.startswith("**") else td_num_style))
             bs_rows.append(row_cells)
@@ -345,8 +337,8 @@ def generate_three_way_pdf_pack(engine_output: Dict[str, Any], baseline_inputs: 
         bs_tbl = Table(bs_rows, colWidths=appendix_widths)
         bs_tbl.setStyle(TableStyle([
             ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#0F766E')),
-            ('BACKGROUND', (1,1), (1,-1), colors.HexColor('#F8FAFC')), # Highlight Opening anchor
-            ('BACKGROUND', (-1,1), (-1,-1), colors.HexColor('#F1F5F9')), # Highlight Closing anchor
+            ('BACKGROUND', (1,1), (1,-1), colors.HexColor('#F8FAFC')),
+            ('BACKGROUND', (-1,1), (-1,-1), colors.HexColor('#F1F5F9')),
             ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E1')),
             ('ROWBACKGROUNDS', (0,1), (-2,-1), [colors.white, colors.HexColor('#F8FAFC')]),
             ('BOTTOMPADDING', (0,0), (-1,-1), 4), ('TOPPADDING', (0,0), (-1,-1), 4),
