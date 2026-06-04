@@ -15,7 +15,7 @@ def run_master_three_way_engine(
 ) -> Dict[str, Any]:
     """
     The master control hub for the STRATA financial engine. Sequentially orchestrates 
-    operational margins modulated by hospitality seasonality curves, proactive inventory,
+    operational margins modulated by adjustable hospitality seasonality curves, proactive inventory,
     rolling channel AR aging, debt amortization, and corporate tax schedules.
     """
     # --- 1. OPERATIONAL BASELINES & POLICY MODIFIERS ---
@@ -24,20 +24,25 @@ def run_master_three_way_engine(
     monthly_overheads = float(baseline_inputs.get("admin_overheads_monthly", 8000.0))
     days_cover = float(baseline_inputs.get("inventory_days_cover", 30.0))
     
-    # SYSTEM UPGRADE: Authentic UK Hospitality Weight Curve (Avg = 1.0)
-    # January/February slump, Spring recovery, Summer high peaks, October dip, December Christmas surge
+    # Extract structural UI seasonality controllers
+    intensity = float(baseline_inputs.get("seasonality_intensity", 1.0))
+    
+    # Authentic UK Hospitality Weight Curve Base Profile
     seasonality_profile = [0.70, 0.65, 0.85, 1.00, 1.15, 1.30, 1.35, 1.30, 1.10, 0.95, 0.85, 1.20]
     
-    # Initialize array timelines mapped dynamically to the seasonal curve
+    # Initialize array timelines
     rev_array = np.zeros(total_months)
     base_cogs_demand = np.zeros(total_months)
     
     for m in range(total_months):
         calendar_month_idx = m % 12
-        weight = seasonality_profile[calendar_month_idx]
+        base_weight = seasonality_profile[calendar_month_idx]
         
-        rev_array[m] = monthly_revenue * weight
-        base_cogs_demand[m] = monthly_base_cogs * weight
+        # SYSTEM UPGRADE: Amplify or flatten deviations around the baseline mean (1.0)
+        modulated_weight = 1.0 + (base_weight - 1.0) * intensity
+        
+        rev_array[m] = monthly_revenue * modulated_weight
+        base_cogs_demand[m] = monthly_base_cogs * modulated_weight
     
     # --- 2. PROACTIVE INVENTORY ROLL-FORWARD ENGINE ---
     timeline_inventory_asset_bs = np.zeros(total_months)
@@ -45,7 +50,6 @@ def run_master_three_way_engine(
     timeline_p_l_stock_movement = np.zeros(total_months)
     
     for m in range(total_months):
-        # Scan next month's dynamically weighted seasonal sales demand level
         next_month_demand = base_cogs_demand[m + 1] if (m + 1) < total_months else base_cogs_demand[m]
         timeline_inventory_asset_bs[m] = next_month_demand * (days_cover / 30.0)
         
@@ -74,7 +78,6 @@ def run_master_three_way_engine(
         month_total_rev = rev_array[m]
         
         for _, row in revenue_matrix_df.iterrows():
-            # Extract channel baseline contribution percentages
             channel_share = float(row["Monthly Base Volume (£)"]) / monthly_revenue
             channel_month_rev = month_total_rev * channel_share
             
@@ -82,7 +85,6 @@ def run_master_three_way_engine(
             p_m1 = float(row["30-Day % (Terms)"]) / 100.0
             p_m2 = float(row["60-Day % (Terms)"]) / 100.0
             
-            # Access real historical seasonal revenue values dynamically
             total_month_inflow += (channel_month_rev * p_curr)
             if m > 0:
                 total_month_inflow += ((rev_array[m-1] * channel_share) * p_m1)
