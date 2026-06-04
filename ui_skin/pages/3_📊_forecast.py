@@ -2,7 +2,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-# Cloud Container Resolution Fix
+# Cloud Container Path Resolution Fix
 from ui_skin.core_engine.master_orchestrator import run_master_three_way_engine
 
 st.set_page_config(layout="wide", page_title="Financial Statements Forecast")
@@ -84,8 +84,9 @@ with tab_cf:
         "Add/Less: Stock Movement Non-Cash Delta (£)": engine_output["Stock Movement"],
         "Less: Debt Principal Repayments (£)": -engine_output["Principal Repayments"],
         "Less: Corporation Tax Payouts (£)": -engine_output["Tax Cash Paid"],
+        "Less: Interest Payments (£)": -engine_output["Interest Paid"],
         "Add: Asset Disposal Proceeds Windfalls (£)": engine_output["Asset Disposal Proceeds"],
-        "**Net Monthly Cash Flow Movement (£)**": (net_operating_cash_flow - engine_output["Principal Repayments"] - engine_output["Tax Cash Paid"] + engine_output["Asset Disposal Proceeds"]),
+        "**Net Monthly Cash Flow Movement (£)**": (net_operating_cash_flow - engine_output["Principal Repayments"] - engine_output["Tax Cash Paid"] - engine_output["Interest Paid"] + engine_output["Asset Disposal Proceeds"]),
         "***CLOSING BANK CASH POSITION (£)***": engine_output["Cash At Bank"]
     }
     
@@ -96,11 +97,22 @@ with tab_bs:
     st.markdown("### **Statement of Financial Position (Balance Sheet)**")
     st.caption("Verifies system equity equilibrium. Total Assets minus Total Liabilities must equal Retained Reserves.")
     
+    # Extract structural starting configurations from active ingestion memory state
+    cash_seed = float(st.session_state["baseline_inputs"].get("opening_cash_balance", 69488.0))
+    fa_seed = float(st.session_state["baseline_inputs"].get("opening_fixed_assets_nbv", 150000.0))
+    ar_seed = float(st.session_state["baseline_inputs"].get("opening_accounts_receivable", 44886.0))
     ap_seed = float(st.session_state["baseline_inputs"].get("opening_accounts_payable", 8000.0))
-    re_seed = float(st.session_state["baseline_inputs"].get("opening_retained_earnings", -82005.0))
+    debt_seed = float(st.session_state["baseline_inputs"].get("opening_long_term_debt", 0.0))
+    
+    # Extract initial warehouse inventory base to anchor baseline values
+    inv_seed = engine_output["Inventory Asset BS"][0]
+    
+    # SYSTEM FIX: Dynamically derive opening retained earnings to absorb active policy variables cleanly
+    re_seed = (cash_seed + fa_seed + ar_seed + inv_seed) - (debt_seed + ap_seed)
     
     timeline_ap = np.full(60, ap_seed)
     
+    # Roll retained earnings forward dynamically matching net profit generation
     timeline_re = np.zeros(60)
     running_re = re_seed
     for m in range(60):

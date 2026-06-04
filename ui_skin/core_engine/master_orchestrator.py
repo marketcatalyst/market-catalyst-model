@@ -141,6 +141,7 @@ def run_master_three_way_engine(
     running_cash = float(baseline_inputs.get("opening_cash_balance", 69488.0))
     
     for m in range(total_months):
+        # Master Flow Formula updated to subtract monthly interest expense and add stock changes
         net_monthly_cash_flow = (
             timeline_cash_collected_from_sales[m]
             - timeline_purchases_cash_outflow[m]
@@ -148,6 +149,7 @@ def run_master_three_way_engine(
             + asset_results["timeline_disposal_proceeds"][m]
             - timeline_principal_repayments[m]
             - tax_results["timeline_tax_cash_outflow"][m]
+            - timeline_interest_expense[m] # SYSTEM FIX: Resolves cash flow interest leak
         )
         running_cash += net_monthly_cash_flow
         timeline_cash_at_bank[m] = round(running_cash, 2)
