@@ -1,4 +1,4 @@
-# core_engine/master_orchestrator.py
+# ui_skin/core_engine/master_orchestrator.py
 import numpy as np
 import pandas as pd
 from typing import Dict, Any, List
@@ -11,31 +11,58 @@ def run_master_three_way_engine(
     revenue_matrix_df: pd.DataFrame,
     planned_capex_list: List[Dict[str, Any]],
     total_months: int = 60
-) -> Dict[str, np.ndarray]:
+) -> Dict[str, Any]:
     """
     The master control hub for the STRATA financial engine. Sequentially orchestrates 
-    operational margins, debt amortization, asset life-cycles, and corporate tax schedules 
-    to output a perfectly balanced 60-month three-way data ledger.
+    operational margins, proactive inventory procurement, debt amortization, asset 
+    lifecycles, and corporate tax schedules to output a balanced 3-way data ledger.
     """
-    # --- 1. OPERATIONAL BASELINES ---
+    # --- 1. OPERATIONAL BASELINES & POLICY MODIFIERS ---
     monthly_revenue = float(revenue_matrix_df["Monthly Base Volume (£)"].sum())
-    monthly_cogs = float(revenue_matrix_df["Associated COGS Pool (£)"].sum())
+    monthly_base_cogs = float(revenue_matrix_df["Associated COGS Pool (£)"].sum())
     monthly_overheads = float(baseline_inputs.get("admin_overheads_monthly", 8000.0))
+    days_cover = float(baseline_inputs.get("inventory_days_cover", 30.0))
     
-    # Initialize baseline vectors across the 60-month timeline
+    # Initialize basic demand arrays across the 60-month timeline
     rev_array = np.full(total_months, monthly_revenue)
-    cogs_array = np.full(total_months, monthly_cogs)
+    base_cogs_demand = np.full(total_months, monthly_base_cogs)
+    
+    # --- 2. PROACTIVE INVENTORY ROLL-FORWARD ENGINE ---
+    timeline_inventory_asset_bs = np.zeros(total_months)
+    timeline_purchases_cash_outflow = np.zeros(total_months)
+    timeline_p_l_stock_movement = np.zeros(total_months)
+    
+    # Calculate target stock requirements by scanning next month's sales activity level
+    for m in range(total_months):
+        next_month_demand = base_cogs_demand[m + 1] if (m + 1) < total_months else monthly_base_cogs
+        # Target Stock Asset Base = Future Month Cost Base * (Days Cover Buffer / 30)
+        timeline_inventory_asset_bs[m] = next_month_demand * (days_cover / 30.0)
+        
+    # Reconcile purchases vs internal stock delta tracking
+    opening_inventory_seed = monthly_base_cogs * (days_cover / 30.0)
+    
+    for m in range(total_months):
+        current_target_stock = timeline_inventory_asset_bs[m]
+        previous_target_stock = timeline_inventory_asset_bs[m - 1] if m > 0 else opening_inventory_seed
+        
+        # Production Equation: Purchases = Demand Match + Stock Holding Incremental Change
+        stock_delta = current_target_stock - previous_target_stock
+        timeline_purchases_cash_outflow[m] = base_cogs_demand[m] + stock_delta
+        
+        # Double-entry rebalancing line: Positive delta pulls raw costs out of active month P&L
+        timeline_p_l_stock_movement[m] = -stock_delta
+        
+    # Combined Cost of Goods Sold Line = Total Purchases + Stock Movement Adjustment
+    final_p_l_cogs_line = timeline_purchases_cash_outflow + timeline_p_l_stock_movement
     overhead_array = np.full(total_months, monthly_overheads)
     
-    # EBITDA / Net Profit before depreciation and tax interest loops
-    ebitda_array = rev_array - cogs_array - overhead_array
+    # Core EBITDA calculation reflecting true matched production boundaries
+    ebitda_array = rev_array - final_p_l_cogs_line - overhead_array
     
-    # --- 2. DEBT AMORTIZATION WHEEL (APR-DRIVEN) ---
+    # --- 3. DEBT AMORTIZATION WHEEL (APR-DRIVEN) ---
     timeline_interest_expense = np.zeros(total_months)
     timeline_principal_repayments = np.zeros(total_months)
     timeline_debt_balance_bs = np.zeros(total_months)
-    
-    # Seed current total debt principal balance
     running_debt_pool = float(loan_register_df["Current Balance (£)"].sum())
     
     for m in range(total_months):
@@ -49,9 +76,7 @@ def run_master_three_way_engine(
             bal = float(loan["Current Balance (£)"])
             rate = float(loan["Interest Rate (%)"]) / 100.0
             
-            # An active facility only draws payments if its remaining term covers this month
             if rem_term >= month_1based:
-                # Reducing balance interest allocation math
                 approx_monthly_interest = (bal * rate) / 12.0
                 principal_portion = min(pmt - approx_monthly_interest, bal)
                 
@@ -64,15 +89,14 @@ def run_master_three_way_engine(
         running_debt_pool -= monthly_principal_accumulator
         timeline_debt_balance_bs[m] = round(max(running_debt_pool, 0.0), 2)
 
-    # --- 3. FIXED ASSETS & DISPOSALS PIPELINE ---
+    # --- 4. FIXED ASSETS & DISPOSALS PIPELINE ---
     asset_results = calculate_multi_asset_depreciation_matrix(
         opening_nbv=float(baseline_inputs.get("opening_fixed_assets_nbv", 150000.0)),
         planned_capex_list=planned_capex_list,
         total_months=total_months
     )
     
-    # --- 4. CORPORATION TAX ENGINE LOOKBACK ---
-    # Temporarily calculate intermediate net operating profits to determine real taxable bases
+    # --- 5. CORPORATION TAX ENGINE LOOKBACK ---
     pre_tax_operating_profit = ebitda_array - asset_results["timeline_depreciation_expense"] - timeline_interest_expense
     
     tax_results = calculate_corporation_tax_schedule(
@@ -87,16 +111,14 @@ def run_master_three_way_engine(
         total_months=total_months
     )
     
-    # --- 5. THE COMBINED THREE-WAY CONSOLIDATION RUNTIME ---
+    # --- 6. THE COMBINED THREE-WAY CONSOLIDATION RUNTIME ---
     final_net_profit = pre_tax_operating_profit + asset_results["timeline_disposal_gains"] - tax_results["timeline_tax_expense"]
     
-    # Construct Cash Flow Balance timelines sequentially
     timeline_cash_at_bank = np.zeros(total_months)
     running_cash = float(baseline_inputs.get("opening_cash_balance", 69488.0))
     
     for m in range(total_months):
-        # Master Double-Entry Cash Formula:
-        # Net Profit (+) Book Depreciation (-) Disposal Gains (+) Disposal Proceeds (-) Principal Repayments (-) Tax Paid
+        # Master Flow Formula updated to inject the P&L Stock Movement working capital delta
         net_monthly_cash_flow = (
             final_net_profit[m]
             + asset_results["timeline_depreciation_expense"][m]
@@ -104,13 +126,16 @@ def run_master_three_way_engine(
             + asset_results["timeline_disposal_proceeds"][m]
             - timeline_principal_repayments[m]
             - tax_results["timeline_tax_cash_outflow"][m]
+            + timeline_p_l_stock_movement[m]
         )
         running_cash += net_monthly_cash_flow
         timeline_cash_at_bank[m] = round(running_cash, 2)
         
     return {
         "Revenue": rev_array,
-        "COGS": cogs_array,
+        "Purchases": np.round(timeline_purchases_cash_outflow, 2),
+        "Stock Movement": np.round(timeline_p_l_stock_movement, 2),
+        "COGS": np.round(final_p_l_cogs_line, 2),
         "Overheads": overhead_array,
         "Depreciation": asset_results["timeline_depreciation_expense"],
         "Interest Paid": timeline_interest_expense,
@@ -119,8 +144,9 @@ def run_master_three_way_engine(
         "Principal Repayments": timeline_principal_repayments,
         "Tax Cash Paid": tax_results["timeline_tax_cash_outflow"],
         "Asset Disposal Proceeds": asset_results["timeline_disposal_proceeds"],
-        "Cash at Bank": timeline_cash_at_bank,
+        "Cash At Bank": timeline_cash_at_bank,
         "Fixed Asset NBV": asset_results["timeline_nbv"],
         "Outstanding Debt": timeline_debt_balance_bs,
-        "Tax Liability BS": tax_results["timeline_tax_liability_bs"]
+        "Tax Liability BS": tax_results["timeline_tax_liability_bs"],
+        "Inventory Asset BS": np.round(timeline_inventory_asset_bs, 2)
     }
