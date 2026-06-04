@@ -12,11 +12,9 @@ def generate_three_way_pdf_pack(engine_output: Dict[str, Any], baseline_inputs: 
     """
     Compiles a premium, landscape corporate presentation PDF pack.
     Layout: Pages 1-2 Executive Briefing & Core Strategic KPIs.
-    Appendices: Detailed 12-Month Schedules + Totals columns for each of the 5 Years.
+    Appendices: Balanced 14-Column uniform grids across P&L, Cash Flow, and Balance Sheets.
     """
     buffer = io.BytesIO()
-    
-    # SYSTEM FIX: Dynamically determine total operational month span from dataset inputs
     total_months = len(engine_output["Revenue"])
     
     doc = SimpleDocTemplate(
@@ -144,9 +142,9 @@ def generate_three_way_pdf_pack(engine_output: Dict[str, Any], baseline_inputs: 
     story.append(Paragraph("Liquid Reserve & Runway Positions", h2_style))
     runway_text = (
         f"Across the full 60-month operational horizon, the projected peak cash position encounters a maximum of "
-        f"<b>£{peak_cash:,.0f}</b>, with structural safety floor boundaries dropping down to a baseline low of "
+        f"<b>£{peak_reserve:,.0f}</b>, with structural safety floor boundaries dropping down to a baseline low of "
         f"<b>£{min_cash:,.0f}</b>. Retained cash flows are continuously scaled to support dynamic working capital demand shocks safely."
-    )
+    ) if 'peak_reserve' in locals() else f"Across the full horizon, peak cash tracks up to <b>£{peak_cash:,.0f}</b>, with floor boundaries dropping to a baseline low of <b>£{min_cash:,.0f}</b>."
     story.append(Paragraph(runway_text, body_style))
     
     # =========================================================================
@@ -174,29 +172,28 @@ def generate_three_way_pdf_pack(engine_output: Dict[str, Any], baseline_inputs: 
     story.append(Paragraph("<b>STRATA Verification Seal</b><br/><i>Ledger Status: Verified Balanced</i>", subtitle_style))
 
     # =========================================================================
-    # MULTI-YEAR GRANULAR 12+1 APPENDICES CONTROLLER
+    # MULTI-YEAR GRANULAR 14-COLUMN UNIFORM APPENDICES CONTROLLER
     # =========================================================================
-    data_column_width = 43.0
-    label_column_width = 176.0
-    appendix_widths = [label_column_width] + [data_column_width] * 13
+    # Symmetric 14-column formatting allocation array (Total width = 732 points)
+    uniform_widths = [166.0] + [41.0] * 12 + [74.0]
 
     for year_idx in range(5):
         m_start = year_idx * 12
         m_end = (year_idx + 1) * 12
-        
-        header_row = [Paragraph("Financial Component Row Line", th_style)]
-        for m in range(m_start, m_end):
-            header_row.append(Paragraph(f"M{m+1}", th_style))
-        header_row.append(Paragraph("Annual Total", th_style))
         
         # --- APPENDIX A: DYNAMIC P&L SNAPSHOTS ---
         story.append(PageBreak())
         story.append(Paragraph(f"Appendix A.{year_idx+1}: Income Statement (P&L) - Year {year_idx+1}", h2_style))
         story.append(Spacer(1, 5))
         
+        pl_header = [Paragraph("Financial Component Row Line", th_style)]
+        for m in range(m_start, m_end):
+            pl_header.append(Paragraph(f"M{m+1}", th_style))
+        pl_header.append(Paragraph("Annual Total", th_style))
+        
         pl_labels = ["Gross Revenue Turnover", "Cost of Goods Sold (COGS)", "Administrative Overheads", "**OPERATIONAL EBITDA**", "Book Depreciation", "Interest Paid Expense", "***NET PROFIT AFTER TAX***"]
         
-        pl_rows = [header_row]
+        pl_rows = [pl_header]
         for lbl in pl_labels:
             row_cells = [Paragraph(f"<b>{lbl}</b>" if lbl.startswith("**") else lbl, td_style)]
             
@@ -215,7 +212,7 @@ def generate_three_way_pdf_pack(engine_output: Dict[str, Any], baseline_inputs: 
             row_cells.append(Paragraph(f"£{tot:,.0f}" if tot >= 0 else f"({abs(tot):,.0f})", th_style if lbl.startswith("**") else td_num_style))
             pl_rows.append(row_cells)
             
-        pl_tbl = Table(pl_rows, colWidths=appendix_widths)
+        pl_tbl = Table(pl_rows, colWidths=uniform_widths)
         pl_tbl.setStyle(TableStyle([
             ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#0F766E')),
             ('BACKGROUND', (-1,1), (-1,-1), colors.HexColor('#F1F5F9')),
@@ -233,7 +230,7 @@ def generate_three_way_pdf_pack(engine_output: Dict[str, Any], baseline_inputs: 
         
         cf_labels = ["Net Profit Allocation", "Add: Depreciation Back", "Add/Less: Stock Movement Delta", "Less: Principal Repayments", "Less: Corp Tax Cash Paid", "Less: Finance Cost Outflows", "Add: Asset Disposal Proceeds", "**Net Monthly Cash Flow Movement**", "***CLOSING BANK CASH POSITION***"]
         
-        cf_rows = [header_row]
+        cf_rows = [pl_header]
         for lbl in cf_labels:
             row_cells = [Paragraph(f"<b>{lbl}</b>" if lbl.startswith("**") else lbl, td_style)]
             
@@ -260,7 +257,7 @@ def generate_three_way_pdf_pack(engine_output: Dict[str, Any], baseline_inputs: 
                 
             cf_rows.append(row_cells)
             
-        cf_tbl = Table(cf_rows, colWidths=appendix_widths)
+        cf_tbl = Table(cf_rows, colWidths=uniform_widths)
         cf_tbl.setStyle(TableStyle([
             ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#0F766E')),
             ('BACKGROUND', (-1,1), (-1,-1), colors.HexColor('#F1F5F9')),
@@ -271,13 +268,14 @@ def generate_three_way_pdf_pack(engine_output: Dict[str, Any], baseline_inputs: 
         ]))
         story.append(cf_tbl)
 
-        # --- APPENDIX C: DYNAMIC BALANCE SHEET SNAPSHOTS ---
+        # --- APPENDIX C: DYNAMIC BALANCE SHEET SNAPSHOTS (REDUNDANCY FIXED) ---
         story.append(PageBreak())
         story.append(Paragraph(f"Appendix C.{year_idx+1}: Statement of Financial Position - Year {year_idx+1}", h2_style))
         story.append(Spacer(1, 5))
         
+        # SYSTEM FIX: 14 Columns total. Month 12 is naturally renamed to "Y/E Close".
         bs_header = [Paragraph("Financial Asset / Liability Component", th_style), Paragraph("Opening b/f" if year_idx == 0 else "Prior Y/E", th_style)]
-        for m in range(m_start, m_end):
+        for m in range(m_start, m_end - 1):
             bs_header.append(Paragraph(f"M{m+1}", th_style))
         bs_header.append(Paragraph("Y/E Close", th_style))
         
@@ -325,16 +323,18 @@ def generate_three_way_pdf_pack(engine_output: Dict[str, Any], baseline_inputs: 
             display_anchor = anchor_val * sign
             row_cells.append(Paragraph(f"£{display_anchor:,.0f}" if display_anchor >= 0 else f"({abs(display_anchor):,.0f})", td_num_style))
             
-            slice_v = v[m_start:m_end]
-            for month_val in slice_v:
+            # Print Months 1 through 11
+            slice_months = v[m_start:m_end-1]
+            for month_val in slice_months:
                 display_val = month_val * sign
                 row_cells.append(Paragraph(f"£{display_val:,.0f}" if display_val >= 0 else f"({abs(display_val):,.0f})", td_num_style))
                 
-            closing_val = slice_v[-1] * sign
+            # Month 12 data acts as the final "Y/E Close" column entry
+            closing_val = v[m_end - 1] * sign
             row_cells.append(Paragraph(f"£{closing_val:,.0f}" if closing_val >= 0 else f"({abs(closing_val):,.0f})", th_style if lbl.startswith("**") else td_num_style))
             bs_rows.append(row_cells)
             
-        bs_tbl = Table(bs_rows, colWidths=appendix_widths)
+        bs_tbl = Table(bs_rows, colWidths=uniform_widths)
         bs_tbl.setStyle(TableStyle([
             ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#0F766E')),
             ('BACKGROUND', (1,1), (1,-1), colors.HexColor('#F8FAFC')),
