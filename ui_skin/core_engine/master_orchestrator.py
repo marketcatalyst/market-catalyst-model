@@ -1,19 +1,20 @@
 import numpy as np
+import pandas as pd
 import streamlit as st
 from ui_skin.core_engine.payroll import calculate_uk_payroll_breakdown, DEFAULT_UK_TAX_CONFIG
 
 def run_master_three_way_engine(baseline_inputs: dict, loan_register_df, revenue_matrix_df, planned_capex_list: list, total_months: int = 60) -> dict:
     """
     Master 3-Way Financial Engine for STRATA.
-    Chronologically synchronises Multi-Channel Revenue escalators, Strategic Capacity 
-    Expansion step-costs, and the hardwired 5-Tier UK Statutory Payroll Engine 
-    to output perfectly reconciled financial statements.
+    Chronologically unifies multi-channel revenue growth escalators, capacity 
+    expansion overlays, and the hardwired 5-tier statutory UK payroll engine 
+    to output fully reconciled, dynamic financial statements.
     """
     
     # =========================================================================
-    # 1. EXTRACT INTERACTIVE LAYER VARIABLES FROM SESSION STATE
+    # 1. EXTRACT OPERATIONAL LEVERS FROM STREAMLIT STATE
     # =========================================================================
-    # Stage 3: Revenue Growth Levers (Pulls from page 3 inputs with standard fallbacks)
+    # Stage 3: Revenue Growth Levers (Pulls dynamically from frontend page inputs)
     ret_vol_growth = st.session_state.get("retail_annual_volume_growth", 0.05)
     ret_prc_ramp   = st.session_state.get("retail_annual_price_ramp", 0.025)
     whl_vol_growth = st.session_state.get("wholesale_annual_volume_growth", 0.12)
@@ -21,17 +22,19 @@ def run_master_three_way_engine(baseline_inputs: dict, loan_register_df, revenue
     
     # Stage 4: Capacity Expansion Levers
     expansion_active = st.session_state.get("expansion_scenario_active", False)
-    exp_start_month  = st.session_state.get("expansion_month", 13) - 1 # Zero-indexed adjustment
+    exp_start_month  = st.session_state.get("expansion_month", 13) - 1  # Zero-indexed conversion
     exp_rev_base     = st.session_state.get("incremental_revenue_start", 20000.00)
     exp_cogs_pct     = st.session_state.get("expansion_cogs_pct", 0.40)
     exp_rent         = st.session_state.get("incremental_rent", 2500.00)
     exp_insurance    = st.session_state.get("incremental_insurance", 500.00)
     exp_overtime     = st.session_state.get("logistics_overtime_premium", 750.00)
 
+    # Global OpEx Inflation Indexer established in Stage 2
+    opex_annual_indexation = 0.035
+
     # =========================================================================
-    # 2. INITIALISE 3-WAY FINANCIAL MATRIX ARRAYS
+    # 2. INITIALISE 3-WAY FINANCIAL STATEMENT MATRICES (60 MONTHS)
     # =========================================================================
-    # P&L Timelines
     out_revenue = np.zeros(total_months)
     out_purchases = np.zeros(total_months)
     out_stock_mov = np.zeros(total_months)
@@ -42,71 +45,76 @@ def run_master_three_way_engine(baseline_inputs: dict, loan_register_df, revenue
     out_tax_exp = np.zeros(total_months)
     out_net_profit = np.zeros(total_months)
     
-    # Cash Flow Timelines
     out_principal = np.zeros(total_months)
     out_tax_paid = np.zeros(total_months)
     out_proceeds = np.zeros(total_months)
     out_cash_at_bank = np.zeros(total_months)
     
-    # Balance Sheet Timelines
     out_fa_nbv = np.zeros(total_months)
     out_inv_bs = np.zeros(total_months)
     out_ar_bs = np.zeros(total_months)
     out_debt_bs = np.zeros(total_months)
     out_tax_bs = np.zeros(total_months)
 
-    # Extract opening capital seeds from historical ingestion structures
+    # Extract opening capital asset seeds from historical baseline ingestion dictionaries
     cash_seed = float(baseline_inputs.get("opening_cash_balance", 84350.00))
     fa_seed   = float(baseline_inputs.get("opening_fixed_assets_nbv", 150000.00))
-    ar_seed   = float(baseline_inputs.get("opening_accounts_receivable", 142100.00))
-    ap_seed   = float(baseline_inputs.get("opening_accounts_payable", 68400.00))
-    inv_seed  = float(baseline_inputs.get("opening_inventory_balance", 12000.00))
+    ar_seed   = float(baseline_inputs.get("opening_accounts_receivable", 44886.00))
+    ap_seed   = float(baseline_inputs.get("opening_accounts_payable", 8000.00))
     debt_seed = float(baseline_inputs.get("opening_long_term_debt", 0.0))
+    inv_seed  = float(baseline_inputs.get("opening_inventory_balance", 12000.00))
     
     running_cash = cash_seed
     running_fa = fa_seed
     running_debt = debt_seed
     running_inv = inv_seed
 
+    # Parse baseline parameters from your uploaded source tracking documents
+    try:
+        if isinstance(revenue_matrix_df, pd.DataFrame) and not revenue_matrix_df.empty:
+            if "Revenue" in revenue_matrix_df.columns:
+                base_total_monthly = float(revenue_matrix_df["Revenue"].iloc[0])
+            else:
+                base_total_monthly = float(revenue_matrix_df.iloc[:, 0].sum()) / 12
+        else:
+            base_total_monthly = 2633661.00 / 12
+    except Exception:
+        base_total_monthly = 2633661.00 / 12
+
+    # Map core revenue turnover split context (65% Retail / 35% Wholesale)
+    base_retail_monthly = base_total_monthly * 0.65
+    base_wholesale_monthly = base_total_monthly * 0.35
+    base_historical_monthly_opex = 8000.00  # Formulates your £96,000 baseline framework
+
     # =========================================================================
-    # 3. PREPARE UPSTREAM WORKFORCE INPUT SIGNALS FOR THE HARDBOUND LOOP
+    # 3. INITIALISE STRUCTURAL INTERNAL PAYROLL LEDGERS & ACCRUAL POOLS
     # =========================================================================
-    # Fallback protection array generation to keep your payroll tiers secure
     payroll_gross_base = np.full(total_months, float(baseline_inputs.get("base_payroll_monthly", 4800.00)))
-    payroll_hourly = np.zeros(total_months)
-    payroll_reg_hours = np.zeros(total_months)
-    payroll_ot_hours = np.zeros(total_months)
-    payroll_opt_out = np.zeros(total_months, dtype=bool)
-
-    # Reconstruct your exact structural internal tracking ledger pools
-    bs_liabilities_hmrc_accrual = np.zeros(total_months)
-    bs_liabilities_pension_pot_accrual = np.zeros(total_months)
-    cf_outflows_net_wages_paid_m0 = np.zeros(total_months)
-    cf_outflows_hmrc_sweep_paid_m1 = np.zeros(total_months)
-    cf_outflows_pension_sweep_paid_m1 = np.zeros(total_months)
+    bs_hmrc_accrual = np.zeros(total_months)
+    bs_pension_accrual = np.zeros(total_months)
 
     # =========================================================================
-    # 4. CHRONOLOGICAL SIMULATION TIMELINE (MONTH 0 TO 59)
+    # 4. CHRONOLOGICAL TIMELINE SIMULATION LOOP (MONTH 0 TO 59)
     # =========================================================================
     for m in range(total_months):
         current_year = m // 12
         
         # ---------------------------------------------------------------------
-        # STAGE 3: MULTI-CHANNEL REVENUE COMPOUNDING EXECUTION
+        # STAGE 3 MATH: TIMELINE GROWTH VECTOR COMPOUNDING
         # ---------------------------------------------------------------------
         retail_vol_mod = (1 + ret_vol_growth) ** current_year
         retail_prc_mod = (1 + ret_prc_ramp) ** current_year
-        m_retail_revenue = 45000.00 * retail_vol_mod * retail_prc_mod
+        m_retail_revenue = base_retail_monthly * retail_vol_mod * retail_prc_mod
         
         wholesale_vol_mod = (1 + whl_vol_growth) ** current_year
         wholesale_prc_mod = (1 + whl_prc_ramp) ** current_year
-        m_wholesale_revenue = 25000.00 * wholesale_vol_mod * wholesale_prc_mod
+        m_wholesale_revenue = base_wholesale_monthly * wholesale_vol_mod * wholesale_prc_mod
         
         m_core_revenue = m_retail_revenue + m_wholesale_revenue
         m_core_cogs = (m_retail_revenue * 0.35) + (m_wholesale_revenue * 0.60)
 
         # ---------------------------------------------------------------------
-        # STAGE 4: STRATEGIC FOOTPRINT INCREMENTAL CAPACITY OVERLAY
+        # STAGE 4 MATH: ISOLATED FOOTPRINT CAPACITY EXPANSION OVERLAY
         # ---------------------------------------------------------------------
         m_inc_revenue = 0.0
         m_inc_cogs = 0.0
@@ -118,105 +126,110 @@ def run_master_three_way_engine(baseline_inputs: dict, loan_register_df, revenue
             m_inc_cogs = m_inc_revenue * exp_cogs_pct
             m_inc_opex_step = exp_rent + exp_insurance + exp_overtime
 
-        # Consolidated P&L Trading Lines for Month m
+        # Consolidated P&L Trading Trackers for Month m
         out_revenue[m] = m_core_revenue + m_inc_revenue
         out_cogs[m] = m_core_cogs + m_inc_cogs
-        out_purchases[m] = out_cogs[m] * 0.95  # Purchases run-rate baseline calibration
+        out_purchases[m] = out_cogs[m] * 0.95  # Dynamic proportional tracking variable
         out_stock_mov[m] = out_purchases[m] - out_cogs[m]
 
         # ---------------------------------------------------------------------
-        # THE EXACT 5-TIER UK STATUTORY PAYROLL ENGINE EXECUTION
+        # THE HARDWIRED 5-TIER UK STATUTORY PAYROLL SUB-ROUTINE
         # ---------------------------------------------------------------------
-        month_salary_flat  = payroll_gross_base[m]
-        month_hourly_rate  = payroll_hourly[m]
-        month_reg_hours    = payroll_reg_hours[m]
-        month_ot_hours     = payroll_ot_hours[m]
-        month_ot_mult      = 1.5
-        is_pension_opt_out = payroll_opt_out[m]
-
         payroll_snapshot = calculate_uk_payroll_breakdown(
-            base_salary_flat=month_salary_flat if month_salary_flat > 0 else None,
-            hourly_rate=month_hourly_rate,
-            regular_hours_worked=month_reg_hours,
-            overtime_hours_worked=month_ot_hours,
-            overtime_multiplier=month_ot_mult,
-            pension_opt_out=is_pension_opt_out,
-            tax_config=DEFAULT_UK_TAX_CONFIG
+            base_salary_flat=payroll_gross_base[m],
+            hourly_rate=0.0, regular_hours_worked=0.0, overtime_hours_worked=0.0,
+            pension_opt_out=False, tax_config=DEFAULT_UK_TAX_CONFIG
         )
 
-        # --- TIER 1: PROFIT & LOSS PAYROLL POPULATION ---
+        # Tier 1 & 2 Execution
         m_payroll_employment_cost = payroll_snapshot["pl_total_employment_cost"]
+        net_wages_paid_m0 = payroll_snapshot["bs_net_wages_clearing"]
 
-        # --- TIER 2: IMMEDIATE CASH OUT (MONTH m) ---
-        cf_outflows_net_wages_paid_m0[m] = payroll_snapshot["bs_net_wages_clearing"]
+        # Tier 3 Liability Accrual
+        prev_hmrc_bal = bs_hmrc_accrual[m-1] if m > 0 else 0.0
+        prev_pension_bal = bs_pension_accrual[m-1] if m > 0 else 0.0
+        bs_hmrc_accrual[m] = prev_hmrc_bal + payroll_snapshot["bs_hmrc_paye_ni_due"]
+        bs_pension_accrual[m] = prev_pension_bal + payroll_snapshot["bs_pension_due"]
 
-        # --- TIER 3: BALANCE SHEET LIABILITY ACCRUALS ---
-        current_hmrc_accrual = payroll_snapshot["bs_hmrc_paye_ni_due"]
-        current_pension_accrual = payroll_snapshot["bs_pension_due"]
-        
-        prev_hmrc_bal = bs_liabilities_hmrc_accrual[m-1] if m > 0 else 0.0
-        prev_pension_bal = bs_liabilities_pension_pot_accrual[m-1] if m > 0 else 0.0
-        
-        bs_liabilities_hmrc_accrual[m] = prev_hmrc_bal + current_hmrc_accrual
-        bs_liabilities_pension_pot_accrual[m] = prev_pension_bal + current_pension_accrual
-
-        # --- TIER 4: THE HARDWIRED STATUTORY CASH SWEEPS (MONTH m) ---
+        # Tier 4 & 5 Month+1 Statutory Cash Sweeps
+        hmrc_sweep_paid_m1 = 0.0
+        pension_sweep_paid_m1 = 0.0
         if m > 0:
-            hmrc_sweep_amount = bs_liabilities_hmrc_accrual[m-1]
-            pension_sweep_amount = bs_liabilities_pension_pot_accrual[m-1]
+            hmrc_sweep_paid_m1 = bs_hmrc_accrual[m-1]
+            pension_sweep_paid_m1 = bs_pension_accrual[m-1]
             
-            cf_outflows_hmrc_sweep_paid_m1[m] = hmrc_sweep_amount
-            cf_outflows_pension_sweep_paid_m1[m] = pension_sweep_amount
-            
-            bs_liabilities_hmrc_accrual[m] -= hmrc_sweep_amount
-            bs_liabilities_pension_pot_accrual[m] -= pension_sweep_amount
-
-        # --- TIER 5: CONSOLIDATED TOTAL CASH OUTFLOW OVERLAY ---
-        m_total_payroll_cash_drain = (
-            cf_outflows_net_wages_paid_m0[m] + 
-            cf_outflows_hmrc_sweep_paid_m1[m] + 
-            cf_outflows_pension_sweep_paid_m1[m]
-        )
+            bs_hmrc_accrual[m] -= hmrc_sweep_paid_m1
+            bs_pension_accrual[m] -= pension_sweep_paid_m1
 
         # ---------------------------------------------------------------------
-        # CONSOLIDATING THE 3-WAY RECONCILIATION
+        # OVERHEAD CONSOLIDATION (STAGE 2 INDEXATION MIX)
         # ---------------------------------------------------------------------
-        # Overheads combine baseline administrative run-rates, payroll costs, and expansion opex
-        m_base_admin_overheads = 15000.00 * ((1 + 0.035) ** current_year)
-        out_overheads[m] = m_base_admin_overheads + m_payroll_employment_cost + m_inc_opex_step
+        m_indexed_admin_overheads = base_historical_monthly_opex * ((1 + opex_annual_indexation) ** current_year)
+        out_overheads[m] = m_indexed_admin_overheads + m_payroll_employment_cost + m_inc_opex_step
         
-        # Capital asset schedules and interest calculations
-        out_depr[m] = fa_seed * (0.15 / 12)  # 15% Straight Line Depreciation model
-        out_interest[m] = debt_seed * (0.06 / 12) if debt_seed > 0 else 0.0
+        # ---------------------------------------------------------------------
+        # DYNAMIC DEBT, INVESTMENT & ASSET BALANCING LOOPS
+        # ---------------------------------------------------------------------
+        m_principal = 0.0
+        m_interest = 0.0
+        try:
+            if isinstance(loan_register_df, pd.DataFrame) and not loan_register_df.empty:
+                if "Monthly Payment" in loan_register_df.columns:
+                    m_interest = float(loan_register_df["Interest"].iloc[0]) / 12
+                    m_principal = float(loan_register_df["Principal"].iloc[0]) / 12
+        except Exception:
+            pass
+            
+        if m_interest == 0.0 and debt_seed > 0:
+            m_interest = (debt_seed * 0.05) / 12  # Dynamic interest roll fallback
+
+        # Process Scheduled additions via Capex allocations list
+        m_depr = running_fa * (0.15 / 12)
+        m_proceeds = 0.0
+        for asset in planned_capex_list:
+            if asset.get("Transaction Month") == m:
+                running_fa += float(asset.get("Gross Purchase Price (£)", 0.0))
+
+        out_depr[m] = m_depr
+        out_interest[m] = m_interest
+        out_principal[m] = m_principal
+        out_proceeds[m] = m_proceeds
         
-        # Net operational profit equations
+        # Profit and Loss aggregation variables
         m_ebitda = out_revenue[m] - out_cogs[m] - out_overheads[m]
         m_ebit = m_ebitda - out_depr[m] - out_interest[m]
-        out_tax_exp[m] = max(0.0, m_ebit * 0.19 / 12)  # 19% Corporation Tax accrual
+        out_tax_exp[m] = max(0.0, m_ebit * 0.19 / 12)
         out_net_profit[m] = m_ebit - out_tax_exp[m]
-
-        # Debt and Asset accounting updates
-        out_principal[m] = 0.0
-        out_tax_paid[m] = out_tax_exp[m-1] if m > 0 else 0.0
-        out_proceeds[m] = 0.0
         
-        # Asset balance mechanics
+        out_tax_paid[m] = out_tax_exp[m-1] if m > 0 else 0.0
+
+        # Balance Sheet tracking state synchronization
         running_fa -= out_depr[m]
         out_fa_nbv[m] = running_fa
         
         running_inv += out_stock_mov[m]
         out_inv_bs[m] = running_inv
-        out_ar_bs[m] = ar_seed + (out_revenue[m] * 0.20)  # Modeling baseline debtor movement
+        
+        # Debtor accounts track revenue scales dynamically to break flat line schedules
+        out_ar_bs[m] = ar_seed + (out_revenue[m] * 0.15)
+        
+        running_debt = max(0.0, running_debt - out_principal[m])
         out_debt_bs[m] = running_debt
-        out_tax_bs[m] = out_tax_exp[m]
+        
+        # Tax liability includes short term payables to preserve balance sheet parity
+        out_tax_bs[m] = out_tax_exp[m] + bs_hmrc_accrual[m] + bs_pension_accrual[m]
 
-        # Liquidity track update: Add non-cash items and reconcile cash outflows perfectly
-        m_net_cash_flow = (out_net_profit[m] + out_depr[m] + out_stock_mov[m] - out_principal[m] - out_tax_paid[m] - out_interest[m])
-        running_cash += m_net_cash_flow
+        # ---------------------------------------------------------------------
+        # LIQUID CASH LEDGER RECONCILIATION
+        # ---------------------------------------------------------------------
+        m_cash_inflow = out_net_profit[m] + out_depr[m] + out_stock_mov[m]
+        m_cash_outflow = out_principal[m] + out_tax_paid[m] + out_interest[m] + net_wages_paid_m0 + hmrc_sweep_paid_m1 + pension_sweep_paid_m1
+        
+        running_cash += (m_cash_inflow - m_cash_outflow)
         out_cash_at_bank[m] = running_cash
 
     # =========================================================================
-    # 5. PACKAGING COMPLETE COMPREHENSIVE OUTPUT MATRICES FOR THE VIEWPORTS
+    # 5. RETURNING THE 18 EXPECTED MATRICES FOR PRESENTATION
     # =========================================================================
     return {
         "Revenue": out_revenue.tolist(),
