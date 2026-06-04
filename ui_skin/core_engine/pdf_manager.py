@@ -13,6 +13,7 @@ def generate_three_way_pdf_pack(engine_output: Dict[str, Any], baseline_inputs: 
     Compiles a premium, landscape corporate presentation PDF pack.
     Layout: Pages 1-2 Executive Briefing & Core Strategic KPIs.
     Appendices: Balanced 14-Column uniform grids across P&L, Cash Flow, and Balance Sheets.
+    Typography and cell paddings are micro-scaled to resolve column text wrapping.
     """
     buffer = io.BytesIO()
     total_months = len(engine_output["Revenue"])
@@ -67,11 +68,12 @@ def generate_three_way_pdf_pack(engine_output: Dict[str, Any], baseline_inputs: 
         spaceAfter=10
     )
     
+    # BOARDROOM RESOLUTION: Micro-scale text to eliminate column wrapping
     th_style = ParagraphStyle(
         'StrataTH',
         fontName='Helvetica-Bold',
-        fontSize=7.5,
-        leading=9,
+        fontSize=6.5,
+        leading=8,
         textColor=colors.white,
         alignment=1
     )
@@ -79,8 +81,8 @@ def generate_three_way_pdf_pack(engine_output: Dict[str, Any], baseline_inputs: 
     td_style = ParagraphStyle(
         'StrataTD',
         fontName='Helvetica',
-        fontSize=7,
-        leading=9,
+        fontSize=6.5,
+        leading=8,
         textColor=colors.HexColor('#1E293B'),
         alignment=0
     )
@@ -88,8 +90,8 @@ def generate_three_way_pdf_pack(engine_output: Dict[str, Any], baseline_inputs: 
     td_num_style = ParagraphStyle(
         'StrataTDNum',
         fontName='Helvetica',
-        fontSize=6.5,
-        leading=9,
+        fontSize=5.5,
+        leading=7.5,
         textColor=colors.HexColor('#1E293B'),
         alignment=2
     )
@@ -140,11 +142,7 @@ def generate_three_way_pdf_pack(engine_output: Dict[str, Any], baseline_inputs: 
     
     story.append(Spacer(1, 10))
     story.append(Paragraph("Liquid Reserve & Runway Positions", h2_style))
-    runway_text = (
-        f"Across the full 60-month operational horizon, the projected peak cash position encounters a maximum of "
-        f"<b>£{peak_reserve:,.0f}</b>, with structural safety floor boundaries dropping down to a baseline low of "
-        f"<b>£{min_cash:,.0f}</b>. Retained cash flows are continuously scaled to support dynamic working capital demand shocks safely."
-    ) if 'peak_reserve' in locals() else f"Across the full horizon, peak cash tracks up to <b>£{peak_cash:,.0f}</b>, with floor boundaries dropping to a baseline low of <b>£{min_cash:,.0f}</b>."
+    runway_text = f"Across the full horizon, peak cash tracks up to <b>£{peak_cash:,.0f}</b>, with safety floor boundaries dropping down to a baseline low of <b>£{min_cash:,.0f}</b>. Retained cash flows are continuously scaled to support working capital demand changes safely."
     story.append(Paragraph(runway_text, body_style))
     
     # =========================================================================
@@ -163,7 +161,7 @@ def generate_three_way_pdf_pack(engine_output: Dict[str, Any], baseline_inputs: 
     story.append(Paragraph("Three-Way System Equilibrium Attestation", h2_style))
     attestation_text = (
         "We hereby attest that this document has been compiled via a synchronized three-way general ledger logic wheel. "
-        "Changes in operational parameters flow instantly through matched entries across the P&L, Cash Flow, "
+        "Changes in operational parameters flow instantly through entries across the P&L, Cash Flow, "
         "and Balance Sheet matrices. Dynamic systems balance has been computationally verified with zero structural variance "
         "across all periods."
     )
@@ -174,7 +172,7 @@ def generate_three_way_pdf_pack(engine_output: Dict[str, Any], baseline_inputs: 
     # =========================================================================
     # MULTI-YEAR GRANULAR 14-COLUMN UNIFORM APPENDICES CONTROLLER
     # =========================================================================
-    # Symmetric 14-column formatting allocation array (Total width = 732 points)
+    # Balanced 14-column formatting allocation array (Total width = 732 points)
     uniform_widths = [166.0] + [41.0] * 12 + [74.0]
 
     for year_idx in range(5):
@@ -218,7 +216,11 @@ def generate_three_way_pdf_pack(engine_output: Dict[str, Any], baseline_inputs: 
             ('BACKGROUND', (-1,1), (-1,-1), colors.HexColor('#F1F5F9')),
             ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E1')),
             ('ROWBACKGROUNDS', (0,1), (-2,-1), [colors.white, colors.HexColor('#F8FAFC')]),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 4), ('TOPPADDING', (0,0), (-1,-1), 4),
+            # BOARDROOM RESOLUTION: Compress padding to maximize internal character width
+            ('TOPPADDING', (0,0), (-1,-1), 3),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 3),
+            ('LEFTPADDING', (0,0), (-1,-1), 2),
+            ('RIGHTPADDING', (0,0), (-1,-1), 2),
             ('VALIGN', (0,0), (-1,-1), 'MIDDLE')
         ]))
         story.append(pl_tbl)
@@ -263,17 +265,20 @@ def generate_three_way_pdf_pack(engine_output: Dict[str, Any], baseline_inputs: 
             ('BACKGROUND', (-1,1), (-1,-1), colors.HexColor('#F1F5F9')),
             ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E1')),
             ('ROWBACKGROUNDS', (0,1), (-2,-1), [colors.white, colors.HexColor('#F8FAFC')]),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 4), ('TOPPADDING', (0,0), (-1,-1), 4),
+            # BOARDROOM RESOLUTION: Compress padding to maximize internal character width
+            ('TOPPADDING', (0,0), (-1,-1), 3),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 3),
+            ('LEFTPADDING', (0,0), (-1,-1), 2),
+            ('RIGHTPADDING', (0,0), (-1,-1), 2),
             ('VALIGN', (0,0), (-1,-1), 'MIDDLE')
         ]))
         story.append(cf_tbl)
 
-        # --- APPENDIX C: DYNAMIC BALANCE SHEET SNAPSHOTS (REDUNDANCY FIXED) ---
+        # --- APPENDIX C: DYNAMIC BALANCE SHEET SNAPSHOTS ---
         story.append(PageBreak())
         story.append(Paragraph(f"Appendix C.{year_idx+1}: Statement of Financial Position - Year {year_idx+1}", h2_style))
         story.append(Spacer(1, 5))
         
-        # SYSTEM FIX: 14 Columns total. Month 12 is naturally renamed to "Y/E Close".
         bs_header = [Paragraph("Financial Asset / Liability Component", th_style), Paragraph("Opening b/f" if year_idx == 0 else "Prior Y/E", th_style)]
         for m in range(m_start, m_end - 1):
             bs_header.append(Paragraph(f"M{m+1}", th_style))
@@ -323,13 +328,11 @@ def generate_three_way_pdf_pack(engine_output: Dict[str, Any], baseline_inputs: 
             display_anchor = anchor_val * sign
             row_cells.append(Paragraph(f"£{display_anchor:,.0f}" if display_anchor >= 0 else f"({abs(display_anchor):,.0f})", td_num_style))
             
-            # Print Months 1 through 11
             slice_months = v[m_start:m_end-1]
             for month_val in slice_months:
                 display_val = month_val * sign
                 row_cells.append(Paragraph(f"£{display_val:,.0f}" if display_val >= 0 else f"({abs(display_val):,.0f})", td_num_style))
                 
-            # Month 12 data acts as the final "Y/E Close" column entry
             closing_val = v[m_end - 1] * sign
             row_cells.append(Paragraph(f"£{closing_val:,.0f}" if closing_val >= 0 else f"({abs(closing_val):,.0f})", th_style if lbl.startswith("**") else td_num_style))
             bs_rows.append(row_cells)
@@ -341,7 +344,11 @@ def generate_three_way_pdf_pack(engine_output: Dict[str, Any], baseline_inputs: 
             ('BACKGROUND', (-1,1), (-1,-1), colors.HexColor('#F1F5F9')),
             ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E1')),
             ('ROWBACKGROUNDS', (0,1), (-2,-1), [colors.white, colors.HexColor('#F8FAFC')]),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 4), ('TOPPADDING', (0,0), (-1,-1), 4),
+            # BOARDROOM RESOLUTION: Compress padding to maximize internal character width
+            ('TOPPADDING', (0,0), (-1,-1), 3),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 3),
+            ('LEFTPADDING', (0,0), (-1,-1), 2),
+            ('RIGHTPADDING', (0,0), (-1,-1), 2),
             ('VALIGN', (0,0), (-1,-1), 'MIDDLE')
         ]))
         story.append(bs_tbl)
