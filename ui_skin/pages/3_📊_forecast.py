@@ -167,7 +167,8 @@ with tab_pl:
         "Statutory Corporation Tax Provision (£)": -tax_exp,
         "***NET PROFIT AFTER TAX (EAT) (£)***": net_profit
     }
-    st.dataframe(pd.DataFrame(pl_data, index=columns_layout).T.style.format("£{:,.2f}"), use_container_width=True)
+    # SYSTEM UPGRADE: Styled to display integers rounded to the nearest £1
+    st.dataframe(pd.DataFrame(pl_data, index=columns_layout).T.style.format("£{:,.0f}"), use_container_width=True)
 
 with tab_cf:
     st.markdown("### **Indirect Cash Flow Statement**")
@@ -184,7 +185,8 @@ with tab_cf:
         "**Net Annual Cash Flow Movement (£)**": (net_operating_cash_flow - principal - tax_paid - interest + proceeds),
         "***CLOSING BANK CASH POSITION (£)***": cash_at_bank
     }
-    st.dataframe(pd.DataFrame(cf_data, index=columns_layout).T.style.format("£{:,.2f}"), use_container_width=True)
+    # SYSTEM UPGRADE: Styled to display integers rounded to the nearest £1
+    st.dataframe(pd.DataFrame(cf_data, index=columns_layout).T.style.format("£{:,.0f}"), use_container_width=True)
 
 with tab_bs:
     st.markdown("### **Statement of Financial Position (Balance Sheet)**")
@@ -251,7 +253,8 @@ with tab_bs:
         "**TOTAL CAPITAL AND RESERVES MATCH (£)**": timeline_re
     }
     
-    st.dataframe(pd.DataFrame(bs_data, index=bs_columns).T.style.format("£{:,.2f}"), use_container_width=True)
+    # SYSTEM UPGRADE: Styled to display integers rounded to the nearest £1
+    st.dataframe(pd.DataFrame(bs_data, index=bs_columns).T.style.format("£{:,.0f}"), use_container_width=True)
 
     # --- THREE-WAY LEDGER EQUILIBRIUM GUARDRAIL ---
     numerical_variance = np.abs(net_assets - timeline_re)
