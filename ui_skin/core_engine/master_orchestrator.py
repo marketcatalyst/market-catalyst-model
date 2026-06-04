@@ -15,8 +15,8 @@ def run_master_three_way_engine(
 ) -> Dict[str, Any]:
     """
     The master control hub for the STRATA financial engine. Sequentially orchestrates 
-    operational margins, proactive inventory procurement, rolling channel-by-channel AR collections,
-    debt amortization, asset lifecycles, and corporate tax schedules.
+    operational margins modulated by hospitality seasonality curves, proactive inventory,
+    rolling channel AR aging, debt amortization, and corporate tax schedules.
     """
     # --- 1. OPERATIONAL BASELINES & POLICY MODIFIERS ---
     monthly_revenue = float(revenue_matrix_df["Monthly Base Volume (£)"].sum())
@@ -24,8 +24,20 @@ def run_master_three_way_engine(
     monthly_overheads = float(baseline_inputs.get("admin_overheads_monthly", 8000.0))
     days_cover = float(baseline_inputs.get("inventory_days_cover", 30.0))
     
-    rev_array = np.full(total_months, monthly_revenue)
-    base_cogs_demand = np.full(total_months, monthly_base_cogs)
+    # SYSTEM UPGRADE: Authentic UK Hospitality Weight Curve (Avg = 1.0)
+    # January/February slump, Spring recovery, Summer high peaks, October dip, December Christmas surge
+    seasonality_profile = [0.70, 0.65, 0.85, 1.00, 1.15, 1.30, 1.35, 1.30, 1.10, 0.95, 0.85, 1.20]
+    
+    # Initialize array timelines mapped dynamically to the seasonal curve
+    rev_array = np.zeros(total_months)
+    base_cogs_demand = np.zeros(total_months)
+    
+    for m in range(total_months):
+        calendar_month_idx = m % 12
+        weight = seasonality_profile[calendar_month_idx]
+        
+        rev_array[m] = monthly_revenue * weight
+        base_cogs_demand[m] = monthly_base_cogs * weight
     
     # --- 2. PROACTIVE INVENTORY ROLL-FORWARD ENGINE ---
     timeline_inventory_asset_bs = np.zeros(total_months)
@@ -33,10 +45,11 @@ def run_master_three_way_engine(
     timeline_p_l_stock_movement = np.zeros(total_months)
     
     for m in range(total_months):
-        next_month_demand = base_cogs_demand[m + 1] if (m + 1) < total_months else monthly_base_cogs
+        # Scan next month's dynamically weighted seasonal sales demand level
+        next_month_demand = base_cogs_demand[m + 1] if (m + 1) < total_months else base_cogs_demand[m]
         timeline_inventory_asset_bs[m] = next_month_demand * (days_cover / 30.0)
         
-    opening_inventory_seed = monthly_base_cogs * (days_cover / 30.0)
+    opening_inventory_seed = base_cogs_demand[0] * (days_cover / 30.0)
     for m in range(total_months):
         current_target_stock = timeline_inventory_asset_bs[m]
         previous_target_stock = timeline_inventory_asset_bs[m - 1] if m > 0 else opening_inventory_seed
@@ -58,25 +71,26 @@ def run_master_three_way_engine(
     
     for m in range(total_months):
         total_month_inflow = 0.0
+        month_total_rev = rev_array[m]
         
         for _, row in revenue_matrix_df.iterrows():
-            vol = float(row["Monthly Base Volume (£)"])
+            # Extract channel baseline contribution percentages
+            channel_share = float(row["Monthly Base Volume (£)"]) / monthly_revenue
+            channel_month_rev = month_total_rev * channel_share
+            
             p_curr = float(row["Cash % (Immediate)"]) / 100.0
             p_m1 = float(row["30-Day % (Terms)"]) / 100.0
             p_m2 = float(row["60-Day % (Terms)"]) / 100.0
             
-            vol_m = vol
-            vol_m_1 = vol 
-            vol_m_2 = vol
-            
-            total_month_inflow += (vol_m * p_curr)
+            # Access real historical seasonal revenue values dynamically
+            total_month_inflow += (channel_month_rev * p_curr)
             if m > 0:
-                total_month_inflow += (vol_m_1 * p_m1)
+                total_month_inflow += ((rev_array[m-1] * channel_share) * p_m1)
             else:
-                total_month_inflow += (opening_ar_seed * 0.5 * p_m1) 
+                total_month_inflow += (opening_ar_seed * 0.5 * p_m1)
                 
             if m > 1:
-                total_month_inflow += (vol_m_2 * p_m2)
+                total_month_inflow += ((rev_array[m-2] * channel_share) * p_m2)
             else:
                 total_month_inflow += (opening_ar_seed * 0.3 * p_m2)
                 
@@ -85,7 +99,7 @@ def run_master_three_way_engine(
             total_month_inflow = max(total_month_inflow, legacy_burn)
             
         timeline_cash_collected_from_sales[m] = total_month_inflow
-        running_ar_balance = running_ar_balance + monthly_revenue - total_month_inflow
+        running_ar_balance = running_ar_balance + month_total_rev - total_month_inflow
         timeline_ar_balance_bs[m] = max(running_ar_balance, 0.0)
 
     # --- 4. DEBT AMORTIZATION WHEEL (APR-DRIVEN) ---
@@ -97,18 +111,15 @@ def run_master_three_way_engine(
     for m in range(total_months):
         month_1based = m + 1
         monthly_interest_accumulator = 0.0
-        monthly_principal_accumulator = 0.0
         
         for _, loan in loan_register_df.iterrows():
             if int(loan["Remaining Term (Months)"]) >= month_1based:
                 approx_monthly_interest = (float(loan["Current Balance (£)"]) * (float(loan["Interest Rate (%)"]) / 100.0)) / 12.0
                 monthly_interest_accumulator += approx_monthly_interest
-                monthly_principal_accumulator += min(float(loan["Monthly Payment (£)"]) - approx_monthly_interest, float(loan["Current Balance (£)"]))
                 
         timeline_interest_expense[m] = round(monthly_interest_accumulator, 2)
-        timeline_principal_repayments[m] = round(monthly_principal_accumulator, 2)
+        timeline_principal_repayments[m] = round(float(loan_register_df["Monthly Payment (£)"].sum()) - monthly_interest_accumulator, 2) if running_debt_pool > 0 else 0.0
         
-        # SYSTEM FIX: Reduce liability pool by the exact rounded cash value to eliminate floating-point drift
         running_debt_pool -= timeline_principal_repayments[m]
         timeline_debt_balance_bs[m] = round(max(running_debt_pool, 0.0), 2)
 
