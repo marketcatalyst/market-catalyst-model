@@ -131,7 +131,6 @@ def generate_three_way_pdf_pack(engine_output: Dict[str, Any], baseline_inputs: 
     
     story.append(Spacer(1, 20))
     story.append(Paragraph("Liquid Reserve & Runway Positions", h2_style))
-    # BOARDROOM RESOLUTION: Format narrative variables to whole integer pounds
     runway_text = (
         f"Across the full 60-month operational horizon, the projected peak cash position encounters a maximum of "
         f"<b>£{peak_cash:,.0f}</b>, with structural safety floor boundaries dropping down to a baseline low of "
@@ -167,20 +166,27 @@ def generate_three_way_pdf_pack(engine_output: Dict[str, Any], baseline_inputs: 
     # =========================================================================
     # APPENDICES: 5-YEAR ANNUALIZED FINANCIAL REPORT STATEMENTS
     # =========================================================================
-    def build_annual_table(data_dict: Dict[str, Any], labels: list, title: str):
+    def build_annual_table(data_dict: Dict[str, Any], labels: list, title: str, has_opening: bool = False):
         append_block = [PageBreak(), Paragraph(title, h2_style), Spacer(1, 10)]
-        header_row = [Paragraph("Financial Line Item Component (£)", th_style)] + [Paragraph(f"Year {i+1}", th_style) for i in range(5)]
+        
+        # Configure headers to adapt dynamically if an opening column is injected
+        if has_opening:
+            header_row = [Paragraph("Financial Line Item Component (£)", th_style), Paragraph("Opening b/f", th_style)] + [Paragraph(f"Year {i+1}", th_style) for i in range(5)]
+            col_widths = [190, 57, 57, 57, 57, 57, 57]
+        else:
+            header_row = [Paragraph("Financial Line Item Component (£)", th_style)] + [Paragraph(f"Year {i+1}", th_style) for i in range(5)]
+            col_widths = [210, 64, 64, 64, 64, 64]
+            
         table_rows = [header_row]
         
         for lbl in labels:
             row_cells = [Paragraph(f"<b>{lbl}</b>" if lbl.startswith("**") or lbl.startswith("***") else lbl, td_style)]
             vector = data_dict[lbl]
             for val in vector:
-                # BOARDROOM RESOLUTION: Format table elements to clean integer strings (.0f)
                 row_cells.append(Paragraph(f"£{val:,.0f}" if val >= 0 else f"(£{abs(val):,.0f})", td_style))
             table_rows.append(row_cells)
             
-        tbl = Table(table_rows, colWidths=[210, 64, 64, 64, 64, 64])
+        tbl = Table(table_rows, colWidths=col_widths)
         tbl.setStyle(TableStyle([
             ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#0F766E')),
             ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E1')),
@@ -211,53 +217,82 @@ def generate_three_way_pdf_pack(engine_output: Dict[str, Any], baseline_inputs: 
     }
     story.extend(build_annual_table(pl_payload, pl_labels, "Appendix A: Annualized Income Statement (P&L)"))
 
-    # --- Appendix B: Cash Flow ---
+    # --- Appendix B: Cash Flow (Reconciliation Leak Patched) ---
+    stock_mov_5y = np.array([np.sum(engine_output["Stock Movement"][i*12:(i+1)*12]) for i in range(5)])
     prip_5y = np.array([np.sum(engine_output["Principal Repayments"][i*12:(i+1)*12]) for i in range(5)])
     txpd_5y = np.array([np.sum(engine_output["Tax Cash Paid"][i*12:(i+1)*12]) for i in range(5)])
     proc_5y = np.array([np.sum(engine_output["Asset Disposal Proceeds"][i*12:(i+1)*12]) for i in range(5)])
-    net_cf_5y = (np_5y + dep_5y - prip_5y - txpd_5y - int_5y + proc_5y)
+    
+    # SYSTEM FIX: Injected stock_mov_5y into the cash flow routine to prevent ledger leaks
+    net_cf_5y = (np_5y + dep_5y + stock_mov_5y - prip_5y - txpd_5y - int_5y + proc_5y)
     cash_bs_5y = np.array([engine_output["Cash At Bank"][(i*12)+11] for i in range(5)])
     
-    cf_labels = ["Net Profit Allocation", "Add: Depreciation Back", "Less: Principal Repayments", "Less: Corp Tax Cash Paid", "Less: Finance Cost Outflows", "**Net Annual Cash Flow Movement**", "***CLOSING BANK CASH POSITION***"]
+    cf_labels = ["Net Profit Allocation", "Add: Depreciation Back", "Add/Less: Stock Movement Delta", "Less: Principal Repayments", "Less: Corp Tax Cash Paid", "Less: Finance Cost Outflows", "Add: Asset Disposal Proceeds", "**Net Annual Cash Flow Movement**", "***CLOSING BANK CASH POSITION***"]
     cf_payload = {
         "Net Profit Allocation": np_5y,
         "Add: Depreciation Back": dep_5y,
+        "Add/Less: Stock Movement Delta": stock_mov_5y,
         "Less: Principal Repayments": -prip_5y,
         "Less: Corp Tax Cash Paid": -txpd_5y,
         "Less: Finance Cost Outflows": -int_5y,
+        "Add: Asset Disposal Proceeds": proc_5y,
         "**Net Annual Cash Flow Movement**": net_cf_5y,
         "***CLOSING BANK CASH POSITION***": cash_bs_5y
     }
     story.extend(build_annual_table(cf_payload, cf_labels, "Appendix B: Annualized Cash Flow Statement"))
 
-    # --- Appendix C: Balance Sheet ---
+    # --- Appendix C: Balance Sheet (Opening b/f Columns Injected) ---
+    cash_seed = float(baseline_inputs.get("opening_cash_balance", 69488.0))
+    fa_seed = float(baseline_inputs.get("opening_fixed_assets_nbv", 150000.0))
+    ar_seed = float(baseline_inputs.get("opening_accounts_receivable", 44886.0))
+    ap_seed = float(baseline_inputs.get("opening_accounts_payable", 8000.0))
+    debt_seed = float(baseline_inputs.get("opening_long_term_debt", 0.0))
+    inv_seed = engine_output["Inventory Asset BS"][0]
+    re_seed = (cash_seed + fa_seed + ar_seed + inv_seed) - (debt_seed + ap_seed)
+    
+    # Extract structural year-end array profiles
     fa_bs_5y = np.array([engine_output["Fixed Asset NBV"][(i*12)+11] for i in range(5)])
     inv_bs_5y = np.array([engine_output["Inventory Asset BS"][(i*12)+11] for i in range(5)])
     ar_bs_5y = np.array([engine_output["Accounts Receivable BS"][(i*12)+11] for i in range(5)])
     debt_bs_5y = np.array([engine_output["Outstanding Debt"][(i*12)+11] for i in range(5)])
     tax_bs_5y = np.array([engine_output["Tax Liability BS"][(i*12)+11] for i in range(5)])
-    
-    ap_seed = float(baseline_inputs.get("opening_accounts_payable", 8000.0))
     ap_bs_5y = np.full(5, ap_seed)
     
-    total_assets_5y = fa_bs_5y + cash_bs_5y + inv_bs_5y + ar_bs_5y
-    total_liabs_5y = debt_bs_5y + tax_bs_5y + ap_bs_5y
-    net_assets_5y = total_assets_5y - total_liabs_5y
+    # SYSTEM FIX: Prepend opening trial balance values to align with the UI forecast page layouts
+    fa_bs_render = np.insert(fa_bs_5y, 0, fa_seed)
+    inv_bs_render = np.insert(inv_bs_5y, 0, inv_seed)
+    ar_bs_render = np.insert(ar_bs_5y, 0, ar_seed)
+    cash_bs_render = np.insert(cash_bs_5y, 0, cash_seed)
+    debt_bs_render = np.insert(debt_bs_5y, 0, debt_seed)
+    tax_bs_render = np.insert(tax_bs_5y, 0, 0.0)
+    ap_bs_render = np.insert(ap_bs_5y, 0, ap_seed)
     
+    # Compile 6-element totals (Opening b/f + 5 Years)
+    total_assets_render = fa_bs_render + cash_bs_render + inv_bs_render + ar_bs_render
+    total_liabs_render = debt_bs_render + tax_bs_render + ap_bs_render
+    net_assets_render = total_assets_render - total_liabs_render
+    
+    timeline_re = np.zeros(6)
+    timeline_re[0] = re_seed
+    running_re = re_seed
+    for i in range(5):
+        running_re += np_5y[i]
+        timeline_re[i+1] = running_re
+        
     bs_labels = ["Fixed Assets Net Book Value", "Warehouse Stock Inventory Pool", "Accounts Receivable (AR) Debtors", "Liquid Bank Cash Position", "**TOTAL STRUCTURAL ASSETS**", "Outstanding Finance Debt Obligations", "Deferred Corporate Tax Liabilities", "Accounts Payable (AP) Creditors", "**TOTAL STRUCTURAL LIABILITIES**", "***NET NET ASSETS CAPITAL EQUITY***"]
     bs_payload = {
-        "Fixed Assets Net Book Value": fa_bs_5y,
-        "Warehouse Stock Inventory Pool": inv_bs_5y,
-        "Accounts Receivable (AR) Debtors": ar_bs_5y,
-        "Liquid Bank Cash Position": cash_bs_5y,
-        "**TOTAL STRUCTURAL ASSETS**": total_assets_5y,
-        "Outstanding Finance Debt Obligations": -debt_bs_5y,
-        "Deferred Corporate Tax Liabilities": -tax_bs_5y,
-        "Accounts Payable (AP) Creditors": -ap_bs_5y,
-        "**TOTAL STRUCTURAL LIABILITIES**": -total_liabs_5y,
-        "***NET NET ASSETS CAPITAL EQUITY***": net_assets_5y
+        "Fixed Assets Net Book Value": fa_bs_render,
+        "Warehouse Stock Inventory Pool": inv_bs_render,
+        "Accounts Receivable (AR) Debtors": ar_bs_render,
+        "Liquid Bank Cash Position": cash_bs_render,
+        "**TOTAL STRUCTURAL ASSETS**": total_assets_render,
+        "Outstanding Finance Debt Obligations": -debt_bs_render,
+        "Deferred Corporate Tax Liabilities": -tax_bs_render,
+        "Accounts Payable (AP) Creditors": -ap_bs_render,
+        "**TOTAL STRUCTURAL LIABILITIES**": -total_liabs_render,
+        "***NET NET ASSETS CAPITAL EQUITY***": net_assets_render
     }
-    story.extend(build_annual_table(bs_payload, bs_labels, "Appendix C: Annualized Statement of Financial Position"))
+    story.extend(build_annual_table(bs_payload, bs_labels, "Appendix C: Annualized Statement of Financial Position", has_opening=True))
 
     doc.build(story)
     return buffer.getvalue()
