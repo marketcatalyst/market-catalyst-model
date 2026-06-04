@@ -2,9 +2,10 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-# Cloud Container Path Resolution Fixes
+# Cloud Container Path Resolution Modules
 from ui_skin.core_engine.master_orchestrator import run_master_three_way_engine
 from ui_skin.core_engine.export_manager import generate_three_way_excel_bundle
+from ui_skin.core_engine.pdf_manager import generate_three_way_pdf_pack
 
 st.set_page_config(layout="wide", page_title="Financial Statements Forecast")
 
@@ -44,12 +45,13 @@ with st.spinner("Re-consolidating multi-source dynamic matrix models..."):
     )
 
 # =========================================================================
-# --- 3. THE ONE-CLICK CORPORATE EXCEL EXPORT CONTROLLER ---
+# --- 3. THE SIDE-BY-SIDE CORPORATE EXPORT CONTROLLER PANEL ---
 # =========================================================================
-col_lbl, col_btn = st.columns([3, 1])
+col_lbl, col_btn_xl, col_btn_pdf = st.columns([2, 1, 1])
 with col_lbl:
-    st.write("💡 **Ready for Stakeholder Review?** Compile and download this current balanced matrix run directly into a formal multi-tab corporate Excel model.")
-with col_btn:
+    st.write("💡 **Ready for Stakeholder Review?** Compile and download this current balanced matrix run directly into production-ready corporate outputs.")
+
+with col_btn_xl:
     excel_data_stream = generate_three_way_excel_bundle(
         engine_output=engine_output,
         baseline_inputs=st.session_state["baseline_inputs"]
@@ -59,6 +61,19 @@ with col_btn:
         data=excel_data_stream,
         file_name="STRATA_60M_Three_Way_Forecast.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        use_container_width=True
+    )
+
+with col_btn_pdf:
+    pdf_data_stream = generate_three_way_pdf_pack(
+        engine_output=engine_output,
+        baseline_inputs=st.session_state["baseline_inputs"]
+    )
+    st.download_button(
+        label="📄 Download PDF Pack",
+        data=pdf_data_stream,
+        file_name="STRATA_Executive_Financial_Report.pdf",
+        mime="application/pdf",
         use_container_width=True
     )
 
@@ -174,7 +189,7 @@ with tab_cf:
 with tab_bs:
     st.markdown("### **Statement of Financial Position (Balance Sheet)**")
     
-    # Extract baseline positions from active session state
+    # Extract baseline positions from active session state configurations
     cash_seed = float(st.session_state["baseline_inputs"].get("opening_cash_balance", 69488.0))
     fa_seed = float(st.session_state["baseline_inputs"].get("opening_fixed_assets_nbv", 150000.0))
     ar_seed = float(st.session_state["baseline_inputs"].get("opening_accounts_receivable", 44886.0))
