@@ -56,7 +56,6 @@ def run_master_three_way_engine(
     opening_ar_seed = float(baseline_inputs.get("opening_accounts_receivable", 44886.0))
     running_ar_balance = opening_ar_seed
     
-    # Process cash collections channel-by-channel
     for m in range(total_months):
         total_month_inflow = 0.0
         
@@ -66,7 +65,6 @@ def run_master_three_way_engine(
             p_m1 = float(row["30-Day % (Terms)"]) / 100.0
             p_m2 = float(row["60-Day % (Terms)"]) / 100.0
             
-            # Channel volume histories
             vol_m = vol
             vol_m_1 = vol 
             vol_m_2 = vol
@@ -109,7 +107,9 @@ def run_master_three_way_engine(
                 
         timeline_interest_expense[m] = round(monthly_interest_accumulator, 2)
         timeline_principal_repayments[m] = round(monthly_principal_accumulator, 2)
-        running_debt_pool -= monthly_principal_accumulator
+        
+        # SYSTEM FIX: Reduce liability pool by the exact rounded cash value to eliminate floating-point drift
+        running_debt_pool -= timeline_principal_repayments[m]
         timeline_debt_balance_bs[m] = round(max(running_debt_pool, 0.0), 2)
 
     # --- 5. FIXED ASSETS & DISPOSALS PIPELINE ---
@@ -141,7 +141,6 @@ def run_master_three_way_engine(
     running_cash = float(baseline_inputs.get("opening_cash_balance", 69488.0))
     
     for m in range(total_months):
-        # Master Flow Formula updated to subtract monthly interest expense and add stock changes
         net_monthly_cash_flow = (
             timeline_cash_collected_from_sales[m]
             - timeline_purchases_cash_outflow[m]
@@ -149,7 +148,7 @@ def run_master_three_way_engine(
             + asset_results["timeline_disposal_proceeds"][m]
             - timeline_principal_repayments[m]
             - tax_results["timeline_tax_cash_outflow"][m]
-            - timeline_interest_expense[m] # SYSTEM FIX: Resolves cash flow interest leak
+            - timeline_interest_expense[m]
         )
         running_cash += net_monthly_cash_flow
         timeline_cash_at_bank[m] = round(running_cash, 2)
