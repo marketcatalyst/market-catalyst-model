@@ -2,8 +2,9 @@
 import numpy as np
 import pandas as pd
 from typing import Dict, Any, List
-from core_engine.fixed_assets import calculate_multi_asset_depreciation_matrix
-from core_engine.tax_engine import calculate_corporation_tax_schedule
+# Cloud Container Path Resolution Fixes
+from ui_skin.core_engine.fixed_assets import calculate_multi_asset_depreciation_matrix
+from ui_skin.core_engine.tax_engine import calculate_corporation_tax_schedule
 
 def run_master_three_way_engine(
     baseline_inputs: Dict[str, Any],
@@ -67,14 +68,14 @@ def run_master_three_way_engine(
             
             # Channel volume histories
             vol_m = vol
-            vol_m_1 = vol # Assuming flat baseline baseline initialization vectors
+            vol_m_1 = vol 
             vol_m_2 = vol
             
             total_month_inflow += (vol_m * p_curr)
             if m > 0:
                 total_month_inflow += (vol_m_1 * p_m1)
             else:
-                total_month_inflow += (opening_ar_seed * 0.5 * p_m1) # Safe opening recovery heuristic
+                total_month_inflow += (opening_ar_seed * 0.5 * p_m1) 
                 
             if m > 1:
                 total_month_inflow += (vol_m_2 * p_m2)

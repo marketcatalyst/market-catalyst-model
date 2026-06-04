@@ -2,7 +2,8 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-from core_engine.master_orchestrator import run_master_three_way_engine
+# Cloud Container Resolution Fix
+from ui_skin.core_engine.master_orchestrator import run_master_three_way_engine
 
 st.set_page_config(layout="wide", page_title="Financial Statements Forecast")
 
@@ -71,11 +72,10 @@ with tab_cf:
     st.markdown("### **Indirect Cash Flow Statement**")
     st.caption("Reconciles net accounting profit directly back to cash movements by tracking working capital changes.")
     
-    # Reconstruct cash changes using working capital changes matching the core engine rules
     net_operating_cash_flow = (
         engine_output["Net Profit"]
         + engine_output["Depreciation"]
-        + engine_output["Stock Movement"] # Adds back or subtracts the change in stock value
+        + engine_output["Stock Movement"] 
     )
     
     cf_data = {
@@ -96,20 +96,17 @@ with tab_bs:
     st.markdown("### **Statement of Financial Position (Balance Sheet)**")
     st.caption("Verifies system equity equilibrium. Total Assets minus Total Liabilities must equal Retained Reserves.")
     
-    # Gather initial seed elements from memory
     ap_seed = float(st.session_state["baseline_inputs"].get("opening_accounts_payable", 8000.0))
     re_seed = float(st.session_state["baseline_inputs"].get("opening_retained_earnings", -82005.0))
     
     timeline_ap = np.full(60, ap_seed)
     
-    # Roll retained earnings forward dynamically matching net profit generation
     timeline_re = np.zeros(60)
     running_re = re_seed
     for m in range(60):
         running_re += engine_output["Net Profit"][m]
         timeline_re[m] = running_re
         
-    # Calculate totals using the new dynamic working capital arrays
     total_assets = engine_output["Fixed Asset NBV"] + engine_output["Cash At Bank"] + engine_output["Inventory Asset BS"] + engine_output["Accounts Receivable BS"]
     total_liabilities = engine_output["Outstanding Debt"] + engine_output["Tax Liability BS"] + timeline_ap
     net_assets = total_assets - total_liabilities
