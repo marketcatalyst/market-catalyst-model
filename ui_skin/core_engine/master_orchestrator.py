@@ -14,7 +14,7 @@ def run_master_three_way_engine(
 ) -> Dict[str, Any]:
     """
     The master control hub for the STRATA financial engine. Sequentially orchestrates 
-    operational margins, proactive inventory procurement, rolling Accounts Receivable collections,
+    operational margins, proactive inventory procurement, rolling channel-by-channel AR collections,
     debt amortization, asset lifecycles, and corporate tax schedules.
     """
     # --- 1. OPERATIONAL BASELINES & POLICY MODIFIERS ---
@@ -23,12 +23,6 @@ def run_master_three_way_engine(
     monthly_overheads = float(baseline_inputs.get("admin_overheads_monthly", 8000.0))
     days_cover = float(baseline_inputs.get("inventory_days_cover", 30.0))
     
-    # Extract Accounts Receivable Credit Window collection profiles (Default to 70% immediate / 20% 30-day / 10% 60-day)
-    p_current = float(baseline_inputs.get("ar_collection_current_month", 0.70))
-    p_month_1 = float(baseline_inputs.get("ar_collection_month_plus_1", 0.20))
-    p_month_2 = float(baseline_inputs.get("ar_collection_month_plus_2", 0.10))
-    
-    # Initialize basic demand arrays across the 60-month timeline
     rev_array = np.full(total_months, monthly_revenue)
     base_cogs_demand = np.full(total_months, monthly_base_cogs)
     
@@ -54,36 +48,45 @@ def run_master_three_way_engine(
     overhead_array = np.full(total_months, monthly_overheads)
     ebitda_array = rev_array - final_p_l_cogs_line - overhead_array
     
-    # --- 3. DYNAMIC ACCOUNTS RECEIVABLE (AR) CASH COLLECTION ENGINE ---
+    # --- 3. DYNAMIC GRANULAR CHANNEL CASH COLLECTION ENGINE ---
     timeline_cash_collected_from_sales = np.zeros(total_months)
     timeline_ar_balance_bs = np.zeros(total_months)
     
     opening_ar_seed = float(baseline_inputs.get("opening_accounts_receivable", 44886.0))
     running_ar_balance = opening_ar_seed
     
+    # Process cash collections channel-by-channel
     for m in range(total_months):
-        # Calculate dynamic collections hitting the bank from current and past revenue runs
-        rev_m = rev_array[m]
-        rev_m_minus_1 = rev_array[m - 1] if m > 0 else (opening_ar_seed * 0.5) # Fallback heuristic
-        rev_m_minus_2 = rev_array[m - 2] if m > 1 else (opening_ar_seed * 0.2)
+        total_month_inflow = 0.0
         
-        # Apply profile constraints
-        cash_from_current_sales = rev_m * p_current
-        cash_from_month_1_sales = rev_m_minus_1 * p_month_1
-        cash_from_month_2_sales = rev_m_minus_2 * p_month_2
-        
-        total_monthly_cash_inflow = cash_from_current_sales + cash_from_month_1_sales + cash_from_month_2_sales
-        
-        # On early months, ensure we are also burning down legacy opening AR balances safely
-        if m < 2 and running_ar_balance > 0:
-            legacy_burn = min(running_ar_balance * 0.5, total_monthly_cash_inflow)
-            # Add to collection pool
-            total_monthly_cash_inflow = max(total_monthly_cash_inflow, legacy_burn)
+        for _, row in revenue_matrix_df.iterrows():
+            vol = float(row["Monthly Base Volume (£)"])
+            p_curr = float(row["Cash % (Immediate)"]) / 100.0
+            p_m1 = float(row["30-Day % (Terms)"]) / 100.0
+            p_m2 = float(row["60-Day % (Terms)"]) / 100.0
             
-        timeline_cash_collected_from_sales[m] = total_monthly_cash_inflow
-        
-        # Balance Sheet Reconciliation Rule: New AR = Old AR + Revenue - Cash Collected
-        running_ar_balance = running_ar_balance + rev_m - total_monthly_cash_inflow
+            # Channel volume histories
+            vol_m = vol
+            vol_m_1 = vol # Assuming flat baseline baseline initialization vectors
+            vol_m_2 = vol
+            
+            total_month_inflow += (vol_m * p_curr)
+            if m > 0:
+                total_month_inflow += (vol_m_1 * p_m1)
+            else:
+                total_month_inflow += (opening_ar_seed * 0.5 * p_m1) # Safe opening recovery heuristic
+                
+            if m > 1:
+                total_month_inflow += (vol_m_2 * p_m2)
+            else:
+                total_month_inflow += (opening_ar_seed * 0.3 * p_m2)
+                
+        if m < 2 and running_ar_balance > 0:
+            legacy_burn = min(running_ar_balance * 0.5, total_month_inflow)
+            total_month_inflow = max(total_month_inflow, legacy_burn)
+            
+        timeline_cash_collected_from_sales[m] = total_month_inflow
+        running_ar_balance = running_ar_balance + monthly_revenue - total_month_inflow
         timeline_ar_balance_bs[m] = max(running_ar_balance, 0.0)
 
     # --- 4. DEBT AMORTIZATION WHEEL (APR-DRIVEN) ---
@@ -98,16 +101,10 @@ def run_master_three_way_engine(
         monthly_principal_accumulator = 0.0
         
         for _, loan in loan_register_df.iterrows():
-            rem_term = int(loan["Remaining Term (Months)"])
-            pmt = float(loan["Monthly Payment (£)"])
-            bal = float(loan["Current Balance (£)"])
-            rate = float(loan["Interest Rate (%)"]) / 100.0
-            
-            if rem_term >= month_1based:
-                approx_monthly_interest = (bal * rate) / 12.0
-                principal_portion = min(pmt - approx_monthly_interest, bal)
+            if int(loan["Remaining Term (Months)"]) >= month_1based:
+                approx_monthly_interest = (float(loan["Current Balance (£)"]) * (float(loan["Interest Rate (%)"]) / 100.0)) / 12.0
                 monthly_interest_accumulator += approx_monthly_interest
-                monthly_principal_accumulator += principal_portion
+                monthly_principal_accumulator += min(float(loan["Monthly Payment (£)"]) - approx_monthly_interest, float(loan["Current Balance (£)"]))
                 
         timeline_interest_expense[m] = round(monthly_interest_accumulator, 2)
         timeline_principal_repayments[m] = round(monthly_principal_accumulator, 2)
@@ -143,14 +140,13 @@ def run_master_three_way_engine(
     running_cash = float(baseline_inputs.get("opening_cash_balance", 69488.0))
     
     for m in range(total_months):
-        # Cash Flow uses true collected sales revenue inflows instead of matching static accounting revenue
         net_monthly_cash_flow = (
-            timeline_cash_collected_from_sales[m]              # Actual cash collected from buyers
-            - timeline_purchases_cash_outflow[m]               # Actual material purchases spent
-            - overhead_array[m]                                # Overheads paid
-            + asset_results["timeline_disposal_proceeds"][m]   # Asset sales windfalls
-            - timeline_principal_repayments[m]                 # Loan payments
-            - tax_results["timeline_tax_cash_outflow"][m]      # Corp Tax paid
+            timeline_cash_collected_from_sales[m]
+            - timeline_purchases_cash_outflow[m]
+            - overhead_array[m]
+            + asset_results["timeline_disposal_proceeds"][m]
+            - timeline_principal_repayments[m]
+            - tax_results["timeline_tax_cash_outflow"][m]
         )
         running_cash += net_monthly_cash_flow
         timeline_cash_at_bank[m] = round(running_cash, 2)
@@ -173,5 +169,5 @@ def run_master_three_way_engine(
         "Outstanding Debt": timeline_debt_balance_bs,
         "Tax Liability BS": tax_results["timeline_tax_liability_bs"],
         "Inventory Asset BS": np.round(timeline_inventory_asset_bs, 2),
-        "Accounts Receivable BS": np.round(timeline_ar_balance_bs, 2) # Exported asset array
+        "Accounts Receivable BS": np.round(timeline_ar_balance_bs, 2)
     }
