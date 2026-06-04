@@ -1,7 +1,7 @@
 # ui_skin/pages/1_📥_ingestion.py
 import streamlit as st
 import pandas as pd
-from core_engine.mapping_manager import analyze_and_map_ledger, PLATFORM_TARGET_SLOTS
+from ui_skin.core_engine.mapping_manager import analyze_and_map_ledger, PLATFORM_TARGET_SLOTS
 
 st.set_page_config(layout="wide", page_title="Data Ingestion Hub")
 
@@ -108,14 +108,32 @@ st.markdown("---")
 # =========================================================================
 st.markdown("### **Step 3: Strategic Profit Center & Operational Policies**")
 
-col_inv1, col_inv2 = st.columns([1, 2])
-with col_inv1:
+# Group baseline sliders into layout columns
+col_inv, col_seas = st.columns(2)
+
+with col_inv:
+    st.markdown("#### **Warehouse Logistics**")
     inventory_days_cover = st.slider(
         "Target Inventory Coverage (Days of Cover)", 
         min_value=0, max_value=90, value=30, step=5
     )
-with col_inv2:
     st.caption("💡 **Inventory Rule:** Adjusts forward procurement timelines to insulate upcoming revenue surges.")
+
+with col_seas:
+    st.markdown("#### **Seasonality Options**")
+    enable_seasonality = st.checkbox("Enable Hospitality Seasonality Wave", value=True)
+    
+    # PROGRESSIVE DISCLOSURE CONTROLLER BLOCK
+    if enable_seasonality:
+        seasonality_intensity = st.slider(
+            "Seasonality Swing Severity Intensity Factor",
+            min_value=0.1, max_value=2.0, value=1.0, step=0.1,
+            help="1.0 is standard historical variance. Higher values exaggerate summer and winter swings."
+        )
+        st.caption("🌊 **Wave Active:** Adjusting amplitude multipliers around the rolling trading calendar.")
+    else:
+        seasonality_intensity = 0.0
+        st.caption("😐 **Wave Disabled:** Revenue flows will be completely flat across all 60 months.")
 
 st.write("") 
 
@@ -179,8 +197,11 @@ baseline_package = {
     "pension_opt_out": False,
     "seasonality_weights": [1.0] * 12,
     
+    # Active Parameter Hand-offs
     "inventory_days_cover": float(inventory_days_cover),
+    "seasonality_intensity": float(seasonality_intensity), # Mapped Intensity Parameter
     
+    # Balance Sheet values pull dynamically from Step 1's interactive alignment matrix
     "opening_cash_balance": extracted_inputs.get("Liquid Bank Cash Base", 69488.0),
     "opening_fixed_assets_nbv": extracted_inputs.get("Fixed Assets Gross Cost", 150000.0),
     "opening_accounts_receivable": extracted_inputs.get("Trade Accounts Receivable (AR)", 44886.0),
