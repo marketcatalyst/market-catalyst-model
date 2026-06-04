@@ -12,7 +12,7 @@ def generate_three_way_pdf_pack(engine_output: Dict[str, Any], baseline_inputs: 
     """
     Compiles a fully branded, 3-way corporate presentation PDF pack.
     Layout: Pages 1-2 Executive Summary Narrative & KPIs.
-    Appendices: Annualized P&L, Cash Flow, and Balance Sheet Financials.
+    Appendices: Annualized P&L, Cash Flow, and Balance Sheet Financials (Rounded to nearest £1).
     """
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -109,12 +109,13 @@ def generate_three_way_pdf_pack(engine_output: Dict[str, Any], baseline_inputs: 
     peak_cash = engine_output["Cash At Bank"].max()
     min_cash = engine_output["Cash At Bank"].min()
     
+    # BOARDROOM RESOLUTION: Format to nearest whole pound (.0f)
     kpi_data = [
         [Paragraph("Performance Indicator Metric", th_style), Paragraph("Year 1", th_style), Paragraph("Year 3", th_style), Paragraph("Year 5", th_style)],
-        [Paragraph("Annual Gross Turnover Running Run-Rate", td_style), Paragraph(f"£{rev_5y[0]:,.2f}", td_style), Paragraph(f"£{rev_5y[2]:,.2f}", td_style), Paragraph(f"£{rev_5y[4]:,.2f}", td_style)],
-        [Paragraph("Consolidated Post-Tax Corporate Net Profit", td_style), Paragraph(f"£{np_5y[0]:,.2f}", td_style), Paragraph(f"£{np_5y[2]:,.2f}", td_style), Paragraph(f"£{np_5y[4]:,.2f}", td_style)],
-        [Paragraph("Target Year-End Warehouse Stock Inventory Asset Base", td_style), Paragraph(f"£{engine_output['Inventory Asset BS'][11]:,.2f}", td_style), Paragraph(f"£{engine_output['Inventory Asset BS'][35]:,.2f}", td_style), Paragraph(f"£{engine_output['Inventory Asset BS'][59]:,.2f}", td_style)],
-        [Paragraph("Outstanding Debt Balance Obligations Pool", td_style), Paragraph(f"£{engine_output['Outstanding Debt'][11]:,.2f}", td_style), Paragraph(f"£{engine_output['Outstanding Debt'][35]:,.2f}", td_style), Paragraph(f"£{engine_output['Outstanding Debt'][59]:,.2f}", td_style)]
+        [Paragraph("Annual Gross Turnover Running Run-Rate", td_style), Paragraph(f"£{rev_5y[0]:,.0f}", td_style), Paragraph(f"£{rev_5y[2]:,.0f}", td_style), Paragraph(f"£{rev_5y[4]:,.0f}", td_style)],
+        [Paragraph("Consolidated Post-Tax Corporate Net Profit", td_style), Paragraph(f"£{np_5y[0]:,.0f}", td_style), Paragraph(f"£{np_5y[2]:,.0f}", td_style), Paragraph(f"£{np_5y[4]:,.0f}", td_style)],
+        [Paragraph("Target Year-End Warehouse Stock Inventory Asset Base", td_style), Paragraph(f"£{engine_output['Inventory Asset BS'][11]:,.0f}", td_style), Paragraph(f"£{engine_output['Inventory Asset BS'][35]:,.0f}", td_style), Paragraph(f"£{engine_output['Inventory Asset BS'][59]:,.0f}", td_style)],
+        [Paragraph("Outstanding Debt Balance Obligations Pool", td_style), Paragraph(f"£{engine_output['Outstanding Debt'][11]:,.0f}", td_style), Paragraph(f"£{engine_output['Outstanding Debt'][35]:,.0f}", td_style), Paragraph(f"£{engine_output['Outstanding Debt'][59]:,.0f}", td_style)]
     ]
     
     kpi_table = Table(kpi_data, colWidths=[240, 90, 90, 90])
@@ -130,10 +131,11 @@ def generate_three_way_pdf_pack(engine_output: Dict[str, Any], baseline_inputs: 
     
     story.append(Spacer(1, 20))
     story.append(Paragraph("Liquid Reserve & Runway Positions", h2_style))
+    # BOARDROOM RESOLUTION: Format narrative variables to whole integer pounds
     runway_text = (
         f"Across the full 60-month operational horizon, the projected peak cash position encounters a maximum of "
-        f"<b>£{peak_cash:,.2f}</b>, with structural safety floor boundaries dropping down to a baseline low of "
-        f"<b>£{min_cash:,.2f}</b>. Retained cash flows are continuously scaled to support dynamic working capital demand shocks safely."
+        f"<b>£{peak_cash:,.0f}</b>, with structural safety floor boundaries dropping down to a baseline low of "
+        f"<b>£{min_cash:,.0f}</b>. Retained cash flows are continuously scaled to support dynamic working capital demand shocks safely."
     )
     story.append(Paragraph(runway_text, body_style))
     
@@ -160,7 +162,6 @@ def generate_three_way_pdf_pack(engine_output: Dict[str, Any], baseline_inputs: 
     story.append(Paragraph(attestation_text, body_style))
     story.append(Spacer(1, 40))
     
-    # Branded closing badge
     story.append(Paragraph("<b>STRATA Verification Seal</b><br/><i>Ledger Status: Verified Balanced</i>", subtitle_style))
     
     # =========================================================================
@@ -175,7 +176,8 @@ def generate_three_way_pdf_pack(engine_output: Dict[str, Any], baseline_inputs: 
             row_cells = [Paragraph(f"<b>{lbl}</b>" if lbl.startswith("**") or lbl.startswith("***") else lbl, td_style)]
             vector = data_dict[lbl]
             for val in vector:
-                row_cells.append(Paragraph(f"£{val:,.2f}" if val >= 0 else f"(£{abs(val):,.2f})", td_style))
+                # BOARDROOM RESOLUTION: Format table elements to clean integer strings (.0f)
+                row_cells.append(Paragraph(f"£{val:,.0f}" if val >= 0 else f"(£{abs(val):,.0f})", td_style))
             table_rows.append(row_cells)
             
         tbl = Table(table_rows, colWidths=[210, 64, 64, 64, 64, 64])

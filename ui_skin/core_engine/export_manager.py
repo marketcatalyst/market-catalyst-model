@@ -7,7 +7,7 @@ from typing import Dict, Any
 def generate_three_way_excel_bundle(engine_output: Dict[str, Any], baseline_inputs: Dict[str, Any]) -> bytes:
     """
     Converts raw 3-way numerical arrays into a stylized, institutional-grade 
-    multi-tab Excel Workbook stream optimized for corporate distribution.
+    multi-tab Excel Workbook stream. All records are rounded to the nearest integer £1.
     """
     buffer = io.BytesIO()
     total_months = len(engine_output["Revenue"])
@@ -88,7 +88,12 @@ def generate_three_way_excel_bundle(engine_output: Dict[str, Any], baseline_inpu
     }
     bs_df = pd.DataFrame(bs_dict, index=timeline_columns).T
 
-    # --- 4. STREAM COMPILED TABLES TO EXCEL tabs ---
+    # BOARDROOM RESOLUTION: Round all output datasets cleanly to integers before Excel compilation
+    pl_df = pl_df.round(0).astype(int)
+    cf_df = cf_df.round(0).astype(int)
+    bs_df = bs_df.round(0).astype(int)
+
+    # --- 4. STREAM COMPILED TABLES TO EXCEL TABS ---
     with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
         pl_df.to_excel(writer, sheet_name="Income Statement (P&L)")
         cf_df.to_excel(writer, sheet_name="Cash Flow Statement")
