@@ -2,7 +2,9 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+# Cloud Container Path Resolution Fixes
 from ui_skin.core_engine.master_orchestrator import run_master_three_way_engine
+from ui_skin.core_engine.export_manager import generate_three_way_excel_bundle
 
 st.set_page_config(layout="wide", page_title="Financial Statements Forecast")
 
@@ -10,7 +12,9 @@ st.title("📊 Synchronized 3-Way Financial Statements")
 st.caption("60-Month Institutional Forecast Engine Backed by Proactive Working Capital Modifiers")
 st.markdown("---")
 
-# --- 1. SESSION STATE VERIFICATION ---
+# =========================================================================
+# --- 1. SESSION STATE VERIFICATION & FALLBACK PROTECTION ---
+# =========================================================================
 if "baseline_inputs" not in st.session_state or "raw_loan_register" not in st.session_state or "raw_revenue_matrix" not in st.session_state:
     st.warning("⚠️ **Upstream Data Missing:** Active session data not detected. Please initialize your parameters on the Ingestion page first.")
     st.stop()
@@ -27,7 +31,9 @@ if "asset_ledger" in st.session_state:
             "Disposal Proceeds (£)": 0.0
         })
 
-# --- 2. EXECUTE MASTER CALCULATIONS ---
+# =========================================================================
+# --- 2. EXECUTE MASTER PIPELINE CALCULATIONS ---
+# =========================================================================
 with st.spinner("Re-consolidating multi-source dynamic matrix models..."):
     engine_output = run_master_three_way_engine(
         baseline_inputs=st.session_state["baseline_inputs"],
@@ -37,7 +43,30 @@ with st.spinner("Re-consolidating multi-source dynamic matrix models..."):
         total_months=60
     )
 
-# --- 3. UX VIEW INTERVAL SELECTOR ---
+# =========================================================================
+# --- 3. THE ONE-CLICK CORPORATE EXCEL EXPORT CONTROLLER ---
+# =========================================================================
+col_lbl, col_btn = st.columns([3, 1])
+with col_lbl:
+    st.write("💡 **Ready for Stakeholder Review?** Compile and download this current balanced matrix run directly into a formal multi-tab corporate Excel model.")
+with col_btn:
+    excel_data_stream = generate_three_way_excel_bundle(
+        engine_output=engine_output,
+        baseline_inputs=st.session_state["baseline_inputs"]
+    )
+    st.download_button(
+        label="📥 Download Excel Model",
+        data=excel_data_stream,
+        file_name="STRATA_60M_Three_Way_Forecast.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        use_container_width=True
+    )
+
+st.markdown("---")
+
+# =========================================================================
+# --- 4. UX VIEW INTERVAL SELECTOR ---
+# =========================================================================
 view_interval = st.radio(
     "Select Reporting View Profile Interval:",
     ["📅 Detailed 60-Month Rolling Schedule", "📆 5-Year Annualized Summary Deck"],
@@ -45,11 +74,13 @@ view_interval = st.radio(
 )
 st.markdown("---")
 
-# --- 4. PREPARE PRESENTATION METRIC TIMELINES ---
+# =========================================================================
+# --- 5. PREPARE PRESENTATION METRIC TIMELINES ---
+# =========================================================================
 if "Detailed" in view_interval:
     columns_layout = [f"Month {i}" for i in range(1, 61)]
     
-    # Map arrays straight out of the engine
+    # Map arrays straight out of the engine outputs
     rev = engine_output["Revenue"]
     purchases = engine_output["Purchases"]
     stock_mov = engine_output["Stock Movement"]
@@ -75,7 +106,7 @@ else:
     # Build 5-Year Annualized Aggregations
     columns_layout = ["Year 1", "Year 2", "Year 3", "Year 4", "Year 5"]
     
-    # Flow Statements (Summation over 12-month buckets)
+    # Flow Statements (Summation over rolling 12-month buckets)
     rev = np.array([np.sum(engine_output["Revenue"][i*12:(i+1)*12]) for i in range(5)])
     purchases = np.array([np.sum(engine_output["Purchases"][i*12:(i+1)*12]) for i in range(5)])
     stock_mov = np.array([np.sum(engine_output["Stock Movement"][i*12:(i+1)*12]) for i in range(5)])
@@ -90,7 +121,7 @@ else:
     tax_paid = np.array([np.sum(engine_output["Tax Cash Paid"][i*12:(i+1)*12]) for i in range(5)])
     proceeds = np.array([np.sum(engine_output["Asset Disposal Proceeds"][i*12:(i+1)*12]) for i in range(5)])
     
-    # Closing positions (Snapshot at index 11, 23, 35, 47, 59)
+    # Stock Closing Positions (Snapshot at index 11, 23, 35, 47, 59)
     cash_at_bank = np.array([engine_output["Cash At Bank"][(i*12)+11] for i in range(5)])
     fa_nbv = np.array([engine_output["Fixed Asset NBV"][(i*12)+11] for i in range(5)])
     inv_bs = np.array([engine_output["Inventory Asset BS"][(i*12)+11] for i in range(5)])
@@ -98,7 +129,9 @@ else:
     debt_bs = np.array([engine_output["Outstanding Debt"][(i*12)+11] for i in range(5)])
     tax_bs = np.array([engine_output["Tax Liability BS"][(i*12)+11] for i in range(5)])
 
-# --- 5. RENDERING THE INTERACTIVE REPORTING TABS ---
+# =========================================================================
+# --- 6. RENDERING THE INTERACTIVE REPORTING TABS ---
+# =========================================================================
 tab_pl, tab_cf, tab_bs = st.tabs(["📈 Profit & Loss Statement", "💸 Cash Flow Statement", "⚖️ Balance Sheet Position"])
 
 with tab_pl:
@@ -141,7 +174,7 @@ with tab_cf:
 with tab_bs:
     st.markdown("### **Statement of Financial Position (Balance Sheet)**")
     
-    # Extract baseline positions
+    # Extract baseline positions from active session state
     cash_seed = float(st.session_state["baseline_inputs"].get("opening_cash_balance", 69488.0))
     fa_seed = float(st.session_state["baseline_inputs"].get("opening_fixed_assets_nbv", 150000.0))
     ar_seed = float(st.session_state["baseline_inputs"].get("opening_accounts_receivable", 44886.0))
@@ -163,11 +196,11 @@ with tab_bs:
         total_assets = fa_nbv + cash_at_bank + inv_bs + ar_bs
         total_liabilities = debt_bs + tax_bs + timeline_ap
     else:
-        # Append "Opening b/f" column explicitly to match layout requests
+        # Prepend opening balance sheet b/f column headers explicitly
         bs_columns = ["Opening b/f"] + columns_layout
         timeline_ap = np.full(6, ap_seed)
         
-        # Build annualized rolling equity positions starting from b/f seed
+        # Build annualized rolling equity reserves starting from baseline seed
         timeline_re = np.zeros(6)
         timeline_re[0] = re_seed
         running_re = re_seed
@@ -175,13 +208,13 @@ with tab_bs:
             running_re += net_profit[i]
             timeline_re[i+1] = running_re
             
-        # Prepend opening parameters to the year-end snapshots
+        # Insert initial starting figures at array index positions 0
         fa_nbv = np.insert(fa_nbv, 0, fa_seed)
         inv_bs = np.insert(inv_bs, 0, inv_seed)
         ar_bs = np.insert(ar_bs, 0, ar_seed)
         cash_at_bank = np.insert(cash_at_bank, 0, cash_seed)
         debt_bs = np.insert(debt_bs, 0, debt_seed)
-        tax_bs = np.insert(tax_bs, 0, 0.0) # Assume 0 opening deferred tax
+        tax_bs = np.insert(tax_bs, 0, 0.0)
         
         total_assets = fa_nbv + cash_at_bank + inv_bs + ar_bs
         total_liabilities = debt_bs + tax_bs + timeline_ap
