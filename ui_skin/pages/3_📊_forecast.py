@@ -119,7 +119,7 @@ if st.button("⚡ Generate Independent Executive Briefing"):
             )
             
             try:
-                model = genai.GenerativeModel('gemini-1.5-flash')
+                model = genai.GenerativeModel('gemini-3.5-flash')
                 
                 # FIX: Force native JSON mode to avoid parsing errors
                 response = model.generate_content(
