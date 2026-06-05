@@ -1,7 +1,11 @@
 import sys
 import os
 
-# Dynamic Environment Path Safeguard
+# =============================================================================
+# 🛡️ DYNAMIC ENVIRONMENT PATH SAFEGUARD
+# =============================================================================
+# Force-injects the absolute project root directory into Python's runtime search list.
+# This guarantees that subfolders can find core engine components seamlessly on any machine.
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 import streamlit as st
@@ -14,8 +18,12 @@ st.set_page_config(page_title="STRATA - Financial Forecast", page_icon="📊", l
 st.title("Three-Way Financial Forecast Control Centre")
 st.caption("Pristine generic-ready platform execution layer anchored to parameterized data structures.")
 
+# =============================================================================
+# 🛡️ SYSTEM PARAMETER DICTIONARY (THE DESIGNATED GROUND-TRUTH HUB)
+# =============================================================================
 if "baseline_inputs" not in st.session_state:
     st.session_state["baseline_inputs"] = {
+        # Initial Opening Structural Seed Positions
         "opening_cash_balance": 69488.00,             
         "opening_fixed_assets_nbv": 531385.00,         
         "opening_accounts_receivable": 44886.00,          
@@ -23,12 +31,14 @@ if "baseline_inputs" not in st.session_state:
         "opening_long_term_debt": 341001.00,           
         "opening_inventory_balance": 12000.00,
         
+        # Operational Rate Scaling Parameters
         "y1_revenue_target": 6528886.00,
         "y2_revenue_target": 10805679.00,
         "y3_revenue_target": 12126469.00,
         "monthly_overhead_baseline": 18575.00,
         "base_production_cogs_pct": 0.696,
         
+        # Chronological Historical Data Matching Vectors
         "y1_monthly_revenue_curve": [
             249310.00, 356310.00, 385200.00, 404460.00, 447260.00, 470800.00,
             508785.00, 707525.00, 763067.00, 750127.00, 750025.00, 736017.00
@@ -54,6 +64,7 @@ if "baseline_inputs" not in st.session_state:
 raw_loan = pd.DataFrame({"Principal": [0.0], "Interest": [0.0], "Monthly Payment": [0.0]})
 raw_rev = pd.DataFrame({"Revenue": [6528886.00]})
 
+# Execute Pure Engine Loop Run
 baseline_output = run_master_three_way_engine(
     baseline_inputs=st.session_state["baseline_inputs"],
     loan_register_df=raw_loan,
@@ -196,13 +207,33 @@ with tab_cf:
     st.table(clean_format(df))
 
 with tab_bs:
-    labels = ["Fixed Asset NBV (£)", "Inventory Stock Value (£)", "Accounts Receivable (£)", "Liquid Cash held at Bank (£)", "**TOTAL TANGIBLE ACTIVE ASSETS (£)**", "Statutory Tax Liabilities (£)", "**TOTAL ACCRUED LIABILITIES OBLIGATIONS (£)**", "Net Worth Retained Equity (£)"]
-    keys = ["Fixed Asset NBV", "Inventory Asset BS", "Accounts Receivable BS", "Cash At Bank", "Fixed Asset NBV", "Tax Liability BS", "Tax Liability BS", "Equity Retained BS"]
+    labels = [
+        "Fixed Asset NBV (£)", 
+        "Inventory Stock Value (£)", 
+        "Accounts Receivable (£)", 
+        "Liquid Cash held at Bank (£)", 
+        "**TOTAL TANGIBLE ACTIVE ASSETS (£)**", 
+        "Statutory Tax Liabilities (£)", 
+        "Long-Term Debt Obligations (£)", 
+        "**TOTAL ACCRUED LIABILITIES OBLIGATIONS (£)**", 
+        "Net Worth Retained Equity (£)"
+    ]
+    keys = [
+        "Fixed Asset NBV", 
+        "Inventory Asset BS", 
+        "Accounts Receivable BS", 
+        "Cash At Bank", 
+        "Fixed Asset NBV", 
+        "Tax Liability BS", 
+        "Outstanding Debt", 
+        "Tax Liability BS", 
+        "Equity Retained BS"
+    ]
     df = package_annual_dataframe(labels, keys, baseline_output) if view_type == "5-Year Annual Summary" else package_monthly_dataframe(labels, keys, baseline_output)
     
     for c in df.columns:
         df.loc["**TOTAL TANGIBLE ACTIVE ASSETS (£)**", c] = df.loc["Fixed Asset NBV (£)", c] + df.loc["Inventory Stock Value (£)", c] + df.loc["Accounts Receivable (£)", c] + df.loc["Liquid Cash held at Bank (£)", c]
-        df.loc["**TOTAL ACCRUED LIABILITIES OBLIGATIONS (£)**", c] = df.loc["Statutory Tax Liabilities (£)", c]
+        df.loc["**TOTAL ACCRUED LIABILITIES OBLIGATIONS (£)**", c] = df.loc["Statutory Tax Liabilities (£)", c] + df.loc["Long-Term Debt Obligations (£)", c]
     st.table(clean_format(df))
     
     # Balance sheet verification guardrail
