@@ -1,11 +1,7 @@
 import sys
 import os
 
-# =============================================================================
-# 🛡️ DYNAMIC ENVIRONMENT PATH SAFEGUARD
-# =============================================================================
-# Force-injects the absolute project root directory into Python's runtime search list.
-# This guarantees that subfolders can find core engine components seamlessly on any machine.
+# Dynamic Environment Path Safeguard
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 import streamlit as st
@@ -18,27 +14,20 @@ st.set_page_config(page_title="STRATA - Financial Forecast", page_icon="📊", l
 st.title("Three-Way Financial Forecast Control Centre")
 st.caption("Pristine generic-ready platform execution layer anchored to parameterized data structures.")
 
-# =============================================================================
-# 🛡️ SYSTEM PARAMETER DICTIONARY (THE DESIGNATED GROUND-TRUTH HUB)
-# =============================================================================
-if "baseline_inputs" not in st.session_state:
+# Dynamic validation safeguard: Reset to structural defaults if cache object is unparameterized
+if "baseline_inputs" not in st.session_state or "historical_fa_nbv_vector" not in st.session_state["baseline_inputs"]:
     st.session_state["baseline_inputs"] = {
-        # Initial Opening Structural Seed Positions
         "opening_cash_balance": 69488.00,             
         "opening_fixed_assets_nbv": 531385.00,         
         "opening_accounts_receivable": 44886.00,          
         "opening_accounts_payable": 8000.00,
         "opening_long_term_debt": 341001.00,           
         "opening_inventory_balance": 12000.00,
-        
-        # Operational Rate Scaling Parameters
         "y1_revenue_target": 6528886.00,
         "y2_revenue_target": 10805679.00,
         "y3_revenue_target": 12126469.00,
         "monthly_overhead_baseline": 18575.00,
         "base_production_cogs_pct": 0.696,
-        
-        # Chronological Historical Data Matching Vectors
         "y1_monthly_revenue_curve": [
             249310.00, 356310.00, 385200.00, 404460.00, 447260.00, 470800.00,
             508785.00, 707525.00, 763067.00, 750127.00, 750025.00, 736017.00
@@ -58,13 +47,13 @@ if "baseline_inputs" not in st.session_state:
         "historical_fa_nbv_vector": [755746.00, 661095.00, 477464.00, 302254.00, 150000.00],
         "historical_debt_vector": [341001.00, 237330.00, 11001.00, 0.0, 0.0],
         "historical_ar_vector": [320000.00, 352000.00, 387200.00, 442957.00, 480000.00],
-        "historical_inventory_vector": [12000.00, 12000.00, 12000.00, 12000.00, 12000.00]
+        "historical_inventory_vector": [12000.00, 12000.00, 12000.00, 12000.00, 12000.00],
+        "meta_project_name": "Core Strategy Expansion Plan", "meta_horizon_years": 5, "meta_year_end": "December"
     }
 
 raw_loan = pd.DataFrame({"Principal": [0.0], "Interest": [0.0], "Monthly Payment": [0.0]})
 raw_rev = pd.DataFrame({"Revenue": [6528886.00]})
 
-# Execute Pure Engine Loop Run
 baseline_output = run_master_three_way_engine(
     baseline_inputs=st.session_state["baseline_inputs"],
     loan_register_df=raw_loan,
