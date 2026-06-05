@@ -1,5 +1,6 @@
 import sys
 import os
+import json
 
 # Dynamic Environment Path Safeguard
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
@@ -7,15 +8,16 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')
 import streamlit as st
 import pandas as pd
 import numpy as np
+import google.generativeai as genai
 from ui_skin.core_engine.master_orchestrator import run_master_three_way_engine
 
 st.set_page_config(page_title="STRATA - Financial Forecast", page_icon="📊", layout="wide")
 
 st.title("Three-Way Financial Forecast Control Centre")
-st.caption("Pristine generic-ready platform execution layer anchored to parameterized data structures.")
+st.caption("AI-Driven predictive modeling platform connected directly to Gemini analytics pipelines.")
 
-# Dynamic validation safeguard: Reset to structural defaults if cache object is unparameterized
-if "baseline_inputs" not in st.session_state or "historical_fa_nbv_vector" not in st.session_state["baseline_inputs"]:
+# Initialize default session parameters if cache clear occurs
+if "baseline_inputs" not in st.session_state:
     st.session_state["baseline_inputs"] = {
         "opening_cash_balance": 69488.00,             
         "opening_fixed_assets_nbv": 531385.00,         
@@ -80,65 +82,86 @@ with chart_col2:
     st.area_chart(cash_df, color="#1e7e34")
 
 # =============================================================================
-# 🤖 THE ON-DEMAND STRATEGIC APPRAISAL ROOM (WHAT-IF HUB)
+# 🤖 INTELLECTUAL STRATEGIC APPRAISAL ROOM (GEMINI INTEG)
 # =============================================================================
 st.markdown("---")
 st.markdown("### 🤖 STRATA On-Demand Strategic Appraisal Room")
 st.caption("Submit narrative queries below to compile parallel target scenarios without cluttering core ledger charts.")
 
 user_inquiry = st.text_area(
-    "Query Strategic Alternatives (e.g., Anna, evaluate 5-day credit terms with a 1.5% discount to fund the new factory line):",
+    "Query Strategic Alternatives (e.g., Evaluate a 1% expansion in sales volume baseline):",
     placeholder="Type scenario narrative query here..."
 )
 
 if st.button("⚡ Generate Independent Executive Briefing"):
     if user_inquiry:
-        inquiry_clean = user_inquiry.lower()
-        scenario_overrides = {}
-        report_title = "Alternative Asset Allocation Evaluation"
-        
-        if "5 days" in inquiry_clean or "discount" in inquiry_clean or "remittances" in inquiry_clean:
-            report_title = "Liquidity Acceleration & Production Line Reinvestment Evaluation"
-            scenario_overrides = {
-                "wc_lag_corporate_months": 0,
-                "wholesale_annual_price_ramp": -0.015,
-                "expansion_scenario_active": True,
-                "expansion_month": 5,
-                "expansion_cogs_pct": 0.671,
-                "logistics_overtime_premium": 0.00
-            }
-        
-        scenario_output = run_master_three_way_engine(
-            baseline_inputs=st.session_state["baseline_inputs"],
-            loan_register_df=raw_loan,
-            revenue_matrix_df=raw_rev,
-            planned_capex_list=[],
-            overrides=scenario_overrides
-        )
-        
-        st.markdown(f"### 📄 Strategic Briefing Report: {report_title}")
-        col_m1, col_m2 = st.columns(2)
-        with col_m1:
-            st.metric("Base Case Year 5 Cash Balance", f"£{baseline_output['Cash At Bank'][-1]:,.0f}")
-            st.metric("Scenario Year 5 Cash Balance", f"£{scenario_output['Cash At Bank'][-1]:,.0f}", 
-                      delta=f"£{scenario_output['Cash At Bank'][-1] - baseline_output['Cash At Bank'][-1]:,.0f}")
-        with col_m2:
-            st.metric("Base Case Peak Monthly Profit", f"£{max(baseline_output['Net Profit']):,.0f}/mo")
-            st.metric("Scenario Peak Monthly Profit", f"£{max(scenario_output['Net Profit']):,.0f}/mo",
-                      delta=f"£{max(scenario_output['Net Profit']) - max(baseline_output['Net Profit']):,.0f}")
+        # Check for API Key presence in Streamlit secrets
+        if "GEMINI_API_KEY" in st.secrets:
+            genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+        else:
+            st.error("API Error: GEMINI_API_KEY is missing from your Streamlit secrets configurations.")
+            st.stop()
             
-        st.info(
-            "💡 **Executive Commentary:** Trading a minor 1.5% margin discount for immediate cash acceleration eliminates "
-            "trapped corporate capital in receivables. This newly freed liquidity runway self-funds the factory technology upgrades, "
-            "bypassing external debt interest costs. The 2.5% COGS optimization and overtime elimination successfully outweigh "
-            "the early settlement concession, net-expanding total run-rate comprehensive returns."
-        )
-        
-        comparison_df = pd.DataFrame({
-            "Base Cash Runway": baseline_output["Cash At Bank"],
-            "Scenario Cash Runway": scenario_output["Cash At Bank"]
-        }, index=timeline_index)
-        st.line_chart(comparison_df)
+        with st.spinner("🧠 Gemini Consulting Layer processing operational overrides..."):
+            # Construct a system instruction template forcing standard JSON returns
+            system_prompt = (
+                "You are an elite corporate finance advisor modeling simulations for a three-way financial forecast framework. "
+                "Your objective is to translate the user's free-text strategic narrative request into explicit mathematical overrides "
+                "and compose a professional executive commentary.\n\n"
+                "You MUST respond with a valid raw JSON object containing exactly two keys:\n"
+                "1. 'overrides': a dictionary mapping variable adjustments. Valid target keys are:\n"
+                "   - 'retail_annual_volume_growth' (float, e.g., 0.01 for 1% up)\n"
+                "   - 'retail_annual_price_ramp' (float, e.g., -0.015 for 1.5% deduction)\n"
+                "   - 'wc_lag_corporate_months' (int, e.g., 0 for instant collection optimization)\n"
+                "   - 'expansion_scenario_active' (boolean)\n"
+                "2. 'commentary': a text string containing a thorough executive evaluation of the financial strategy.\n\n"
+                "Do not include any markdown backticks, explanations, or text formatting outside of the raw JSON dictionary string."
+            )
+            
+            try:
+                model = genai.GenerativeModel('gemini-1.5-flash')
+                response = model.generate_content(
+                    f"System Instructions: {system_prompt}\n\nUser Request: {user_inquiry}"
+                )
+                
+                # Parse structured data fields cleanly
+                response_text = response.text.strip().replace("```json", "").replace("```", "")
+                parsed_payload = json.loads(response_text)
+                
+                scenario_overrides = parsed_payload.get("overrides", {})
+                executive_commentary = parsed_payload.get("commentary", "Analysis generated cleanly.")
+                
+                # Execute separate mathematical instance using Gemini parameters
+                scenario_output = run_master_three_way_engine(
+                    baseline_inputs=st.session_state["baseline_inputs"],
+                    loan_register_df=raw_loan,
+                    revenue_matrix_df=raw_rev,
+                    planned_capex_list=[],
+                    overrides=scenario_overrides
+                )
+                
+                # Display dynamic report output matrix
+                st.markdown("### 📄 AI Strategic Briefing Report")
+                col_m1, col_m2 = st.columns(2)
+                with col_m1:
+                    st.metric("Base Case Year 5 Cash Balance", f"£{baseline_output['Cash At Bank'][-1]:,.0f}")
+                    st.metric("Scenario Year 5 Cash Balance", f"£{scenario_output['Cash At Bank'][-1]:,.0f}", 
+                              delta=f"£{scenario_output['Cash At Bank'][-1] - baseline_output['Cash At Bank'][-1]:,.0f}")
+                with col_m2:
+                    st.metric("Base Case Peak Monthly Profit", f"£{max(baseline_output['Net Profit']):,.0f}/mo")
+                    st.metric("Scenario Peak Monthly Profit", f"£{max(scenario_output['Net Profit']):,.0f}/mo",
+                              delta=f"£{max(scenario_output['Net Profit']) - max(baseline_output['Net Profit']):,.0f}")
+                    
+                st.info(f"💡 **Executive Commentary:** {executive_commentary}")
+                
+                comparison_df = pd.DataFrame({
+                    "Base Cash Runway": baseline_output["Cash At Bank"],
+                    "Scenario Cash Runway": scenario_output["Cash At Bank"]
+                }, index=timeline_index)
+                st.line_chart(comparison_df)
+                
+            except Exception as e:
+                st.error(f"Failed to compile Gemini response layer: {str(e)}")
     else:
         st.warning("Please type a scenario narrative request above to trigger an analysis.")
 
