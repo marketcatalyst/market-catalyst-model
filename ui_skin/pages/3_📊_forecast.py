@@ -78,20 +78,26 @@ with st.expander("📈 Stage 3: Revenue Growth Levers", expanded=True):
     col1, col2 = st.columns(2)
     with col1:
         st.markdown("#### 🔹 Retail Sales Channel")
-        st.session_state["retail_annual_volume_growth"] = st.slider(
-            "Retail Annual Volume Growth (%)", min_value=-0.20, max_value=0.50, value=0.05, step=0.01, format="%.2f"
+        st.session_state["retail_annual_volume_growth_ui"] = st.slider(
+            "Retail Annual Volume Growth (%)", min_value=-20.0, max_value=50.0, value=5.0, step=1.0, format="%.1f%%"
         )
-        st.session_state["retail_annual_price_ramp"] = st.slider(
-            "Retail Annual Price Escalator (%)", min_value=-0.05, max_value=0.20, value=0.025, step=0.005, format="%.3f"
+        st.session_state["retail_annual_price_ramp_ui"] = st.slider(
+            "Retail Annual Price Escalator (%)", min_value=-5.0, max_value=20.0, value=2.5, step=0.5, format="%.1f%%"
         )
     with col2:
         st.markdown("#### 🏢 Wholesale Sales Channel")
-        st.session_state["wholesale_annual_volume_growth"] = st.slider(
-            "Wholesale Annual Volume Growth (%)", min_value=-0.20, max_value=0.50, value=0.12, step=0.01, format="%.2f"
+        st.session_state["wholesale_annual_volume_growth_ui"] = st.slider(
+            "Wholesale Annual Volume Growth (%)", min_value=-20.0, max_value=50.0, value=10.0, step=1.0, format="%.1f%%"
         )
-        st.session_state["wholesale_annual_price_ramp"] = st.slider(
-            "Wholesale Annual Price Escalator (%)", min_value=-0.05, max_value=0.20, value=0.00, step=0.005, format="%.3f"
+        st.session_state["wholesale_annual_price_ramp_ui"] = st.slider(
+            "Wholesale Annual Price Escalator (%)", min_value=-5.0, max_value=20.0, value=6.5, step=0.5, format="%.1f%%"
         )
+        
+    # Convert UI numbers back into engine decimal coefficients before calculation
+    st.session_state["retail_annual_volume_growth"] = st.session_state["retail_annual_volume_growth_ui"] / 100.0
+    st.session_state["retail_annual_price_ramp"] = st.session_state["retail_annual_price_ramp_ui"] / 100.0
+    st.session_state["wholesale_annual_volume_growth"] = st.session_state["wholesale_annual_volume_growth_ui"] / 100.0
+    st.session_state["wholesale_annual_price_ramp"] = st.session_state["wholesale_annual_price_ramp_ui"] / 100.0
 
 # STAGE 4: CAPACITY EXPANSION LEVERS
 with st.expander("🚀 Stage 4: Capacity Expansion & Satellite Footprint Overlays", expanded=False):
@@ -100,7 +106,6 @@ with st.expander("🚀 Stage 4: Capacity Expansion & Satellite Footprint Overlay
         value=is_stage4_active,
         key="expansion_scenario_active_checkbox"
     )
-    # Map state to raw variable for the top ribbon lookup on rerun
     st.session_state["expansion_scenario_active"] = st.session_state["expansion_scenario_active_checkbox"]
     
     if st.session_state["expansion_scenario_active"]:
@@ -371,4 +376,4 @@ with tab_bs:
     if variance_check == 0.0:
         st.success("⚖️ **STRATA Accounting Guardrail:** Systems synchronised. Balance Sheet ledger variance holds at absolute zero across all months.")
     else:
-        st.error("⚠️ **System Disconnect:** Asbalance mismatch caught in timeline matrix. Check operational accounting cash logs.")
+        st.error("⚠️ **System Disconnect:** Balance sheet mismatch caught in timeline matrix. Check operational accounting cash logs.")
