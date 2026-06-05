@@ -10,9 +10,9 @@ def run_master_three_way_engine(baseline_inputs, loan_register_df, revenue_matri
         overrides = {}
 
     # Extract dynamic structural targets from the ingestion layer
-    y1_rev_target = float(baseline_inputs.get("y1_revenue_target", 6528886.00)) [cite: 6]
-    y2_rev_target = float(baseline_inputs.get("y2_revenue_target", 10805679.00)) [cite: 17]
-    y3_rev_target = float(baseline_inputs.get("y3_revenue_target", 12126469.00)) [cite: 28]
+    y1_rev_target = float(baseline_inputs.get("y1_revenue_target", 6528886.00))
+    y2_rev_target = float(baseline_inputs.get("y2_revenue_target", 10805679.00))
+    y3_rev_target = float(baseline_inputs.get("y3_revenue_target", 12126469.00))
     
     base_monthly_overhead = float(baseline_inputs.get("monthly_overhead_baseline", 18575.00))
     cogs_base_coefficient = float(baseline_inputs.get("base_production_cogs_pct", 0.696))
@@ -86,7 +86,7 @@ def run_master_three_way_engine(baseline_inputs, loan_register_df, revenue_matri
         if overrides and "wc_lag_corporate_months" in overrides:
             m_closing_cash *= 1.15
 
-        m_prev_cash = float(baseline_inputs.get("opening_cash_balance", 69488.00)) if m == 0 else true_cash_flow_track[m - 1] [cite: 6]
+        m_prev_cash = float(baseline_inputs.get("opening_cash_balance", 69488.00)) if m == 0 else true_cash_flow_track[m - 1]
         m_cash_variance = m_closing_cash - m_prev_cash
         m_tax_cash_paid = m_tax_provision if (m > 0 and m % 3 == 0) else 0.0
         derived_wc_cf = m_cash_variance - m_net_profit - m_depreciation + m_tax_cash_paid
