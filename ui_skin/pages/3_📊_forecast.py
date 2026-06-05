@@ -1,11 +1,7 @@
 import sys
 import os
 
-# =============================================================================
-# 🛡️ DYNAMIC ENVIRONMENT PATH SAFEGUARD
-# =============================================================================
-# Force-injects the project root directory into Python's active module search list.
-# This eliminates cross-platform 'ModuleNotFoundError' issues across local environments and Linux Cloud containers.
+# Dynamic Environment Path Safeguard
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 import streamlit as st
@@ -18,51 +14,47 @@ st.set_page_config(page_title="STRATA - Financial Forecast", page_icon="📊", l
 st.title("Three-Way Financial Forecast Control Centre")
 st.caption("Pristine generic-ready platform execution layer anchored to parameterized data structures.")
 
-# =============================================================================
-# 🛡️ SYSTEM PARAMETER DICTIONARY (THE DESIGNATED GROUND-TRUTH HUB)
-# =============================================================================
 if "baseline_inputs" not in st.session_state:
     st.session_state["baseline_inputs"] = {
-        # Initial Opening Structural Seed Positions
-        "opening_cash_balance": 69488.00,
-        "opening_fixed_assets_nbv": 531385.00,
-        "opening_accounts_receivable": 44886.00,
+        "opening_cash_balance": 69488.00,             
+        "opening_fixed_assets_nbv": 531385.00,         
+        "opening_accounts_receivable": 44886.00,          
         "opening_accounts_payable": 8000.00,
-        "opening_long_term_debt": 341001.00,
+        "opening_long_term_debt": 341001.00,           
         "opening_inventory_balance": 12000.00,
         
-        # Operational Rate Scaling Parameters
-        "y1_revenue_target": 6528886.00,
-        "y2_revenue_target": 10805679.00,
-        "y3_revenue_target": 12126469.00,
+        "y1_revenue_target": 6528886.00, [cite: 6]
+        "y2_revenue_target": 10805679.00, [cite: 17]
+        "y3_revenue_target": 12126469.00, [cite: 28]
         "monthly_overhead_baseline": 18575.00,
         "base_production_cogs_pct": 0.696,
         
-        # Chronological Historical Data Matching Vectors
         "y1_monthly_revenue_curve": [
-            249310.00, 356310.00, 385200.00, 404460.00, 447260.00, 470800.00,
-            508785.00, 707525.00, 763067.00, 750127.00, 750025.00, 736017.00
+            249310.00, 356310.00, 385200.00, 404460.00, 447260.00, 470800.00, [cite: 6]
+            508785.00, 707525.00, 763067.00, 750127.00, 750025.00, 736017.00 [cite: 6]
         ],
         "historical_cash_flow_vector": [
-            30534.00, 55816.00, 57184.00, 107551.00, 112372.00, 313144.00, 
-            133467.00, 210615.00, 232118.00, 373846.00, 335510.00, 313760.00,
-            543297.00, 614240.00, 718038.00, 920317.00, 1044788.00, 1165807.00,
-            1382623.00, 1491213.00, 1617929.00, 1808973.00, 1887158.00, 1946084.00,
-            2176989.00, 2265357.00, 2390615.00, 2623144.00, 2772046.00, 2917012.00,
-            3166164.00, 3296896.00, 3448372.00, 3668049.00, 3763998.00, 3837934.00,
-            4068140.00, 4156980.00, 4295761.00, 4567153.00, 4732985.00, 4894313.00,
-            5184725.00, 5329768.00, 5498544.00, 5755233.00, 5860489.00, 5940553.00,
+            30534.00, 55816.00, 57184.00, 107551.00, 112372.00, 313144.00,  [cite: 6]
+            133467.00, 210615.00, 232118.00, 373846.00, 335510.00, 313760.00, [cite: 6]
+            543297.00, 614240.00, 718038.00, 920317.00, 1044788.00, 1165807.00, [cite: 17]
+            1382623.00, 1491213.00, 1617929.00, 1808973.00, 1887158.00, 1946084.00, [cite: 17]
+            2176989.00, 2265357.00, 2390615.00, 2623144.00, 2772046.00, 2917012.00, [cite: 28]
+            3166164.00, 3296896.00, 3448372.00, 3668049.00, 3763998.00, 3837934.00, [cite: 28]
+            4068140.00, 4156980.00, 4295761.00, 4567153.00, 4732985.00, 4894313.00, [cite: 37]
+            5184725.00, 5329768.00, 5498544.00, 5755233.00, 5860489.00, 5940553.00, [cite: 37]
             6150000.00, 6340000.00, 6520000.00, 6710000.00, 6920000.00, 7120000.00,
             7320000.00, 7540000.00, 7750000.00, 7940000.00, 8120000.00, 8244000.00
         ],
-        "historical_fa_nbv_vector": [839499.00, 823279.00, 807062.00, 790843.00, 774624.00, 758407.00],
-        "historical_debt_vector": [332729.00, 324393.00, 315991.00, 307523.00, 298987.00, 237330.00]
+        # Mapped year-end snapshot constants from true PDF columns
+        "historical_fa_nbv_vector": [755746.00, 661095.00, 477464.00, 302254.00, 150000.00], [cite: 10, 21, 32, 44]
+        "historical_debt_vector": [341001.00, 237330.00, 11001.00, 0.0, 0.0], [cite: 10, 21, 32]
+        "historical_ar_vector": [320000.00, 352000.00, 387200.00, 442957.00, 480000.00], [cite: 10, 21, 32, 44]
+        "historical_inventory_vector": [12000.00, 12000.00, 12000.00, 12000.00, 12000.00] [cite: 10]
     }
 
 raw_loan = pd.DataFrame({"Principal": [0.0], "Interest": [0.0], "Monthly Payment": [0.0]})
 raw_rev = pd.DataFrame({"Revenue": [6528886.00]})
 
-# Execute Pure Engine Loop Run
 baseline_output = run_master_three_way_engine(
     baseline_inputs=st.session_state["baseline_inputs"],
     loan_register_df=raw_loan,
@@ -160,12 +152,20 @@ view_type = st.radio("Select Base Statement View Horizon:", ["5-Year Annual Summ
 
 def package_annual_dataframe(labels, keys, data):
     rows = []
+    snapshot_keys = [
+        "Cash At Bank", "Fixed Asset NBV", "Outstanding Debt", "Tax Liability BS", 
+        "Inventory Asset BS", "Accounts Receivable BS", "Equity Retained BS"
+    ]
     for label, key in zip(labels, keys):
         m_data = np.array(data[key])
         vals = []
         for y in range(5):
             slice_data = m_data[y*12 : (y+1)*12]
-            vals.append(slice_data[-1] if key in ["Cash At Bank", "Fixed Asset NBV", "Outstanding Debt", "Tax Liability BS"] else slice_data.sum())
+            # FIX: Pull point-in-time snapshot balances instead of summing them up
+            if key in snapshot_keys:
+                vals.append(slice_data[-1])
+            else:
+                vals.append(slice_data.sum())
         rows.append(vals)
     return pd.DataFrame(rows, index=labels, columns=["Year 1", "Year 2", "Year 3", "Year 4", "Year 5"])
 
