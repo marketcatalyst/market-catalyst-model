@@ -224,8 +224,8 @@ engine_output = run_master_three_way_engine(
 st.markdown("## 🔥 Live Strategic Sensitivity Radar")
 chart_col1, chart_col2 = st.columns(2)
 
-# Build timeseries DataFrames directly from core execution outputs
-timeline_index = [f"Month {i+1}" for i in range(60)]
+# PATCH: Use strict numeric array values for index layout to secure explicit chronological tracking order
+timeline_index = list(range(1, 61))
 
 with chart_col1:
     st.markdown("#### 📈 Profitability Trajectory (Net Monthly Profit)")
