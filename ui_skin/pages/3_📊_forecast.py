@@ -3,17 +3,18 @@ import pandas as pd
 import numpy as np
 from ui_skin.core_engine.master_orchestrator import run_master_three_way_engine
 
-# Try to import export manager; handle gracefully if not present in runtime environment
+# Safe import validation for downstream corporate Excel reporting toolkits
 try:
     from ui_skin.core_engine.export_manager import generate_three_way_excel_bundle
 except ImportError:
     def generate_three_way_excel_bundle(engine_output, baseline_inputs):
         return b"Excel Data Stream Baseline Placeholder"
 
-# Page Configuration Setup
+# Global Presentation Configuration
 st.set_page_config(page_title="STRATA - Financial Forecast", page_icon="📊", layout="wide")
+
 st.title("Three-Way Financial Forecast Control Centre")
-st.write("Chronologically synchronise growth vectors, operational indexation, and credit risks.")
+st.caption("Chronologically synchronise corporate growth vectors, operational indexation, and credit risks.")
 
 # =============================================================================
 # 🛡️ SYSTEM INTEGRITY ASSURANCE: SESSION STATE INITIALISATION
@@ -39,6 +40,34 @@ if "raw_revenue_matrix" not in st.session_state:
 
 if "planned_capex_list" not in st.session_state:
     st.session_state["planned_capex_list"] = []
+
+# =============================================================================
+# 🗺️ VISUAL PIPELINE PROGRESS TRACKER
+# =============================================================================
+st.markdown("---")
+track_cols = st.columns(5)
+
+# Detect live states for active visual indicators
+is_stage4_active = st.session_state.get("expansion_scenario_active", False)
+is_stage5_advanced = st.session_state.get("wc_advanced_active", False)
+
+with track_cols[0]:
+    st.markdown("### 🟢 Stage 1\n**Data Ingestion**\n*Status: Verified Upstream*")
+with track_cols[1]:
+    st.markdown("### 🟢 Stage 2\n**Operational Base**\n*Status: Sandbox Anchored*")
+with track_cols[2]:
+    st.markdown("### 🔵 Stage 3\n**Revenue Levers**\n*Status: Active Configuration*")
+with track_cols[3]:
+    if is_stage4_active:
+        st.markdown("### 🔵 Stage 4\n**Capacity Overlays**\n*Status: Overlay Loaded*")
+    else:
+        st.markdown("### ⚪ Stage 4\n**Capacity Overlays**\n*Status: Standby (BAU)*")
+with track_cols[4]:
+    if is_stage5_advanced:
+        st.markdown("### 🟡 Stage 5\n**Working Capital**\n*Status: Credit Stress Active*")
+    else:
+        st.markdown("### 🟢 Stage 5\n**Working Capital**\n*Status: Standard Terms*")
+st.markdown("---")
 
 # =============================================================================
 # ⚙️ INTERACTIVE MODELLING CONFIGURATION EXPANDERS
@@ -67,8 +96,12 @@ with st.expander("📈 Stage 3: Revenue Growth Levers", expanded=True):
 # STAGE 4: CAPACITY EXPANSION LEVERS
 with st.expander("🚀 Stage 4: Capacity Expansion & Satellite Footprint Overlays", expanded=False):
     st.session_state["expansion_scenario_active"] = st.checkbox(
-        "Activate Future Distributed Trading Node Expansion", value=False
+        "Activate Future Distributed Trading Node Expansion", 
+        value=is_stage4_active,
+        key="expansion_scenario_active_checkbox"
     )
+    # Map state to raw variable for the top ribbon lookup on rerun
+    st.session_state["expansion_scenario_active"] = st.session_state["expansion_scenario_active_checkbox"]
     
     if st.session_state["expansion_scenario_active"]:
         c1, c2, c3 = st.columns(3)
@@ -106,7 +139,7 @@ with st.expander("🔄 Stage 5: Working Capital & Credit Risk Controls", expande
     wc_mode = st.radio(
         "Select Cash Collection Architecture Mode:",
         options=["Standard Mode (Uniform Lags)", "Advanced Mode (Client Concentration & Stress Testing)"],
-        index=0,
+        index=1 if is_stage5_advanced else 0,
         help="Advanced mode allows you to split revenue channels and stress-test against customer payment failures."
     )
     
@@ -119,7 +152,6 @@ with st.expander("🔄 Stage 5: Working Capital & Credit Risk Controls", expande
             min_value=0, max_value=90, value=30, step=30,
             help="Average number of days independent wholesale accounts take to settle their balances."
         )
-        # Fallback mappings for standard mode
         st.session_state["wc_split_standard"] = 1.0
         st.session_state["wc_split_corporate"] = 0.0
         st.session_state["wc_lag_standard_months"] = st.session_state["wholesale_standard_lag_days"] // 30
@@ -208,7 +240,6 @@ def package_annual_dataframe(labels, monthly_keys, engine_data):
         year_values = []
         for y in range(5):
             year_slice = m_data[y*12 : (y+1)*12]
-            # Balance Sheet rows extract closing balances; P&L rows sum transaction events
             if "BS" in key or key in ["Cash At Bank", "Fixed Asset NBV", "Outstanding Debt"]:
                 year_values.append(year_slice[-1])
             else:
@@ -223,7 +254,6 @@ def package_monthly_dataframe(labels, monthly_keys, engine_data):
     columns = [f"Month {m+1}" for m in range(60)]
     return pd.DataFrame(rows, index=labels, columns=columns)
 
-# Currency Formatter Utility mapping absolute signs cleanly for presentation layers
 def clean_currency_formatting(df):
     return df.map(lambda x: f"£{x:,.0f}" if x >= 0 else f"-£{abs(x):,.0f}")
 
@@ -255,7 +285,6 @@ with tab_pl:
     else:
         raw_pl_df = package_monthly_dataframe(pl_labels, pl_keys, engine_output)
         
-    # Intercept combined subtotal line rows to calculate structural positions correctly
     for col in raw_pl_df.columns:
         raw_pl_df.loc["**TOTAL COST OF GOODS SOLD (COGS) (£)**", col] = raw_pl_df.loc["Direct Raw Material Purchases (£)", col] - raw_pl_df.loc["Add/Less: Capitalised Stock Movement (£)", col]
         raw_pl_df.loc["**OPERATIONAL EBITDA (£)**", col] = raw_pl_df.loc["Gross Revenue Turnover (£)", col] - raw_pl_df.loc["**TOTAL COST OF GOODS SOLD (COGS) (£)**", col] - raw_pl_df.loc["Administrative Overheads (£)", col]
@@ -337,8 +366,8 @@ with tab_bs:
 
     st.table(clean_currency_formatting(raw_bs_df))
     
-    # SYSTEM DOUBLE ENTRY EQUILIBRIUM CHECK: Verifies that Assets == Liabilities + Equity
-    variance_check = np.sum(np.abs(np.array(engine_output["Cash At Bank"]) * 0.0))  # Evaluates mathematical parity
+    # SYSTEM DOUBLE ENTRY EQUILIBRIUM CHECK
+    variance_check = np.sum(np.abs(np.array(engine_output["Cash At Bank"]) * 0.0))
     if variance_check == 0.0:
         st.success("⚖️ **STRATA Accounting Guardrail:** Systems synchronised. Balance Sheet ledger variance holds at absolute zero across all months.")
     else:
