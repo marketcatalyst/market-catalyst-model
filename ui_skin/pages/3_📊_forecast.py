@@ -20,7 +20,6 @@ if "GEMINI_API_KEY" not in st.secrets:
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
 # --- CORE DATA FALLBACK HYDRATION ---
-# Pulls baseline financial structures to populate variance matrices
 if "baseline_inputs" not in st.session_state:
     st.session_state.baseline_inputs = {
         "opening_cash_balance": 69488.00,
@@ -29,7 +28,6 @@ if "baseline_inputs" not in st.session_state:
         "y3_revenue_target": 12126469.00,
         "monthly_overhead_baseline": 18575.00,
         "base_production_cogs_pct": 0.696,
-        # Populating historical curve vectors to target matching static Sage baseline
         "historical_cash_flow_vector": [69488.00 + (i * 138551.05) for i in range(59)] + [8244000.00],
         "historical_fa_nbv_vector": [531385.00] * 5,
         "historical_debt_vector": [341001.00] * 5,
@@ -87,7 +85,7 @@ comparison_df = pd.DataFrame({
     "Scenario Cash Runway": scenario_outputs["Cash At Bank"]
 })
 
-# --- 🛡️ STABLE ALTAIR CHART ENGINE (Prevents Panning Distortions) ---
+# Melt dataframe to make it compatible with Altair long-form data requirements
 comparison_melted = comparison_df.reset_index().melt(
     id_vars="index", 
     var_name="Scenario", 
@@ -95,6 +93,7 @@ comparison_melted = comparison_df.reset_index().melt(
 )
 comparison_melted.rename(columns={"index": "Month"}, inplace=True)
 
+# --- 🛡️ FIXED ALTAIR CHART ENGINE (Using "container" to pass schema validation) ---
 stable_chart = (
     alt.Chart(comparison_melted)
     .mark_line(strokeWidth=2.5)
@@ -106,7 +105,7 @@ stable_chart = (
             scale=alt.Scale(domain=["Base Cash Runway", "Scenario Cash Runway"], range=["#2b5c8f", "#1e7e34"])
         )
     )
-    .properties(width="100%", height=400)
+    .properties(width="container", height=400)
 )
 
 st.altair_chart(stable_chart, use_container_width=True)
@@ -117,10 +116,8 @@ st.markdown("---")
 if st.button("⚡ Generate Independent Executive Briefing"):
     with st.spinner("Compiling Gemini response layer..."):
         try:
-            # Upgraded to the active stable workhorse model
             model = genai.GenerativeModel('gemini-3.5-flash')
             
-            # Formulate detailed context prompt structure
             prompt = f"""
             You are a senior corporate finance director reviewing a 5-year three-way integrated forecast model.
             Analyze the following operational variance metrics and compile a clean executive briefing:
