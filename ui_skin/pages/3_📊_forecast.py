@@ -13,21 +13,21 @@ st.caption("Pristine corporate core baseline projections validated against histo
 # =============================================================================
 if "baseline_inputs" not in st.session_state:
     st.session_state["baseline_inputs"] = {
-        "opening_cash_balance": 69488.00,             # True report cash balance 
-        "opening_fixed_assets_nbv": 150000.00,
-        "opening_accounts_receivable": 44886.00,          # True report trade debtors 
+        "opening_cash_balance": 69488.00,             # True report cash balance
+        "opening_fixed_assets_nbv": 531385.00,         # True opening fixed assets total
+        "opening_accounts_receivable": 44886.00,          # True report trade debtors
         "opening_accounts_payable": 8000.00,
-        "opening_long_term_debt": 0.0,
+        "opening_long_term_debt": 341001.00,           # True creditors due after one year
         "opening_inventory_balance": 12000.00,
-        "annual_revenue_baseline": 6528886.00,         # True report Year 1 sales baseline 
-        "monthly_overhead_baseline": 18575.00,         # True calculated operating fixed overheads 
-        "base_production_cogs_pct": 0.42               # Standard corporate production COGS ratio
+        "annual_revenue_baseline": 6528886.00,         # True report Year 1 sales baseline
+        "monthly_overhead_baseline": 18575.00,         # True operational overhead run-rate
+        "base_production_cogs_pct": 0.696              # FIX 2: Restores integrated salary/purchase COGS ratio
     }
 
 raw_loan = pd.DataFrame({"Principal": [0.0], "Interest": [0.0], "Monthly Payment": [0.0]})
-raw_rev = pd.DataFrame({"Revenue": [6528886.00]})  # Aligned to true WinForecast turnover framework 
+raw_rev = pd.DataFrame({"Revenue": [6528886.00]})
 
-# Execute Pristine Baseline Model Run
+# Execute Baseline Model Run
 baseline_output = run_master_three_way_engine(
     baseline_inputs=st.session_state["baseline_inputs"],
     loan_register_df=raw_loan,
@@ -78,7 +78,7 @@ if st.button("⚡ Generate Independent Executive Briefing"):
                 "wholesale_annual_price_ramp": -0.015,  # Implement 1.5% settlement margin reduction
                 "expansion_scenario_active": True,
                 "expansion_month": 5,
-                "expansion_cogs_pct": 0.395,             # Production line compresses cogs ratio by 2.5%
+                "expansion_cogs_pct": 0.671,             # Production line compresses cogs ratio by 2.5%
                 "logistics_overtime_premium": 0.00       # Completely eliminates runtime overtime expenses
             }
         

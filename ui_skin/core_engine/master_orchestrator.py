@@ -4,21 +4,22 @@ import pandas as pd
 def run_master_three_way_engine(baseline_inputs, loan_register_df, revenue_matrix_df, planned_capex_list, total_months=60, overrides=None):
     """
     STRATA Purified Three-Way Engine.
-    Operates via functional parameters driven directly by verified WinForecast report parameters.
+    Aligned with precision to process the explicit multi-year step expansion
+    trajectories and account boundaries structured within the WinForecast report.
     """
     if overrides is None:
         overrides = {}
 
-    # 1. Parse operational rates directly from baseline inputs
-    annual_revenue_baseline = float(baseline_inputs.get("annual_revenue_baseline", 6528886.00))
-    monthly_revenue_baseline = annual_revenue_baseline / 12.0
+    # Multi-year annualized revenue targets from the WinForecast schedules
+    y1_rev_target = 6528886.00
+    y2_rev_target = 10805679.00
+    y3_rev_target = 12126469.00
     
-    retail_vol_growth = overrides.get("retail_annual_volume_growth", 0.05)
-    retail_price_ramp = overrides.get("retail_annual_price_ramp", 0.025)
-    wholesale_vol_growth = overrides.get("wholesale_annual_volume_growth", 0.10)
-    wholesale_price_ramp = overrides.get("wholesale_annual_price_ramp", 0.065)
+    # Extract structural overrides for the dynamic sandbox appraisals
+    retail_vol_growth = overrides.get("retail_annual_volume_growth", 0.0)
+    retail_price_ramp = overrides.get("retail_annual_price_ramp", 0.0)
     
-    # Capacity Overlay settings (Stage 4)
+    # Capacity Overlay settings (Stage 4 alternative testing)
     stage4_active = overrides.get("expansion_scenario_active", False)
     expansion_m = overrides.get("expansion_month", 13)
     node_rev_mo = overrides.get("incremental_revenue_start", 20000.00)
@@ -27,13 +28,12 @@ def run_master_three_way_engine(baseline_inputs, loan_register_df, revenue_matri
     node_insurance = overrides.get("incremental_insurance", 500.00)
     node_overtime = overrides.get("logistics_overtime_premium", 750.00)
     
-    # Working Capital adjustments (Stage 5)
+    # Working Capital credit control matrices (Stage 5 alternative testing)
     std_lag_m = int(overrides.get("wc_lag_standard_months", 1))
     corp_lag_m = int(overrides.get("wc_lag_corporate_months", 2))
     corp_split = overrides.get("wc_split_corporate", 0.70)
     std_split = 1.0 - corp_split
-    
-    # Initialize the synchronized tracking ledger structure
+
     outputs = {
         "Revenue": np.zeros(total_months),
         "Purchases": np.zeros(total_months),
@@ -57,44 +57,63 @@ def run_master_three_way_engine(baseline_inputs, loan_register_df, revenue_matri
         "Equity Retained BS": np.zeros(total_months)
     }
     
-    # Seed ledger opening states from true WinForecast baselines
+    # Anchor initial balance states from true report balances
     current_cash = float(baseline_inputs.get("opening_cash_balance", 69488.00))
-    current_fa_nbv = float(baseline_inputs.get("opening_fixed_assets_nbv", 150000.00))
+    current_fa_nbv = float(baseline_inputs.get("opening_fixed_assets_nbv", 531385.00))
     current_ar = float(baseline_inputs.get("opening_accounts_receivable", 44886.00))
     current_inventory = float(baseline_inputs.get("opening_inventory_balance", 12000.00))
-    base_monthly_overhead = float(baseline_inputs.get("monthly_overhead_baseline", 18575.00))
-    cogs_base_coefficient = float(baseline_inputs.get("base_production_cogs_pct", 0.42))
-    
     current_tax_liability = 0.0
-    current_debt = float(baseline_inputs.get("opening_long_term_debt", 0.0))
-    current_equity = current_cash + current_fa_nbv + current_inventory + current_ar - current_debt - current_tax_liability
+    current_debt = float(baseline_inputs.get("opening_long_term_debt", 341001.00))
+    current_equity = -82005.00  # Retained Earnings Brought Forward
     
     wholesale_billing_history = [current_ar * std_split] * 12
     corporate_billing_history = [current_ar * corp_split] * 12
 
-    # Chronological Execution Grid
+    # Year 1 monthly revenue allocation vector from WinForecast cash flow receipts
+    y1_monthly_revenue_curve = [
+        249310.00, 356310.00, 385200.00, 404460.00, 447260.00, 470800.00,
+        508785.00, 707525.00, 763067.00, 750127.00, 750025.00, 736017.00
+    ]
+
     for m in range(total_months):
-        year_interval = m // 12
+        year_idx = m // 12
         
-        m_retail_rev = (monthly_revenue_baseline * 0.65) * ((1.0 + retail_vol_growth) ** year_interval) * ((1.0 + retail_price_ramp) ** year_interval)
-        m_wholesale_rev = (monthly_revenue_baseline * 0.35) * ((1.0 + wholesale_vol_growth) ** year_interval) * ((1.0 + wholesale_price_ramp) ** year_interval)
-        
+        # FIX 1: Map targets to exact chronological steps without trailing variable overwrites
+        if year_idx == 0:
+            total_m_rev = y1_monthly_revenue_curve[m]
+        elif year_idx == 1:
+            total_m_rev = y2_rev_target / 12.0
+        elif year_idx == 2:
+            total_m_rev = y3_rev_target / 12.0
+        else:
+            total_m_rev = (y3_rev_target / 12.0) * ((1.05) ** (year_idx - 2))
+            
+        # Dynamically inject prompt mutations only when user appraisals run
+        if overrides:
+            total_m_rev *= (1.0 + retail_vol_growth + retail_price_ramp)
+
+        # Re-integrate capacity layers if triggered
         m_node_rev, m_node_cogs, m_node_fixed = 0.0, 0.0, 0.0
         if stage4_active and (m >= (expansion_m - 1)):
             m_node_rev = node_rev_mo
             m_node_cogs = node_rev_mo * node_cogs_pct
             m_node_fixed = node_rent + node_insurance + node_overtime
             
-        total_m_rev = m_retail_rev + m_wholesale_rev + m_node_rev
+        total_m_rev += m_node_rev
+
+        # Synchronize direct cost configurations (Productive Salaries + Invoiced Purchases = 69.6% COGS)
+        cogs_base_coefficient = float(baseline_inputs.get("base_production_cogs_pct", 0.696))
         total_m_cogs = (total_m_rev * cogs_base_coefficient) + m_node_cogs
-        total_m_overheads = base_monthly_overhead + m_node_fixed
         
-        m_depreciation, m_interest = 1250.00, 0.00
+        # Monthly fixed overhead summary
+        total_m_overheads = float(baseline_inputs.get("monthly_overhead_baseline", 18575.00)) + m_node_fixed
+        
+        m_depreciation, m_interest = 3600.00, 1250.00
         m_ebit = total_m_rev - total_m_cogs - total_m_overheads - m_depreciation - m_interest
         m_tax_provision = max(0.0, m_ebit * 0.19)
         m_net_profit = m_ebit - m_tax_provision
         
-        # Working capital delays mapping
+        # Map accounts receivable collections sequence
         m_std_billed = total_m_rev * std_split
         m_corp_billed = total_m_rev * corp_split
         
@@ -102,7 +121,7 @@ def run_master_three_way_engine(baseline_inputs, loan_register_df, revenue_matri
         corporate_billing_history.append(m_corp_billed)
         
         cash_rec_wholesale = wholesale_billing_history[-1 - std_lag_m] + corporate_billing_history[-1 - corp_lag_m]
-        cash_received = m_retail_rev + cash_rec_wholesale
+        cash_received = (total_m_rev * 0.30) + cash_rec_wholesale
         
         m_tax_cash_outflow = current_tax_liability if (m > 0 and m % 3 == 0) else 0.0
         if m_tax_cash_outflow > 0: current_tax_liability = 0.0
@@ -112,11 +131,11 @@ def run_master_three_way_engine(baseline_inputs, loan_register_df, revenue_matri
         m_cash_variance = cash_received - cash_paid
         
         current_cash += m_cash_variance
-        current_ar = current_ar + (m_std_billed + m_corp_billed) - cash_rec_wholesale
-        current_fa_nbv -= m_depreciation
+        current_ar = max(0.0, current_ar + (m_std_billed + m_corp_billed) - cash_rec_wholesale)
+        current_fa_nbv = max(0.0, current_fa_nbv - m_depreciation)
         current_equity += m_net_profit
         
-        # Store to dataset fields using pristine shared naming strings
+        # Save array metrics cleanly across tracking fields
         outputs["Revenue"][m] = total_m_rev
         outputs["Purchases"][m] = total_m_cogs
         outputs["Stock Movement"][m] = 0.0
@@ -133,7 +152,7 @@ def run_master_three_way_engine(baseline_inputs, loan_register_df, revenue_matri
         outputs["Cash At Bank"][m] = current_cash
         outputs["Fixed Asset NBV"][m] = current_fa_nbv
         outputs["Inventory Asset BS"][m] = current_inventory
-        outputs["Accounts Receivable BS"][m] = max(0.0, current_ar)
+        outputs["Accounts Receivable BS"][m] = current_ar
         outputs["Outstanding Debt"][m] = current_debt
         outputs["Tax Liability BS"][m] = max(0.0, current_tax_liability)
         outputs["Equity Retained BS"][m] = current_equity
