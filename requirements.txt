@@ -4,5 +4,6 @@ numpy
 matplotlib
 openpyxl
 google-genai
+google-generativeai
 pydantic
 reportlab
