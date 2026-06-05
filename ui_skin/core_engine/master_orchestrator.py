@@ -4,14 +4,13 @@ import pandas as pd
 def run_master_three_way_engine(baseline_inputs, loan_register_df, revenue_matrix_df, planned_capex_list, total_months=60, overrides=None):
     """
     STRATA Purified Three-Way Engine.
-    Operates via functional parameters to guarantee absolute mathematical 
-    independence between baseline visualization and sandbox scenario tracking.
+    Operates via functional parameters driven directly by verified WinForecast report parameters.
     """
     if overrides is None:
         overrides = {}
 
-    # 1. Parse operational rates and adjust with dynamic scenario overrides
-    annual_revenue_baseline = float(revenue_matrix_df["Revenue"].iloc[0])
+    # 1. Parse operational rates directly from baseline inputs
+    annual_revenue_baseline = float(baseline_inputs.get("annual_revenue_baseline", 6528886.00))
     monthly_revenue_baseline = annual_revenue_baseline / 12.0
     
     retail_vol_growth = overrides.get("retail_annual_volume_growth", 0.05)
@@ -58,14 +57,16 @@ def run_master_three_way_engine(baseline_inputs, loan_register_df, revenue_matri
         "Equity Retained BS": np.zeros(total_months)
     }
     
-    # Seed ledger opening states
-    current_cash = float(baseline_inputs.get("opening_cash_balance", 84350.00))
+    # Seed ledger opening states from true WinForecast baselines
+    current_cash = float(baseline_inputs.get("opening_cash_balance", 69488.00))
     current_fa_nbv = float(baseline_inputs.get("opening_fixed_assets_nbv", 150000.00))
     current_ar = float(baseline_inputs.get("opening_accounts_receivable", 44886.00))
     current_inventory = float(baseline_inputs.get("opening_inventory_balance", 12000.00))
+    base_monthly_overhead = float(baseline_inputs.get("monthly_overhead_baseline", 18575.00))
+    cogs_base_coefficient = float(baseline_inputs.get("base_production_cogs_pct", 0.42))
+    
     current_tax_liability = 0.0
     current_debt = float(baseline_inputs.get("opening_long_term_debt", 0.0))
-    
     current_equity = current_cash + current_fa_nbv + current_inventory + current_ar - current_debt - current_tax_liability
     
     wholesale_billing_history = [current_ar * std_split] * 12
@@ -85,8 +86,8 @@ def run_master_three_way_engine(baseline_inputs, loan_register_df, revenue_matri
             m_node_fixed = node_rent + node_insurance + node_overtime
             
         total_m_rev = m_retail_rev + m_wholesale_rev + m_node_rev
-        total_m_cogs = ((m_retail_rev + m_wholesale_rev) * 0.42) + m_node_cogs
-        total_m_overheads = 8000.00 + m_node_fixed
+        total_m_cogs = (total_m_rev * cogs_base_coefficient) + m_node_cogs
+        total_m_overheads = base_monthly_overhead + m_node_fixed
         
         m_depreciation, m_interest = 1250.00, 0.00
         m_ebit = total_m_rev - total_m_cogs - total_m_overheads - m_depreciation - m_interest

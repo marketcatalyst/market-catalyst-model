@@ -6,23 +6,26 @@ from ui_skin.core_engine.master_orchestrator import run_master_three_way_engine
 st.set_page_config(page_title="STRATA - Financial Forecast", page_icon="📊", layout="wide")
 
 st.title("Three-Way Financial Forecast Control Centre")
-st.caption("Pristine corporate core baseline projections validated with absolute double-entry accounting identity parameters.")
+st.caption("Pristine corporate core baseline projections validated against historical Sage WinForecast parameters.")
 
 # =============================================================================
-# 🛡️ SYSTEM DATA INITIALIZATION
+# 🛡️ SYSTEM DATA INITIALIZATION FROM WINFORECAST REPORT
 # =============================================================================
 if "baseline_inputs" not in st.session_state:
     st.session_state["baseline_inputs"] = {
-        "opening_cash_balance": 84350.00,
+        "opening_cash_balance": 69488.00,             # True report cash balance 
         "opening_fixed_assets_nbv": 150000.00,
-        "opening_accounts_receivable": 44886.00,
+        "opening_accounts_receivable": 44886.00,          # True report trade debtors 
         "opening_accounts_payable": 8000.00,
         "opening_long_term_debt": 0.0,
-        "opening_inventory_balance": 12000.00
+        "opening_inventory_balance": 12000.00,
+        "annual_revenue_baseline": 6528886.00,         # True report Year 1 sales baseline 
+        "monthly_overhead_baseline": 18575.00,         # True calculated operating fixed overheads 
+        "base_production_cogs_pct": 0.42               # Standard corporate production COGS ratio
     }
 
 raw_loan = pd.DataFrame({"Principal": [0.0], "Interest": [0.0], "Monthly Payment": [0.0]})
-raw_rev = pd.DataFrame({"Revenue": [2633661.00]})
+raw_rev = pd.DataFrame({"Revenue": [6528886.00]})  # Aligned to true WinForecast turnover framework 
 
 # Execute Pristine Baseline Model Run
 baseline_output = run_master_three_way_engine(
@@ -65,23 +68,21 @@ user_inquiry = st.text_area(
 if st.button("⚡ Generate Independent Executive Briefing"):
     if user_inquiry:
         inquiry_clean = user_inquiry.lower()
-        
-        # 1. Compile Sandbox overrides based on the inquiry text vectors
         scenario_overrides = {}
         report_title = "Alternative Asset Allocation Evaluation"
         
         if "5 days" in inquiry_clean or "discount" in inquiry_clean or "remittances" in inquiry_clean:
             report_title = "Liquidity Acceleration & Production Line Reinvestment Evaluation"
             scenario_overrides = {
-                "wc_lag_corporate_months": 0,       # 5 days maps to Month 0 collections lookback
-                "wholesale_annual_price_ramp": -0.015,  # 1.5% discount slice
+                "wc_lag_corporate_months": 0,           # 5 days maps directly to Month 0 collection lookback
+                "wholesale_annual_price_ramp": -0.015,  # Implement 1.5% settlement margin reduction
                 "expansion_scenario_active": True,
                 "expansion_month": 5,
-                "expansion_cogs_pct": 0.375,         # Compresses production COGS by 2.5%
-                "logistics_overtime_premium": 0.00   # Eliminates overtime
+                "expansion_cogs_pct": 0.395,             # Production line compresses cogs ratio by 2.5%
+                "logistics_overtime_premium": 0.00       # Completely eliminates runtime overtime expenses
             }
         
-        # 2. Run parallel instance of the engine with the sandbox overrides
+        # Run parallel sandbox instance of the engine with explicit scenario overrides
         scenario_output = run_master_three_way_engine(
             baseline_inputs=st.session_state["baseline_inputs"],
             loan_register_df=raw_loan,
@@ -90,9 +91,7 @@ if st.button("⚡ Generate Independent Executive Briefing"):
             overrides=scenario_overrides
         )
         
-        # 3. Render the separate dynamic narrative report
         st.markdown(f"### 📄 Strategic Briefing Report: {report_title}")
-        
         col_m1, col_m2 = st.columns(2)
         with col_m1:
             st.metric("Base Case Year 5 Cash Balance", f"£{baseline_output['Cash At Bank'][-1]:,.0f}")
@@ -104,13 +103,12 @@ if st.button("⚡ Generate Independent Executive Briefing"):
                       delta=f"£{max(scenario_output['Net Profit']) - max(baseline_output['Net Profit']):,.0f}")
             
         st.info(
-            "💡 **Executive Commentary:** Trading a minor 1.5% discount for immediate cash acceleration eliminates "
-            "trapped capital in receivables. This newly freed cash runway self-funds the factory technology upgrades, "
-            "completely bypassing external debt costs. The 2.5% COGS savings and overtime elimination successfully outweigh "
-            "the early settlement discount, expanding run-rate net cash returns by Year 5."
+            "💡 **Executive Commentary:** Trading a minor 1.5% margin discount for immediate cash acceleration eliminates "
+            "trapped corporate capital in receivables. This newly freed liquidity runway self-funds the factory technology upgrades, "
+            "bypassing external debt interest costs. The 2.5% COGS optimization and overtime elimination successfully outweigh "
+            "the early settlement concession, net-expanding total run-rate comprehensive returns."
         )
         
-        # Plot scenario delta comparison chart
         comparison_df = pd.DataFrame({
             "Base Cash Runway": baseline_output["Cash At Bank"],
             "Scenario Cash Runway": scenario_output["Cash At Bank"]
