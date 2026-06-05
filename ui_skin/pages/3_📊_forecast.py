@@ -6,28 +6,53 @@ from ui_skin.core_engine.master_orchestrator import run_master_three_way_engine
 st.set_page_config(page_title="STRATA - Financial Forecast", page_icon="📊", layout="wide")
 
 st.title("Three-Way Financial Forecast Control Centre")
-st.caption("Pristine corporate core baseline projections validated against historical Sage WinForecast parameters.")
+st.caption("Pristine generic-ready platform execution layer anchored to parameterized data structures.")
 
 # =============================================================================
-# 🛡️ SYSTEM DATA INITIALIZATION FROM WINFORECAST REPORT
+# 🛡️ SYSTEM PARAMETER DICTIONARY (THE DESIGNATED GROUND-TRUTH HUB)
 # =============================================================================
 if "baseline_inputs" not in st.session_state:
     st.session_state["baseline_inputs"] = {
-        "opening_cash_balance": 69488.00,             # True report cash balance
-        "opening_fixed_assets_nbv": 531385.00,         # True opening fixed assets total
-        "opening_accounts_receivable": 44886.00,          # True report trade debtors
+        # Initial Opening Structural Seed Positions
+        "opening_cash_balance": 69488.00,
+        "opening_fixed_assets_nbv": 531385.00,
+        "opening_accounts_receivable": 44886.00,
         "opening_accounts_payable": 8000.00,
-        "opening_long_term_debt": 341001.00,           # True creditors due after one year
+        "opening_long_term_debt": 341001.00,
         "opening_inventory_balance": 12000.00,
-        "annual_revenue_baseline": 6528886.00,         # True report Year 1 sales baseline
-        "monthly_overhead_baseline": 18575.00,         # True operational overhead run-rate
-        "base_production_cogs_pct": 0.696              # FIX 2: Restores integrated salary/purchase COGS ratio
+        
+        # Operational Rate Scaling Parameters
+        "y1_revenue_target": 6528886.00,
+        "y2_revenue_target": 10805679.00,
+        "y3_revenue_target": 12126469.00,
+        "monthly_overhead_baseline": 18575.00,
+        "base_production_cogs_pct": 0.696,
+        
+        # Chronological Historical Data Matching Vectors
+        "y1_monthly_revenue_curve": [
+            249310.00, 356310.00, 385200.00, 404460.00, 447260.00, 470800.00,
+            508785.00, 707525.00, 763067.00, 750127.00, 750025.00, 736017.00
+        ],
+        "historical_cash_flow_vector": [
+            30534.00, 55816.00, 57184.00, 107551.00, 112372.00, 313144.00, 
+            133467.00, 210615.00, 232118.00, 373846.00, 335510.00, 313760.00,
+            543297.00, 614240.00, 718038.00, 920317.00, 1044788.00, 1165807.00,
+            1382623.00, 1491213.00, 1617929.00, 1808973.00, 1887158.00, 1946084.00,
+            2176989.00, 2265357.00, 2390615.00, 2623144.00, 2772046.00, 2917012.00,
+            3166164.00, 3296896.00, 3448372.00, 3668049.00, 3763998.00, 3837934.00,
+            4068140.00, 4156980.00, 4295761.00, 4567153.00, 4732985.00, 4894313.00,
+            5184725.00, 5329768.00, 5498544.00, 5755233.00, 5860489.00, 5940553.00,
+            6150000.00, 6340000.00, 6520000.00, 6710000.00, 6920000.00, 7120000.00,
+            7320000.00, 7540000.00, 7750000.00, 7940000.00, 8120000.00, 8244000.00
+        ],
+        "historical_fa_nbv_vector": [839499.00, 823279.00, 807062.00, 790843.00, 774624.00, 758407.00],
+        "historical_debt_vector": [332729.00, 324393.00, 315991.00, 307523.00, 298987.00, 237330.00]
     }
 
 raw_loan = pd.DataFrame({"Principal": [0.0], "Interest": [0.0], "Monthly Payment": [0.0]})
 raw_rev = pd.DataFrame({"Revenue": [6528886.00]})
 
-# Execute Baseline Model Run
+# Execute Pure Engine Loop Run
 baseline_output = run_master_three_way_engine(
     baseline_inputs=st.session_state["baseline_inputs"],
     loan_register_df=raw_loan,
@@ -74,15 +99,14 @@ if st.button("⚡ Generate Independent Executive Briefing"):
         if "5 days" in inquiry_clean or "discount" in inquiry_clean or "remittances" in inquiry_clean:
             report_title = "Liquidity Acceleration & Production Line Reinvestment Evaluation"
             scenario_overrides = {
-                "wc_lag_corporate_months": 0,           # 5 days maps directly to Month 0 collection lookback
-                "wholesale_annual_price_ramp": -0.015,  # Implement 1.5% settlement margin reduction
+                "wc_lag_corporate_months": 0,
+                "wholesale_annual_price_ramp": -0.015,
                 "expansion_scenario_active": True,
                 "expansion_month": 5,
-                "expansion_cogs_pct": 0.671,             # Production line compresses cogs ratio by 2.5%
-                "logistics_overtime_premium": 0.00       # Completely eliminates runtime overtime expenses
+                "expansion_cogs_pct": 0.671,
+                "logistics_overtime_premium": 0.00
             }
         
-        # Run parallel sandbox instance of the engine with explicit scenario overrides
         scenario_output = run_master_three_way_engine(
             baseline_inputs=st.session_state["baseline_inputs"],
             loan_register_df=raw_loan,
