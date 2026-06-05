@@ -1,3 +1,13 @@
+import sys
+import os
+
+# =============================================================================
+# 🛡️ DYNAMIC ENVIRONMENT PATH SAFEGUARD
+# =============================================================================
+# Force-injects the project root directory into Python's active module search list.
+# This eliminates cross-platform 'ModuleNotFoundError' issues across local environments and Linux Cloud containers.
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+
 import streamlit as st
 import pandas as pd
 import numpy as np
