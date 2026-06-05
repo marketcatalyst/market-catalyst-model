@@ -14,7 +14,7 @@ from ui_skin.core_engine.master_orchestrator import run_master_three_way_engine
 st.set_page_config(page_title="STRATA - Financial Forecast", page_icon="📊", layout="wide")
 
 st.title("Three-Way Financial Forecast Control Centre")
-st.caption("AI-Driven predictive modeling platform connected directly to Gemini analytics pipelines.")
+st.caption("AI-Driven predictive modelling platform connected directly to Gemini analytics pipelines.")
 
 # Initialize default session parameters if cache clear occurs
 if "baseline_inputs" not in st.session_state:
@@ -120,13 +120,15 @@ if st.button("⚡ Generate Independent Executive Briefing"):
             
             try:
                 model = genai.GenerativeModel('gemini-1.5-flash')
+                
+                # FIX: Force native JSON mode to avoid parsing errors
                 response = model.generate_content(
-                    f"System Instructions: {system_prompt}\n\nUser Request: {user_inquiry}"
+                    f"System Instructions: {system_prompt}\n\nUser Request: {user_inquiry}",
+                    generation_config={"response_mime_type": "application/json"}
                 )
                 
-                # Parse structured data fields cleanly
-                response_text = response.text.strip().replace("```json", "").replace("```", "")
-                parsed_payload = json.loads(response_text)
+                # Load the verified structured text safely
+                parsed_payload = json.loads(response.text.strip())
                 
                 scenario_overrides = parsed_payload.get("overrides", {})
                 executive_commentary = parsed_payload.get("commentary", "Analysis generated cleanly.")
@@ -160,6 +162,8 @@ if st.button("⚡ Generate Independent Executive Briefing"):
                 }, index=timeline_index)
                 st.line_chart(comparison_df)
                 
+            except json.JSONDecodeError:
+                st.error("Failed to parse response structure. The model returned an invalid payload layout.")
             except Exception as e:
                 st.error(f"Failed to compile Gemini response layer: {str(e)}")
     else:
@@ -194,7 +198,12 @@ def package_monthly_dataframe(labels, keys, data):
     rows = [data[key] for key in keys]
     return pd.DataFrame(rows, index=labels, columns=[f"Month {m+1}" for m in range(60)])
 
-def clean_format(df): return df.map(lambda x: f"£{x:,.0f}" if x >= 0 else f"-£{abs(x):,.0f}")
+# FIX: Version control compatibility for df.map vs df.applymap
+def clean_format(df):
+    formatter = lambda x: f"£{x:,.0f}" if x >= 0 else f"-£{abs(x):,.0f}"
+    if hasattr(df, 'map'):
+        return df.map(formatter)
+    return df.applymap(formatter)
 
 tab_pl, tab_cf, tab_bs = st.tabs(["📊 Profit & Loss", "💸 Cash Flow", "⚖️ Balance Sheet"])
 

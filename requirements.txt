@@ -7,3 +7,4 @@ google-genai
 google-generativeai
 pydantic
 reportlab
+psycopg2-binary
