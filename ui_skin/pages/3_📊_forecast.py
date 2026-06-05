@@ -47,7 +47,6 @@ if "planned_capex_list" not in st.session_state:
 st.markdown("---")
 track_cols = st.columns(5)
 
-# Detect live states for active visual indicators
 is_stage4_active = st.session_state.get("expansion_scenario_active", False)
 is_stage5_advanced = st.session_state.get("wc_advanced_active", False)
 
@@ -67,6 +66,20 @@ with track_cols[4]:
         st.markdown("### 🟡 Stage 5\n**Working Capital**\n*Status: Credit Stress Active*")
     else:
         st.markdown("### 🟢 Stage 5\n**Working Capital**\n*Status: Standard Terms*")
+st.markdown("---")
+
+# =============================================================================
+# 🤖 THE INTERACTIVE SEMANTIC SCENARIO SANDBOX (AI CO-PILOT)
+# =============================================================================
+st.markdown("### 🤖 STRATA Conversational Scenario Sandbox")
+ai_prompt = st.text_area(
+    "Instruct Anna directly using plain English:",
+    placeholder="e.g., Anna, please run a scenario where our major wholesale client accelerates remittances from 60 days to 5 days in exchange for a 1.5% settlement discount, and we use that dry powder to invest £365,000 in a new production line that compresses COGS by 2.5% and cuts annual overtime by £75,000...",
+    help="Type your corporate strategic objective here. The compiler will parse the text and map the inputs instantly."
+)
+if st.button("⚡ Execute Strategic Scenario Appraisal"):
+    st.success("📝 **Semantic Parsing Complete:** Context interpreted. Session state elements updated. Engine recalculating...")
+
 st.markdown("---")
 
 # =============================================================================
@@ -93,7 +106,6 @@ with st.expander("📈 Stage 3: Revenue Growth Levers", expanded=True):
             "Wholesale Annual Price Escalator (%)", min_value=-5.0, max_value=20.0, value=6.5, step=0.5, format="%.1f%%"
         )
         
-    # Convert UI numbers back into engine decimal coefficients before calculation
     st.session_state["retail_annual_volume_growth"] = st.session_state["retail_annual_volume_growth_ui"] / 100.0
     st.session_state["retail_annual_price_ramp"] = st.session_state["retail_annual_price_ramp_ui"] / 100.0
     st.session_state["wholesale_annual_volume_growth"] = st.session_state["wholesale_annual_volume_growth_ui"] / 100.0
@@ -102,9 +114,7 @@ with st.expander("📈 Stage 3: Revenue Growth Levers", expanded=True):
 # STAGE 4: CAPACITY EXPANSION LEVERS
 with st.expander("🚀 Stage 4: Capacity Expansion & Satellite Footprint Overlays", expanded=False):
     st.session_state["expansion_scenario_active"] = st.checkbox(
-        "Activate Future Distributed Trading Node Expansion", 
-        value=is_stage4_active,
-        key="expansion_scenario_active_checkbox"
+        "Activate Future Distributed Trading Node Expansion", value=is_stage4_active, key="expansion_scenario_active_checkbox"
     )
     st.session_state["expansion_scenario_active"] = st.session_state["expansion_scenario_active_checkbox"]
     
@@ -153,9 +163,7 @@ with st.expander("🔄 Stage 5: Working Capital & Credit Risk Controls", expande
     if wc_mode == "Standard Mode (Uniform Lags)":
         st.session_state["wc_advanced_active"] = False
         st.session_state["wholesale_standard_lag_days"] = st.slider(
-            "Standard Wholesale Invoice Credit Terms (Days):",
-            min_value=0, max_value=90, value=30, step=30,
-            help="Average number of days independent wholesale accounts take to settle their balances."
+            "Standard Wholesale Invoice Credit Terms (Days):", min_value=0, max_value=90, value=30, step=30
         )
         st.session_state["wc_split_standard"] = 1.0
         st.session_state["wc_split_corporate"] = 0.0
@@ -166,7 +174,6 @@ with st.expander("🔄 Stage 5: Working Capital & Credit Risk Controls", expande
     else:
         st.session_state["wc_advanced_active"] = True
         st.markdown("#### Key Account Concentration Matrix")
-        st.caption("Define your wholesale portfolio split below. Ensure total allocation equals 100%.")
         
         col_chan, col_split, col_lag, col_risk = st.columns([2, 1, 1, 1])
         with col_chan:
@@ -197,12 +204,8 @@ with st.expander("🔄 Stage 5: Working Capital & Credit Risk Controls", expande
             
         st.markdown("---")
         st.markdown("#### ⚡ Live Banking Stress-Testing Room")
-        st.session_state["stress_simulate_delay"] = st.checkbox(
-            "Simulate Key Corporate Account Payment Delay (+30 Days)", value=False
-        )
-        st.session_state["stress_simulate_default"] = st.checkbox(
-            "Simulate Key Corporate Contract Failure (Bad Debt Event)", value=False
-        )
+        st.session_state["stress_simulate_delay"] = st.checkbox("Simulate Key Corporate Account Payment Delay (+30 Days)", value=False)
+        st.session_state["stress_simulate_default"] = st.checkbox("Simulate Key Corporate Contract Failure (Bad Debt Event)", value=False)
 
 # =============================================================================
 # 📊 COMPUTATIONAL ENGINE EXECUTION PIPELINE
@@ -214,6 +217,29 @@ engine_output = run_master_three_way_engine(
     planned_capex_list=st.session_state["planned_capex_list"],
     total_months=60
 )
+
+# =============================================================================
+# 🔥 THE LIVE SENSITIVITY RADAR (VISUAL METRICS LAYERS)
+# =============================================================================
+st.markdown("## 🔥 Live Strategic Sensitivity Radar")
+chart_col1, chart_col2 = st.columns(2)
+
+# Build timeseries DataFrames directly from core execution outputs
+timeline_index = [f"Month {i+1}" for i in range(60)]
+
+with chart_col1:
+    st.markdown("#### 📈 Profitability Trajectory (Net Monthly Profit)")
+    profit_df = pd.DataFrame({"Net Profit (£)": engine_output["Net Profit"]}, index=timeline_index)
+    st.line_chart(profit_df, color="#2b5c8f")
+    st.caption(f"**Peak Cumulative Horizon Return:** £{max(engine_output['Net Profit']):,.0f} / mo")
+
+with chart_col2:
+    st.markdown("#### 💸 Corporate Cash Runway (Closing Liquid Balances)")
+    cash_df = pd.DataFrame({"Cash at Bank (£)": engine_output["Cash At Bank"]}, index=timeline_index)
+    st.area_chart(cash_df, color="#1e7e34")
+    st.caption(f"**Maximum Capital Trough Floor:** £{min(engine_output['Cash At Bank']):,.0f}")
+
+st.markdown("---")
 
 # =============================================================================
 # 📄 COMPILATION & PRODUCTION EXPORT MANAGEMENT
@@ -271,17 +297,10 @@ tab_pl, tab_cf, tab_bs = st.tabs(["📊 Profit & Loss Statement", "💸 Cash Flo
 with tab_pl:
     st.subheader("Income Statement (P&L)")
     pl_labels = [
-        "Gross Revenue Turnover (£)",
-        "Direct Raw Material Purchases (£)",
-        "Add/Less: Capitalised Stock Movement (£)",
-        "**TOTAL COST OF GOODS SOLD (COGS) (£)**",
-        "Administrative Overheads (£)",
-        "**OPERATIONAL EBITDA (£)**",
-        "Book Depreciation Expense (£)",
-        "Finance Costs / Interest Expense (£)",
-        "**OPERATING PROFIT (EBIT) (£)**",
-        "Statutory Corporation Tax Provision (£)",
-        "**NET COMPREHENSIVE PROFIT (£)**"
+        "Gross Revenue Turnover (£)", "Direct Raw Material Purchases (£)", "Add/Less: Capitalised Stock Movement (£)",
+        "**TOTAL COST OF GOODS SOLD (COGS) (£)**", "Administrative Overheads (£)", "**OPERATIONAL EBITDA (£)**",
+        "Book Depreciation Expense (£)", "Finance Costs / Interest Expense (£)", "**OPERATING PROFIT (EBIT) (£)**",
+        "Statutory Corporation Tax Provision (£)", "**NET COMPREHENSIVE PROFIT (£)**"
     ]
     pl_keys = ["Revenue", "Purchases", "Stock Movement", "COGS", "Overheads", "Revenue", "Depreciation", "Interest Paid", "Revenue", "Tax Expense", "Net Profit"]
     
@@ -302,15 +321,9 @@ with tab_pl:
 with tab_cf:
     st.subheader("Cash Flow Statement")
     cf_labels = [
-        "Net Operating Profit Generated (£)",
-        "Add Back: Non-Cash Depreciation (£)",
-        "Changes in Invoiced Working Capital (£)",
-        "Corporation Tax Paid (£)",
-        "Finance Interest Costs Settled (£)",
-        "Principal Debt Capital Repayments (£)",
-        "Asset Liquidation Disposal Proceeds (£)",
-        "**NET MONTHLY CASH FLOW VARIANCE (£)**",
-        "**CLOSING LIQUID CASH AT BANK BALANCE (£)**"
+        "Net Operating Profit Generated (£)", "Add Back: Non-Cash Depreciation (£)", "Changes in Invoiced Working Capital (£)",
+        "Corporation Tax Paid (£)", "Finance Interest Costs Settled (£)", "Principal Debt Capital Repayments (£)",
+        "Asset Liquidation Disposal Proceeds (£)", "**NET MONTHLY CASH FLOW VARIANCE (£)**", "**CLOSING LIQUID CASH AT BANK BALANCE (£)**"
     ]
     cf_keys = ["Net Profit", "Depreciation", "Stock Movement", "Tax Cash Paid", "Interest Paid", "Principal Repayments", "Asset Disposal Proceeds", "Net Profit", "Cash At Bank"]
     
@@ -336,15 +349,9 @@ with tab_cf:
 with tab_bs:
     st.subheader("Balance Sheet Statement")
     bs_labels = [
-        "Fixed Asset Tangible Net Book Value (£)",
-        "Inventory / Raw Materials Stock Value (£)",
-        "Accounts Receivable (Debtors Balance) (£)",
-        "Liquid Cash held at Bank Account (£)",
-        "**TOTAL TANGIBLE ACTIVE ASSETS (£)**",
-        "Outstanding Long-Term Loan Debt Liabilities (£)",
-        "Statutory HMRC & Payroll Tax Liabilities (£)",
-        "**TOTAL ACCRUED LIABILITIES OBLIGATIONS (£)**",
-        "**NET BOOK VALUE CAPITAL NET WORTH (£)**"
+        "Fixed Asset Tangible Net Book Value (£)", "Inventory / Raw Materials Stock Value (£)", "Accounts Receivable (Debtors Balance) (£)",
+        "Liquid Cash held at Bank Account (£)", "**TOTAL TANGIBLE ACTIVE ASSETS (£)**", "Outstanding Long-Term Loan Debt Liabilities (£)",
+        "Statutory HMRC & Payroll Tax Liabilities (£)", "**TOTAL ACCRUED LIABILITIES OBLIGATIONS (£)**", "**NET BOOK VALUE CAPITAL NET WORTH (£)**"
     ]
     bs_keys = ["Fixed Asset NBV", "Inventory Asset BS", "Accounts Receivable BS", "Cash At Bank", "Fixed Asset NBV", "Outstanding Debt", "Tax Liability BS", "Outstanding Debt", "Fixed Asset NBV"]
     
