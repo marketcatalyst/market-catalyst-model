@@ -4,8 +4,8 @@ import pandas as pd
 def run_master_three_way_engine(baseline_inputs, loan_register_df, revenue_matrix_df, planned_capex_list, total_months=60, overrides=None):
     """
     STRATA Parameterized Three-Way Engine.
-    Equipped with structural fallback guardrails to prevent IndexErrors caused
-    by stale front-end session state caching.
+    Features a dynamic cash accumulation cascade that flows scenario profit variations
+    directly into liquid bank balances while preserving baseline zero-variance identities.
     """
     if overrides is None:
         overrides = {}
@@ -18,7 +18,7 @@ def run_master_three_way_engine(baseline_inputs, loan_register_df, revenue_matri
     base_monthly_overhead = float(baseline_inputs.get("monthly_overhead_baseline", 18575.00))
     cogs_base_coefficient = float(baseline_inputs.get("base_production_cogs_pct", 0.696))
     
-    # 🛡️ ENGINE-LEVEL GUARDRAILS: Fallback to AHOTG arrays if session state keys are missing/empty
+    # Engine Fallback Safeguards
     y1_monthly_revenue_curve = baseline_inputs.get("y1_monthly_revenue_curve", [])
     if not y1_monthly_revenue_curve:
         y1_monthly_revenue_curve = [
@@ -28,34 +28,23 @@ def run_master_three_way_engine(baseline_inputs, loan_register_df, revenue_matri
         
     true_cash_flow_track = baseline_inputs.get("historical_cash_flow_vector", [])
     if not true_cash_flow_track:
-        true_cash_flow_track = [
-            30534.00, 55816.00, 57184.00, 107551.00, 112372.00, 313144.00, 
-            133467.00, 210615.00, 232118.00, 373846.00, 335510.00, 313760.00,
-            543297.00, 614240.00, 718038.00, 920317.00, 1044788.00, 1165807.00,
-            1382623.00, 1491213.00, 1617929.00, 1808973.00, 1887158.00, 1946084.00,
-            2176989.00, 2265357.00, 2390615.00, 2623144.00, 2772046.00, 2917012.00,
-            3166164.00, 3296896.00, 3448372.00, 3668049.00, 3763998.00, 3837934.00,
-            4068140.00, 4156980.00, 4295761.00, 4567153.00, 4732985.00, 4894313.00,
-            5184725.00, 5329768.00, 5498544.00, 5755233.00, 5860489.00, 5940553.00,
-            6150000.00, 6340000.00, 6520000.00, 6710000.00, 6920000.00, 7120000.00,
-            7320000.00, 7540000.00, 7750000.00, 7940000.00, 8120000.00, 8244000.00
-        ]
+        true_cash_flow_track = [69488.00] * 60
         
     true_fa_nbv_track = baseline_inputs.get("historical_fa_nbv_vector", [])
     if not true_fa_nbv_track:
-        true_fa_nbv_track = [755746.00, 661095.00, 477464.00, 302254.00, 150000.00]
+        true_fa_nbv_track = [531385.00] * 5
         
     true_debt_track = baseline_inputs.get("historical_debt_vector", [])
     if not true_debt_track:
-        true_debt_track = [341001.00, 237330.00, 11001.00, 0.0, 0.0]
+        true_debt_track = [341001.00] * 5
         
     true_ar_track = baseline_inputs.get("historical_ar_vector", [])
     if not true_ar_track:
-        true_ar_track = [320000.00, 352000.00, 387200.00, 442957.00, 480000.00]
+        true_ar_track = [44886.00] * 5
         
     true_inv_track = baseline_inputs.get("historical_inventory_vector", [])
     if not true_inv_track:
-        true_inv_track = [12000.00, 12000.00, 12000.00, 12000.00, 12000.00]
+        true_inv_track = [12000.00] * 5
 
     # Scenario modifiers
     retail_vol_growth = overrides.get("retail_annual_volume_growth", 0.0)
@@ -82,40 +71,56 @@ def run_master_three_way_engine(baseline_inputs, loan_register_df, revenue_matri
         "Tax Liability BS": np.zeros(total_months), "Equity Retained BS": np.zeros(total_months)
     }
 
+    running_cash_delta = 0.0  # Tracks cumulative alternative scenario cash generation
+
     for m in range(total_months):
         year_idx = m // 12
         
+        # 1. BASELINE REFERENCE GENERATION (For variance mapping)
         if year_idx == 0:
-            total_m_rev = y1_monthly_revenue_curve[m] if m < len(y1_monthly_revenue_curve) else (y1_rev_target / 12.0)
+            base_m_rev = y1_monthly_revenue_curve[m] if m < len(y1_monthly_revenue_curve) else (y1_rev_target / 12.0)
         elif year_idx == 1:
-            total_m_rev = y2_rev_target / 12.0
+            base_m_rev = y2_rev_target / 12.0
         elif year_idx == 2:
-            total_m_rev = y3_rev_target / 12.0
+            base_m_rev = y3_rev_target / 12.0
         else:
-            total_m_rev = (y3_rev_target / 12.0) * ((1.05) ** (year_idx - 2))
+            base_m_rev = (y3_rev_target / 12.0) * ((1.05) ** (year_idx - 2))
             
+        base_m_cogs = base_m_rev * cogs_base_coefficient
+        base_m_net_profit = (base_m_rev - base_m_cogs - base_monthly_overhead - 3600.00 - 1250.00) * 0.81
+        
+        # 2. SCENARIO GENERATION (With active overrides)
+        total_m_rev = base_m_rev
         if overrides:
             total_m_rev *= (1.0 + retail_vol_growth + retail_price_ramp)
 
+        m_node_rev, m_node_cogs, m_node_fixed = 0.0, 0.0, 0.0
         if stage4_active and (m >= (expansion_m - 1)):
-            total_m_rev += node_rev_mo
-            total_m_cogs = (total_m_rev * cogs_base_coefficient) + (node_rev_mo * node_cogs_pct)
-            total_m_overheads = base_monthly_overhead + node_rent + node_insurance + node_overtime
-        else:
-            total_m_cogs = total_m_rev * cogs_base_coefficient
-            total_m_overheads = base_monthly_overhead
+            m_node_rev = node_rev_mo
+            m_node_cogs = node_rev_mo * node_cogs_pct
+            m_node_fixed = node_rent + node_insurance + node_overtime
+            
+        total_m_rev += m_node_rev
+        total_m_cogs = (total_m_rev * cogs_base_coefficient) + m_node_cogs
+        total_m_overheads = base_monthly_overhead + m_node_fixed
         
         m_depreciation, m_interest = 3600.00, 1250.00
         m_ebit = total_m_rev - total_m_cogs - total_m_overheads - m_depreciation - m_interest
         m_tax_provision = max(0.0, m_ebit * 0.19)
         m_net_profit = m_ebit - m_tax_provision
         
-        m_closing_cash = true_cash_flow_track[m] if m < len(true_cash_flow_track) else 0.0
-        if overrides and "wc_lag_corporate_months" in overrides:
-            m_closing_cash *= 1.15
+        # 💸 CUMULATIVE LIQUIDITY ACCUMULATION STREAM
+        # Add incremental scenario profit variations directly to the running cash position
+        running_cash_delta += (m_net_profit - base_m_net_profit)
+        
+        base_closing_cash = true_cash_flow_track[m] if m < len(true_cash_flow_track) else 0.0
+        m_closing_cash = base_closing_cash + running_cash_delta
+        
+        if overrides and overrides.get("wc_lag_corporate_months", 1) == 0:
+            m_closing_cash += (base_closing_cash * 0.15)
 
-        m_prev_cash = float(baseline_inputs.get("opening_cash_balance", 69488.00)) if m == 0 else true_cash_flow_track[m - 1]
-        m_cash_variance = m_closing_cash - m_prev_cash
+        m_actual_prev_cash = float(baseline_inputs.get("opening_cash_balance", 69488.00)) if m == 0 else outputs["Cash At Bank"][m - 1]
+        m_cash_variance = m_closing_cash - m_actual_prev_cash
         m_tax_cash_paid = m_tax_provision if (m > 0 and m % 3 == 0) else 0.0
         derived_wc_cf = m_cash_variance - m_net_profit - m_depreciation + m_tax_cash_paid
         
@@ -123,6 +128,8 @@ def run_master_three_way_engine(baseline_inputs, loan_register_df, revenue_matri
         debt_val = true_debt_track[min(year_idx, len(true_debt_track)-1)]
         ar_val = true_ar_track[min(year_idx, len(true_ar_track)-1)]
         inv_val = true_inv_track[min(year_idx, len(true_inv_track)-1)]
+        
+        # Balance sheet handles the shift correctly, expanding equity as cash accumulates profit
         equity_val = m_closing_cash + fa_val + inv_val + ar_val - debt_val - m_tax_provision
         
         outputs["Revenue"][m] = total_m_rev
