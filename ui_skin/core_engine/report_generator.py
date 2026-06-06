@@ -67,12 +67,16 @@ def compile_pdf_executive_report(
     # SCHEDULE 1: PROFIT & LOSS (WITH TOTAL & %)
     # ==========================================
     story.append(Paragraph("1. Forecasted Statement of Profit or Loss (P&L Account)", h2_style))
+    
+    # --- 🛠️ THE MATH FIX: Added Interest and Tax Rows ---
     pl_definitions = [
         ("Turnover (£)", "Revenue (Turnover Summary)", False),
         ("Direct Costs (£)", "  Less: Cost of Sales (Direct COGS)", False),
         ("Admin Overheads (£)", "  Less: Administrative Overheads", False),
         ("Directors Salaries (£)", "  Less: Directors' Salaries", False),
         ("Depreciation Expense (£)", "  Less: Non-Cash Depreciation", False),
+        ("Interest Paid (£)", "  Less: Interest & Financing Costs", False),
+        ("Tax Expense (£)", "  Less: Corporate Tax Expense", False),
         ("Net Profit (£)", "Net Operating Profit / (Loss) Retained", True)
     ]
     
@@ -166,7 +170,6 @@ def compile_pdf_executive_report(
     story.append(Spacer(1, 4))
     story.append(Paragraph("4. Operational Governance & ESG Appendix (Strategic Rationale Log)", h2_style))
     
-    # Use context-specific defaults if no active sandbox logs are supplied to the reporting module
     if not rationale_logs:
         rationale_logs = [{
             "timestamp": "03/06/2026 14:15",
@@ -192,7 +195,6 @@ def compile_pdf_executive_report(
             Paragraph(narrative_block, body_style)
         ])
         
-    # Column geometry perfectly matches the global 720pt grid width (160 + 560 = 720)
     esg_table = Table(esg_content, colWidths=[160, 560])
 
     # ==========================================
@@ -201,7 +203,7 @@ def compile_pdf_executive_report(
     base_table_style = TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1E3A8A')),
         ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-        ('VALIGN', (0, 0), (-1, -1), 'TOP'), # Set to TOP for better multi-line text alignment in ESG blocks
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
         ('TOPPADDING', (0, 0), (-1, -1), 4),
         ('LEFTPADDING', (0, 0), (-1, -1), 4),
@@ -216,7 +218,6 @@ def compile_pdf_executive_report(
     cf_table.setStyle(base_table_style)
     esg_table.setStyle(base_table_style)
     
-    # Pack structures sequentially into layout flow story
     story.append(pl_table)
     story.append(Spacer(1, 8))
     story.append(bs_table)
@@ -227,7 +228,7 @@ def compile_pdf_executive_report(
     story.append(Spacer(1, 10))
     
     # ==========================================
-    # ACCOUNT VALIDATION STATEMENT (WITH METADATA TRUST STAMP)
+    # ACCOUNT VALIDATION STATEMENT
     # ==========================================
     story.append(Paragraph("5. Account Validation Statement", h2_style))
     declaration_text = (

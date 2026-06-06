@@ -17,6 +17,7 @@ from ui_skin.core_engine.master_orchestrator import run_master_three_way_engine
 
 # --- 🔍 DIAGNOSTIC UNMASKING: PDF GENERATOR ---
 try:
+    # Successfully targeting the exact function name from the local module
     from ui_skin.core_engine.report_generator import compile_pdf_executive_report
     pdf_module_active = True
     pdf_error_msg = ""
@@ -74,7 +75,7 @@ overrides = {
     "expansion_scenario_active": False
 }
 
-# --- 🛠️ THE TYPO FIX: Added the missing third 'None' to scenario_outputs ---
+# --- 🛠️ ENGINE EXECUTION (With corrected positional arguments) ---
 base_outputs = run_master_three_way_engine(st.session_state.baseline_inputs, None, None, None, overrides={})
 scenario_outputs = run_master_three_way_engine(st.session_state.baseline_inputs, None, None, None, overrides=overrides)
 
@@ -209,7 +210,10 @@ with col_dl2:
             pdf_mapping_df["Admin Overheads (£)"] = scen_df["Overheads"].values
             pdf_mapping_df["Directors Salaries (£)"] = 0.0 
             pdf_mapping_df["Depreciation Expense (£)"] = scen_df["Depreciation"].values
+            pdf_mapping_df["Interest Paid (£)"] = scen_df["Interest Paid"].values
+            pdf_mapping_df["Tax Expense (£)"] = scen_df["Tax Expense"].values
             pdf_mapping_df["Net Profit (£)"] = scen_df["Net Profit"].values
+            
             pdf_mapping_df["Fixed Asset NBV (£)"] = scen_df["Fixed Asset NBV"].values
             pdf_mapping_df["Bank Cash Position (£)"] = scen_df["Cash At Bank"].values
             pdf_mapping_df["Accounts Payable & Debt (£)"] = scen_df["Outstanding Debt"].values
