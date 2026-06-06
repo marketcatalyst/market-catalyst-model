@@ -15,12 +15,14 @@ import altair as alt
 
 from ui_skin.core_engine.master_orchestrator import run_master_three_way_engine
 
-# Attempt to import your custom PDF generator (Safe fallback if missing)
+# --- 🔍 DIAGNOSTIC UNMASKING: PDF GENERATOR ---
 try:
     from ui_skin.core_engine.report_generator import generate_pdf_report
     pdf_module_active = True
-except ImportError:
+    pdf_error_msg = ""
+except Exception as e:
     pdf_module_active = False
+    pdf_error_msg = f"{type(e).__name__}: {str(e)}"
 
 # Page Configuration
 st.set_page_config(page_title="AI Strategic Appraisal Room", page_icon="📊", layout="wide")
@@ -94,6 +96,7 @@ with col2:
 st.markdown("---")
 st.subheader("Liquid Capital Runway Projections")
 
+# Float Drift Fix
 comparison_df = pd.DataFrame({
     "Base Cash Runway": np.round(base_outputs["Cash At Bank"], 2),
     "Scenario Cash Runway": np.round(scenario_outputs["Cash At Bank"], 2)
@@ -114,7 +117,7 @@ stable_chart = (
 )
 st.altair_chart(stable_chart, use_container_width=True)
 
-# --- 🗃️ THE RESTORED THREE-WAY LEDGER MATRIX ---
+# --- 🗃️ THE THREE-WAY LEDGER MATRIX ---
 st.markdown("---")
 st.subheader("🗃️ Integrated Financial Ledger Matrix (Scenario View)")
 st.caption("Detailed 60-month breakdown of the currently active operational scenario.")
@@ -179,7 +182,7 @@ if st.button("⚡ Generate Independent Executive Briefing"):
     else:
         st.warning("Please enter a scenario narrative request into the strategic prompt box to compile an executive analysis.")
 
-# --- 📥 CORPORATE EXPORT CENTER (RESTORED) ---
+# --- 📥 CORPORATE EXPORT CENTER ---
 st.markdown("---")
 st.subheader("📥 Corporate Export Center")
 st.caption("Export the active simulation matrices to your local machine for offline review or board presentation.")
@@ -216,4 +219,9 @@ with col_dl2:
         except Exception as e:
             st.error(f"PDF Generator Error: {str(e)}")
     else:
-        st.button("📄 Download Executive PDF Briefing (.pdf)", disabled=True, help="report_generator.py module not found in core_engine folder.")
+        # The unmasked error string will appear in this tooltip
+        st.button(
+            "📄 Download Executive PDF Briefing (.pdf)", 
+            disabled=True, 
+            help=f"Module crashed during load -> {pdf_error_msg}"
+        )
