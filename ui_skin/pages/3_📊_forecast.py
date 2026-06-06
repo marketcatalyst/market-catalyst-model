@@ -2,8 +2,7 @@ import sys
 from pathlib import Path
 
 # --- 🛡️ CRITICAL PATH RESOLUTION FIX ---
-# This forces Streamlit Cloud to always recognize the root project folder,
-# preventing random 'ModuleNotFoundError' crashes on multi-page apps.
+# Forces Streamlit Cloud to always recognize the root project folder
 root_dir = Path(__file__).resolve().parent.parent.parent
 if str(root_dir) not in sys.path:
     sys.path.append(str(root_dir))
@@ -112,10 +111,11 @@ with col2:
 st.markdown("---")
 st.subheader("Liquid Capital Runway Projections")
 
-# Build data alignment structure for rendering
+# --- 🎯 THE FLOATING POINT FIX: Round to 2 decimal places ---
+# This prevents Vega-Lite from zooming into microscopic binary calculation drift
 comparison_df = pd.DataFrame({
-    "Base Cash Runway": base_outputs["Cash At Bank"],
-    "Scenario Cash Runway": scenario_outputs["Cash At Bank"]
+    "Base Cash Runway": np.round(base_outputs["Cash At Bank"], 2),
+    "Scenario Cash Runway": np.round(scenario_outputs["Cash At Bank"], 2)
 })
 
 # Melt dataframe to make it compatible with Altair long-form data requirements
