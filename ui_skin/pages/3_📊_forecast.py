@@ -35,10 +35,33 @@ if "baseline_inputs" not in st.session_state:
         "historical_inventory_vector": [12000.00] * 5
     }
 
-# --- SIDEBAR INTERACTION CONTROLS ---
+# --- 🔄 INTERACTIVE UX SIDEBAR & ESCAPE HATCH ---
 st.sidebar.header("Operational Scenario Controls")
-vol_growth = st.sidebar.slider("Sales Volume Growth Override", 0.0, 0.50, 0.10, step=0.05, help="Simulate uniform annual demand expansion.")
-price_ramp = st.sidebar.slider("Price Ramp Override", 0.0, 0.20, 0.0, step=0.01, help="Simulate localized product price increases.")
+
+# The Escape Hatch: Wipes active sandbox values to return instantly to baseline state
+if st.sidebar.button("🔄 Reset to Operational Baseline"):
+    st.session_state.vol_slider = 0.0
+    st.session_state.price_slider = 0.0
+    if "user_query_text" in st.session_state:
+        st.session_state.user_query_text = ""
+    st.rerun()
+
+st.sidebar.markdown("---")
+
+# Sliders initialize at 0.0 to guarantee unmutated startup profiles
+vol_growth = st.sidebar.slider(
+    "Sales Volume Growth Override", 
+    0.0, 0.50, 0.0, step=0.05, 
+    key="vol_slider",
+    help="Simulate uniform annual demand expansion."
+)
+
+price_ramp = st.sidebar.slider(
+    "Price Ramp Override", 
+    0.0, 0.20, 0.0, step=0.01, 
+    key="price_slider",
+    help="Simulate localized product price increases."
+)
 
 # Constructing current scenario parameter block
 overrides = {
@@ -93,7 +116,7 @@ comparison_melted = comparison_df.reset_index().melt(
 )
 comparison_melted.rename(columns={"index": "Month"}, inplace=True)
 
-# --- 🛡️ FIXED ALTAIR CHART ENGINE (Using "container" to pass schema validation) ---
+# --- 🛡️ STABLE ALTAIR CHART ENGINE (Locked Viewport Boundary) ---
 stable_chart = (
     alt.Chart(comparison_melted)
     .mark_line(strokeWidth=2.5)
@@ -113,28 +136,39 @@ st.altair_chart(stable_chart, use_container_width=True)
 st.markdown("---")
 
 # --- ⚡ INTELLIGENCE LAYER: GEMINI RESPONSE BRIEFING ---
+user_inquiry = st.text_area(
+    "Query Strategic Alternatives (e.g., Evaluate a 1% expansion in sales volume baseline):",
+    placeholder="Type scenario narrative query here...",
+    key="user_query_text"
+)
+
 if st.button("⚡ Generate Independent Executive Briefing"):
-    with st.spinner("Compiling Gemini response layer..."):
-        try:
-            model = genai.GenerativeModel('gemini-3.5-flash')
-            
-            prompt = f"""
-            You are a senior corporate finance director reviewing a 5-year three-way integrated forecast model.
-            Analyze the following operational variance metrics and compile a clean executive briefing:
-            
-            Baseline Metrics:
-            - Ending Year 5 Cash Position: £{base_outputs['Cash At Bank'][-1]:,.2f}
-            - Highest Monthly Profit Ceiling: £{base_peak_profit:,.2f}/mo
-            
-            Simulated Alternative Case ({vol_growth * 100}% Volume Expansion, {price_ramp * 100}% Pricing Shift):
-            - Ending Year 5 Cash Position: £{scenario_outputs['Cash At Bank'][-1]:,.2f}
-            - Highest Monthly Profit Ceiling: £{scen_peak_profit:,.2f}/mo
-            
-            Provide a crisp, corporate strategic analysis discussing margins, working capital absorption speed, and cumulative cash optimization recommendations.
-            """
-            
-            response = model.generate_content(prompt)
-            st.info(response.text)
-            
-        except Exception as e:
-            st.error(f"Failed to compile Gemini response layer: {str(e)}")
+    if user_inquiry:
+        with st.spinner("Compiling Gemini response layer..."):
+            try:
+                model = genai.GenerativeModel('gemini-3.5-flash')
+                
+                prompt = f"""
+                You are a senior corporate finance director reviewing a 5-year three-way integrated forecast model.
+                Analyze the following operational variance metrics and compile a clean executive briefing:
+                
+                Baseline Metrics:
+                - Ending Year 5 Cash Position: £{base_outputs['Cash At Bank'][-1]:,.2f}
+                - Highest Monthly Profit Ceiling: £{base_peak_profit:,.2f}/mo
+                
+                Simulated Alternative Case ({vol_growth * 100}% Volume Expansion, {price_ramp * 100}% Pricing Shift):
+                - Ending Year 5 Cash Position: £{scenario_outputs['Cash At Bank'][-1]:,.2f}
+                - Highest Monthly Profit Ceiling: £{scen_peak_profit:,.2f}/mo
+                
+                User Narrative Query Context: "{user_inquiry}"
+                
+                Provide a crisp, corporate strategic analysis discussing margins, working capital absorption speed, and cumulative cash optimization recommendations.
+                """
+                
+                response = model.generate_content(prompt)
+                st.info(response.text)
+                
+            except Exception as e:
+                st.error(f"Failed to compile Gemini response layer: {str(e)}")
+    else:
+        st.warning("Please enter a scenario narrative request into the strategic prompt box to compile an executive analysis.")
