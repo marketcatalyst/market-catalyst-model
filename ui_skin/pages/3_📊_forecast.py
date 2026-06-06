@@ -17,7 +17,8 @@ from ui_skin.core_engine.master_orchestrator import run_master_three_way_engine
 
 # --- 🔍 DIAGNOSTIC UNMASKING: PDF GENERATOR ---
 try:
-    from ui_skin.core_engine.report_generator import generate_pdf_report
+    # Successfully targeting the exact function name from the local module
+    from ui_skin.core_engine.report_generator import compile_pdf_executive_report
     pdf_module_active = True
     pdf_error_msg = ""
 except Exception as e:
@@ -76,7 +77,7 @@ overrides = {
 
 # Execute parallel simulation runs
 base_outputs = run_master_three_way_engine(st.session_state.baseline_inputs, None, None, None, overrides={})
-scenario_outputs = run_master_three_way_engine(st.session_state.baseline_inputs, None, None, None, overrides=overrides)
+scenario_outputs = run_master_three_way_engine(st.session_state.baseline_inputs, None, None, overrides=overrides)
 
 # --- 📈 METRIC APPRAISAL CARD TILES ---
 col1, col2 = st.columns(2)
@@ -96,7 +97,6 @@ with col2:
 st.markdown("---")
 st.subheader("Liquid Capital Runway Projections")
 
-# Float Drift Fix
 comparison_df = pd.DataFrame({
     "Base Cash Runway": np.round(base_outputs["Cash At Bank"], 2),
     "Scenario Cash Runway": np.round(scenario_outputs["Cash At Bank"], 2)
@@ -120,7 +120,6 @@ st.altair_chart(stable_chart, use_container_width=True)
 # --- 🗃️ THE THREE-WAY LEDGER MATRIX ---
 st.markdown("---")
 st.subheader("🗃️ Integrated Financial Ledger Matrix (Scenario View)")
-st.caption("Detailed 60-month breakdown of the currently active operational scenario.")
 
 tab1, tab2, tab3 = st.tabs(["📊 Profit & Loss", "💸 Cash Flow", "⚖️ Balance Sheet"])
 
@@ -139,7 +138,6 @@ with tab3:
     bs_cols = ["Cash At Bank", "Accounts Receivable BS", "Inventory Asset BS", "Fixed Asset NBV", "Outstanding Debt", "Tax Liability BS", "Equity Retained BS"]
     st.dataframe(scen_df[bs_cols].T.style.format("£{:,.2f}"), use_container_width=True)
     
-    # Validation Guardrail check for Month 60
     final_assets = scen_df["Cash At Bank"].iloc[-1] + scen_df["Accounts Receivable BS"].iloc[-1] + scen_df["Inventory Asset BS"].iloc[-1] + scen_df["Fixed Asset NBV"].iloc[-1]
     final_liabilities = scen_df["Outstanding Debt"].iloc[-1] + scen_df["Tax Liability BS"].iloc[-1]
     final_equity = scen_df["Equity Retained BS"].iloc[-1]
@@ -149,9 +147,8 @@ with tab3:
     else:
         st.error("⚠️ **STRATA Accounting Guardrail Alert:** Ledger mismatch detected.")
 
-st.markdown("---")
-
 # --- ⚡ INTELLIGENCE LAYER: GEMINI RESPONSE BRIEFING ---
+st.markdown("---")
 user_inquiry = st.text_area(
     "Query Strategic Alternatives (e.g., Evaluate a 1% expansion in sales volume baseline):",
     placeholder="Type scenario narrative query here...",
@@ -185,9 +182,7 @@ if st.button("⚡ Generate Independent Executive Briefing"):
 # --- 📥 CORPORATE EXPORT CENTER ---
 st.markdown("---")
 st.subheader("📥 Corporate Export Center")
-st.caption("Export the active simulation matrices to your local machine for offline review or board presentation.")
 
-# Create the memory buffer for Excel
 excel_buffer = io.BytesIO()
 with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
     pd.DataFrame(base_outputs).to_excel(writer, sheet_name="Baseline Tracker")
@@ -206,20 +201,45 @@ with col_dl1:
 
 with col_dl2:
     if pdf_module_active:
-        # Try to generate the PDF using your existing module hook
         try:
-            pdf_bytes = generate_pdf_report(scen_df)
+            # Data Translation Layer: Map engine vectors to AHOTG PDF schema
+            pdf_mapping_df = pd.DataFrame()
+            pdf_mapping_df["Month"] = [f"Month {i+1}" for i in range(60)]
+            pdf_mapping_df["Turnover (£)"] = scen_df["Revenue"].values
+            pdf_mapping_df["Direct Costs (£)"] = scen_df["COGS"].values
+            pdf_mapping_df["Admin Overheads (£)"] = scen_df["Overheads"].values
+            pdf_mapping_df["Directors Salaries (£)"] = 0.0 
+            pdf_mapping_df["Depreciation Expense (£)"] = scen_df["Depreciation"].values
+            pdf_mapping_df["Net Profit (£)"] = scen_df["Net Profit"].values
+            pdf_mapping_df["Fixed Asset NBV (£)"] = scen_df["Fixed Asset NBV"].values
+            pdf_mapping_df["Bank Cash Position (£)"] = scen_df["Cash At Bank"].values
+            pdf_mapping_df["Accounts Payable & Debt (£)"] = scen_df["Outstanding Debt"].values
+            pdf_mapping_df["Retained Earnings (£)"] = scen_df["Equity Retained BS"].values
+            
+            # Reconcile CF bridge
+            pdf_mapping_df["Bridge: Net Profit"] = scen_df["Net Profit"].values
+            pdf_mapping_df["Bridge: Depreciation"] = scen_df["Depreciation"].values
+            operating_cf = scen_df["Net Profit"].values + scen_df["Depreciation"].values + scen_df["Working Capital CF"].values - scen_df["Tax Cash Paid"].values
+            pdf_mapping_df["Bridge: Operating CF"] = operating_cf
+            pdf_mapping_df["Bridge: Investing CF"] = 0.0
+            pdf_mapping_df["Bridge: Financing CF"] = 0.0
+            pdf_mapping_df["Bridge: Net Movement"] = operating_cf
+
+            pdf_bytes = compile_pdf_executive_report(
+                forecast_df=pdf_mapping_df, 
+                scenario_name="Lightweight Composites Transition (Carbon Fibre)"
+            )
+            
             st.download_button(
                 label="📄 Download Executive PDF Briefing (.pdf)",
                 data=pdf_bytes,
-                file_name="STRATA_Executive_Briefing.pdf",
+                file_name="AHOTG_Executive_Briefing.pdf",
                 mime="application/pdf",
                 use_container_width=True
             )
         except Exception as e:
-            st.error(f"PDF Generator Error: {str(e)}")
+            st.error(f"PDF Compiler Translation Error: {str(e)}")
     else:
-        # The unmasked error string will appear in this tooltip
         st.button(
             "📄 Download Executive PDF Briefing (.pdf)", 
             disabled=True, 
