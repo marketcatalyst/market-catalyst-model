@@ -17,7 +17,6 @@ from ui_skin.core_engine.master_orchestrator import run_master_three_way_engine
 
 # --- 🔍 DIAGNOSTIC UNMASKING: PDF GENERATOR ---
 try:
-    # Successfully targeting the exact function name from the local module
     from ui_skin.core_engine.report_generator import compile_pdf_executive_report
     pdf_module_active = True
     pdf_error_msg = ""
@@ -75,9 +74,9 @@ overrides = {
     "expansion_scenario_active": False
 }
 
-# Execute parallel simulation runs
+# --- 🛠️ THE TYPO FIX: Added the missing third 'None' to scenario_outputs ---
 base_outputs = run_master_three_way_engine(st.session_state.baseline_inputs, None, None, None, overrides={})
-scenario_outputs = run_master_three_way_engine(st.session_state.baseline_inputs, None, None, overrides=overrides)
+scenario_outputs = run_master_three_way_engine(st.session_state.baseline_inputs, None, None, None, overrides=overrides)
 
 # --- 📈 METRIC APPRAISAL CARD TILES ---
 col1, col2 = st.columns(2)
