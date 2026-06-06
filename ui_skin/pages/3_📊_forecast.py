@@ -1,6 +1,6 @@
 import sys
 from pathlib import Path
-import io  # <-- Added to handle secure file buffers
+import io
 
 # --- 🛡️ CRITICAL PATH RESOLUTION FIX ---
 root_dir = Path(__file__).resolve().parent.parent.parent
@@ -12,7 +12,15 @@ import pandas as pd
 import numpy as np
 import google.generativeai as genai
 import altair as alt
+
 from ui_skin.core_engine.master_orchestrator import run_master_three_way_engine
+
+# Attempt to import your custom PDF generator (Safe fallback if missing)
+try:
+    from ui_skin.core_engine.report_generator import generate_pdf_report
+    pdf_module_active = True
+except ImportError:
+    pdf_module_active = False
 
 # Page Configuration
 st.set_page_config(page_title="AI Strategic Appraisal Room", page_icon="📊", layout="wide")
@@ -25,7 +33,6 @@ if "GEMINI_API_KEY" not in st.secrets:
     st.error("API Error: GEMINI_API_KEY is missing from your Streamlit secrets configurations.")
     st.stop()
 
-# Initialize the Gemini SDK layout using the root context token
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
 # --- CORE DATA FALLBACK HYDRATION ---
@@ -44,7 +51,7 @@ if "baseline_inputs" not in st.session_state:
         "historical_inventory_vector": [12000.00] * 5
     }
 
-# --- 🔄 INTERACTIVE UX SIDEBAR & ESCAPE HATCH ---
+# --- 🔄 INTERACTIVE UX SIDEBAR ---
 st.sidebar.header("Operational Scenario Controls")
 
 if st.sidebar.button("🔄 Reset to Operational Baseline"):
@@ -56,19 +63,8 @@ if st.sidebar.button("🔄 Reset to Operational Baseline"):
 
 st.sidebar.markdown("---")
 
-vol_growth = st.sidebar.slider(
-    "Sales Volume Growth Override", 
-    0.0, 0.50, 0.0, step=0.05, 
-    key="vol_slider",
-    help="Simulate uniform annual demand expansion."
-)
-
-price_ramp = st.sidebar.slider(
-    "Price Ramp Override", 
-    0.0, 0.20, 0.0, step=0.01, 
-    key="price_slider",
-    help="Simulate localized product price increases."
-)
+vol_growth = st.sidebar.slider("Sales Volume Growth Override", 0.0, 0.50, 0.0, step=0.05, key="vol_slider")
+price_ramp = st.sidebar.slider("Price Ramp Override", 0.0, 0.20, 0.0, step=0.01, key="price_slider")
 
 overrides = {
     "retail_annual_volume_growth": vol_growth,
@@ -76,7 +72,7 @@ overrides = {
     "expansion_scenario_active": False
 }
 
-# Execute parallel simulation runs inside the dynamic cash engine
+# Execute parallel simulation runs
 base_outputs = run_master_three_way_engine(st.session_state.baseline_inputs, None, None, None, overrides={})
 scenario_outputs = run_master_three_way_engine(st.session_state.baseline_inputs, None, None, None, overrides=overrides)
 
@@ -103,9 +99,7 @@ comparison_df = pd.DataFrame({
     "Scenario Cash Runway": np.round(scenario_outputs["Cash At Bank"], 2)
 })
 
-comparison_melted = comparison_df.reset_index().melt(
-    id_vars="index", var_name="Scenario", value_name="Cash Balance (£)"
-)
+comparison_melted = comparison_df.reset_index().melt(id_vars="index", var_name="Scenario", value_name="Cash Balance (£)")
 comparison_melted.rename(columns={"index": "Month"}, inplace=True)
 
 stable_chart = (
@@ -119,6 +113,38 @@ stable_chart = (
     .properties(width="container", height=400)
 )
 st.altair_chart(stable_chart, use_container_width=True)
+
+# --- 🗃️ THE RESTORED THREE-WAY LEDGER MATRIX ---
+st.markdown("---")
+st.subheader("🗃️ Integrated Financial Ledger Matrix (Scenario View)")
+st.caption("Detailed 60-month breakdown of the currently active operational scenario.")
+
+tab1, tab2, tab3 = st.tabs(["📊 Profit & Loss", "💸 Cash Flow", "⚖️ Balance Sheet"])
+
+scen_df = pd.DataFrame(scenario_outputs)
+scen_df.index = [f"Month {i+1}" for i in scen_df.index]
+
+with tab1:
+    pl_cols = ["Revenue", "COGS", "Overheads", "Depreciation", "Interest Paid", "Tax Expense", "Net Profit"]
+    st.dataframe(scen_df[pl_cols].T.style.format("£{:,.2f}"), use_container_width=True)
+
+with tab2:
+    cf_cols = ["Net Profit", "Depreciation", "Working Capital CF", "Tax Cash Paid", "Cash At Bank"]
+    st.dataframe(scen_df[cf_cols].T.style.format("£{:,.2f}"), use_container_width=True)
+
+with tab3:
+    bs_cols = ["Cash At Bank", "Accounts Receivable BS", "Inventory Asset BS", "Fixed Asset NBV", "Outstanding Debt", "Tax Liability BS", "Equity Retained BS"]
+    st.dataframe(scen_df[bs_cols].T.style.format("£{:,.2f}"), use_container_width=True)
+    
+    # Validation Guardrail check for Month 60
+    final_assets = scen_df["Cash At Bank"].iloc[-1] + scen_df["Accounts Receivable BS"].iloc[-1] + scen_df["Inventory Asset BS"].iloc[-1] + scen_df["Fixed Asset NBV"].iloc[-1]
+    final_liabilities = scen_df["Outstanding Debt"].iloc[-1] + scen_df["Tax Liability BS"].iloc[-1]
+    final_equity = scen_df["Equity Retained BS"].iloc[-1]
+    
+    if np.isclose(final_assets - final_liabilities, final_equity, atol=1.0):
+        st.success("⚖️ **STRATA Accounting Guardrail:** Core financial ledger verification balanced at absolute zero variance.")
+    else:
+        st.error("⚠️ **STRATA Accounting Guardrail Alert:** Ledger mismatch detected.")
 
 st.markdown("---")
 
@@ -156,20 +182,13 @@ if st.button("⚡ Generate Independent Executive Briefing"):
 # --- 📥 CORPORATE EXPORT CENTER (RESTORED) ---
 st.markdown("---")
 st.subheader("📥 Corporate Export Center")
-st.caption("Download the active simulation matrices to your local machine for offline review.")
+st.caption("Export the active simulation matrices to your local machine for offline review or board presentation.")
 
-# Format the 60-month vectors into clean DataFrames for the spreadsheet
-base_export_df = pd.DataFrame(base_outputs)
-base_export_df.index = [f"Month {i+1}" for i in base_export_df.index]
-
-scen_export_df = pd.DataFrame(scenario_outputs)
-scen_export_df.index = [f"Month {i+1}" for i in scen_export_df.index]
-
-# Write to an active memory buffer to instantly generate the Excel file
+# Create the memory buffer for Excel
 excel_buffer = io.BytesIO()
 with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
-    base_export_df.to_excel(writer, sheet_name="Baseline Tracker")
-    scen_export_df.to_excel(writer, sheet_name="Strategic Scenario")
+    pd.DataFrame(base_outputs).to_excel(writer, sheet_name="Baseline Tracker")
+    scen_df.to_excel(writer, sheet_name="Strategic Scenario")
 
 col_dl1, col_dl2 = st.columns(2)
 
@@ -183,4 +202,18 @@ with col_dl1:
     )
 
 with col_dl2:
-    st.info("💡 **Legacy PDF Hook:** To restore your custom PDF generation, import the specific function from your `report_generator.py` module here.")
+    if pdf_module_active:
+        # Try to generate the PDF using your existing module hook
+        try:
+            pdf_bytes = generate_pdf_report(scen_df)
+            st.download_button(
+                label="📄 Download Executive PDF Briefing (.pdf)",
+                data=pdf_bytes,
+                file_name="STRATA_Executive_Briefing.pdf",
+                mime="application/pdf",
+                use_container_width=True
+            )
+        except Exception as e:
+            st.error(f"PDF Generator Error: {str(e)}")
+    else:
+        st.button("📄 Download Executive PDF Briefing (.pdf)", disabled=True, help="report_generator.py module not found in core_engine folder.")
