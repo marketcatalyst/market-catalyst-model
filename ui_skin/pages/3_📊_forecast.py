@@ -17,7 +17,6 @@ from ui_skin.core_engine.master_orchestrator import run_master_three_way_engine
 
 # --- 🔍 DIAGNOSTIC UNMASKING: PDF GENERATOR ---
 try:
-    # Successfully targeting the exact function name from the local module
     from ui_skin.core_engine.report_generator import compile_pdf_executive_report
     pdf_module_active = True
     pdf_error_msg = ""
@@ -62,6 +61,8 @@ if st.sidebar.button("🔄 Reset to Operational Baseline"):
     st.session_state.price_slider = 0.0
     if "user_query_text" in st.session_state:
         st.session_state.user_query_text = ""
+    if "gemini_briefing" in st.session_state:
+        del st.session_state.gemini_briefing
     st.rerun()
 
 st.sidebar.markdown("---")
@@ -75,7 +76,7 @@ overrides = {
     "expansion_scenario_active": False
 }
 
-# --- 🛠️ ENGINE EXECUTION (With corrected positional arguments) ---
+# --- 🛠️ ENGINE EXECUTION ---
 base_outputs = run_master_three_way_engine(st.session_state.baseline_inputs, None, None, None, overrides={})
 scenario_outputs = run_master_three_way_engine(st.session_state.baseline_inputs, None, None, None, overrides=overrides)
 
@@ -173,11 +174,15 @@ if st.button("⚡ Generate Independent Executive Briefing"):
                 Provide a crisp, corporate strategic analysis discussing margins, working capital absorption speed, and cumulative cash optimization recommendations.
                 """
                 response = model.generate_content(prompt)
-                st.info(response.text)
+                st.session_state.gemini_briefing = response.text
+                st.session_state.gemini_query = user_inquiry
             except Exception as e:
                 st.error(f"Failed to compile Gemini response layer: {str(e)}")
     else:
         st.warning("Please enter a scenario narrative request into the strategic prompt box to compile an executive analysis.")
+
+if "gemini_briefing" in st.session_state:
+    st.info(st.session_state.gemini_briefing)
 
 # --- 📥 CORPORATE EXPORT CENTER ---
 st.markdown("---")
@@ -200,9 +205,10 @@ with col_dl1:
     )
 
 with col_dl2:
+    selected_export_year = st.selectbox("Select Forecast Year for PDF:", [1, 2, 3, 4, 5], index=0)
+    
     if pdf_module_active:
         try:
-            # Data Translation Layer: Map engine vectors to AHOTG PDF schema
             pdf_mapping_df = pd.DataFrame()
             pdf_mapping_df["Month"] = [f"Month {i+1}" for i in range(60)]
             pdf_mapping_df["Turnover (£)"] = scen_df["Revenue"].values
@@ -228,15 +234,28 @@ with col_dl2:
             pdf_mapping_df["Bridge: Financing CF"] = 0.0
             pdf_mapping_df["Bridge: Net Movement"] = operating_cf
 
+            pdf_rationale = None
+            if "gemini_briefing" in st.session_state:
+                clean_text = st.session_state.gemini_briefing.replace("**", "").replace("*", "")
+                pdf_rationale = [{
+                    "timestamp": pd.Timestamp.now().strftime("%d/%m/%Y %H:%M"),
+                    "token": "AI-GEN-01",
+                    "esg_pillar": "AI Strategic Analysis",
+                    "trigger": f"Query: {st.session_state.gemini_query}",
+                    "rationale": clean_text[:800] + "..." if len(clean_text) > 800 else clean_text
+                }]
+
             pdf_bytes = compile_pdf_executive_report(
                 forecast_df=pdf_mapping_df, 
-                scenario_name="Lightweight Composites Transition (Carbon Fibre)"
+                scenario_name="Strategic Expansion Scenario",
+                selected_year=selected_export_year,
+                rationale_logs=pdf_rationale
             )
             
             st.download_button(
-                label="📄 Download Executive PDF Briefing (.pdf)",
+                label=f"📄 Download Year {selected_export_year} PDF Briefing (.pdf)",
                 data=pdf_bytes,
-                file_name="AHOTG_Executive_Briefing.pdf",
+                file_name=f"STRATA_Executive_Briefing_Yr{selected_export_year}.pdf",
                 mime="application/pdf",
                 use_container_width=True
             )
