@@ -71,12 +71,17 @@ final_mapped_df = st.data_editor(
     }
 )
 
-# Extract points from table data
-extracted_inputs = {}
+# --- CORRECTED MULTI-ACCOUNT ACCUMULATION CORE ---
+# Initialize the entry slots dictionary to avoid KeyErrors
+extracted_inputs = {slot: 0.0 for slot in PLATFORM_TARGET_SLOTS}
+
 for _, row in final_mapped_df.iterrows():
     slot = row["Assigned Platform Destination"]
     bal = float(row["Net Balance (£)"])
-    extracted_inputs[slot] = bal
+    
+    # Accumulate compound values instead of overwriting existing keys
+    if slot in extracted_inputs:
+        extracted_inputs[slot] += bal
 
 st.markdown("---")
 st.markdown("### **Step 2: Operational Human-in-the-Loop Profiles**")
@@ -114,7 +119,7 @@ baseline_package = {
     "pension_opt_out": pension_opt_out,
     "seasonality_weights": [1.0] * 12,
     
-    # Ingest historical starting metrics directly from the Step 1 interactive alignment matrix
+    # Ingest historical starting metrics directly from the Step 1 alignment editor matrix
     "opening_cash_balance": extracted_inputs.get("Liquid Bank Cash Base", 69488.00),
     "opening_fixed_assets_nbv": extracted_inputs.get("Fixed Assets Gross Cost", 531385.00),
     "opening_accounts_receivable": extracted_inputs.get("Trade Accounts Receivable (AR)", 44886.00),
