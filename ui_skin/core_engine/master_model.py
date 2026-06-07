@@ -72,7 +72,7 @@ def generate_integrated_3way_forecast(inputs: dict, overrides: dict = None) -> p
         year_idx = m // 12
         month_in_year = m % 12
         
-        # A. Vectorized Revenue Parsing (Resolves the 0.0 scalar bug)
+        # A. Vectorized Revenue Parsing
         if year_idx == 0:
             base_turnover = y1_curve[month_in_year] if month_in_year < len(y1_curve) else 0.0
         elif year_idx == 1:
@@ -80,13 +80,9 @@ def generate_integrated_3way_forecast(inputs: dict, overrides: dict = None) -> p
         elif year_idx == 2:
             base_turnover = y3_target / 12.0
         else:
-            # Compound Year 4 and Year 5 with a standard baseline scaling trend
             base_turnover = (y3_target / 12.0) * ((1.05) ** (year_idx - 2))
             
-        # Apply sandbox pricing and volume growth triggers over the base vector
         turnover = base_turnover * (1.0 + vol_growth + price_ramp)
-        
-        # Base production cost margin ratio calculated from reference material (~69.6%)
         direct_costs = turnover * 0.696
         
         # B. Connected Costs: Real-Time Payroll Burden Pass
@@ -101,7 +97,7 @@ def generate_integrated_3way_forecast(inputs: dict, overrides: dict = None) -> p
         
         # C. Profitability Accrual
         m_depreciation = outputs["Depreciation"][m]
-        m_interest = 1250.00 if m < 12 else 0.00  # Sync debt servicing overheads
+        m_interest = 1250.00 if m < 12 else 0.00
         
         m_overheads_total = admin_overheads + directors_salaries
         ebit = turnover - direct_costs - m_overheads_total - wages_expense - m_depreciation
@@ -143,15 +139,15 @@ def generate_integrated_3way_forecast(inputs: dict, overrides: dict = None) -> p
                 if asset.get("Funding Mechanism") == "Upfront Cash":
                     cash_capex_outflow += float(asset.get("Gross Purchase Price (£)", 0.0))
 
-        # Financing Event Slicing matching June Year 1 expansion parameters
+        # Financing Event Slicing
         debt_injection = 400000.0 if month_1based == 6 else 0.0
         debt_repayment = 72890.0 if month_1based == 6 else (8499.0 if month_1based > 6 else 0.0)
         
-        # Indirect Cash Flow formulation
+        # Indirect Cash Flow formulation (Re-anchored around PBT to remove double-tax counting)
         m_tax_cash = outputs["Tax Cash Paid"][m]
         m_depr = outputs["Depreciation"][m]
         
-        net_cash_movement = net_profit_after_tax + m_depr - cash_capex_outflow + debt_injection - debt_repayment - m_tax_cash
+        net_cash_movement = outputs["Net Profit Before Tax"][m] + m_depr - cash_capex_outflow + debt_injection - debt_repayment - m_tax_cash
         running_cash += net_cash_movement
         
         running_liabilities_pool = running_liabilities_pool + debt_injection - debt_repayment
@@ -178,12 +174,13 @@ def generate_integrated_3way_forecast(inputs: dict, overrides: dict = None) -> p
         "Admin Overheads (£)": "Overheads", "Depreciation Expense (£)": "Depreciation",
         "Interest Paid (£)": "Interest Paid", "Tax Expense (£)": "Tax Expense",
         "Net Profit (£)": "Net Profit", "Fixed Asset NBV (£)": "Fixed Asset NBV",
-        "Bank Cash Position (£)": "Cash At Bank", "Accounts Payable & Debt (£)": "Accounts Payable & Debt",
-        "Retained Earnings (£)": "Equity Retained BS", "Tax Liability BS (£)": "Tax Liability BS",
-        "Bridge: Net Profit": "Net Profit", "Bridge: Depreciation": "Depreciation",
-        "Bridge: Operating CF": "Net Profit", "Bridge: Investing CF": "Net Profit",
-        "Bridge: Financing CF": "Net Profit", "Bridge: Net Movement": "Working Capital CF",
-        "Ops_FTE_Strain": "Ops_FTE_Strain", "Double_Entry_Check": "Double_Entry_Check"
+        "Bank Cash Position (£)": "Cash At Bank", "Accounts Receivable BS (£)": "Accounts Receivable BS",
+        "Accounts Payable & Debt (£)": "Accounts Payable & Debt", "Retained Earnings (£)": "Equity Retained BS", 
+        "Tax Liability BS (£)": "Tax Liability BS", "Bridge: Net Profit": "Net Profit", 
+        "Bridge: Depreciation": "Depreciation", "Bridge: Operating CF": "Net Profit", 
+        "Bridge: Investing CF": "Net Profit", "Bridge: Financing CF": "Net Profit", 
+        "Bridge: Net Movement": "Working Capital CF", "Ops_FTE_Strain": "Ops_FTE_Strain", 
+        "Double_Entry_Check": "Double_Entry_Check"
     }
     
     for ui_label, internal_key in translations.items():
