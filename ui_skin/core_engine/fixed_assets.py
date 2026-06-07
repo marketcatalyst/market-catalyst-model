@@ -29,9 +29,13 @@ def calculate_multi_asset_depreciation_matrix(
     active_capex_items: List[Dict[str, Any]] = []
     
     for m in range(total_months):
+        # Convert 0-indexed loop timeline variable 'm' into a 1-based calendar month
+        current_calendar_month = m + 1
+        
         # 1. Evaluate incoming additions (Capex Deployment) for Month m
         for capex in planned_capex_list:
-            if capex.get("Transaction Month") == m:
+            # Check against the 1-based calendar month provided by the ingestion layer
+            if capex.get("Transaction Month") == current_calendar_month:
                 cost = float(capex.get("Gross Purchase Price (£)", 0.0))
                 category = str(capex.get("Category", "Main Pool")).lower()
                 
@@ -59,7 +63,7 @@ def calculate_multi_asset_depreciation_matrix(
         # Iterate over new equipment profiles and process unexpected liquidations
         remaining_active_assets = []
         for item in active_capex_items:
-            if item["disposal_month"] == m:
+            if item["disposal_month"] == current_calendar_month:
                 # Process structural asset retirement
                 proceeds = item["disposal_proceeds"]
                 timeline_disposal_proceeds[m] += proceeds
