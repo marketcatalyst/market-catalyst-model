@@ -1,4 +1,12 @@
 # ui_skin/pages/1_📥_ingestion.py
+import sys
+from pathlib import Path
+
+# --- CRITICAL PATH RESOLUTION ---
+root_dir = Path(__file__).resolve().parent.parent.parent
+if str(root_dir) not in sys.path:
+    sys.path.append(str(root_dir))
+
 import streamlit as st
 import pandas as pd
 from ui_skin.core_engine.mapping_manager import analyze_and_map_ledger, PLATFORM_TARGET_SLOTS
@@ -106,7 +114,7 @@ baseline_package = {
     "pension_opt_out": pension_opt_out,
     "seasonality_weights": [1.0] * 12,
     
-    # Ingest historical starting metrics directly from the Step 1 alignment editor matrix
+    # Ingest historical starting metrics directly from the Step 1 interactive alignment matrix
     "opening_cash_balance": extracted_inputs.get("Liquid Bank Cash Base", 69488.00),
     "opening_fixed_assets_nbv": extracted_inputs.get("Fixed Assets Gross Cost", 531385.00),
     "opening_accounts_receivable": extracted_inputs.get("Trade Accounts Receivable (AR)", 44886.00),

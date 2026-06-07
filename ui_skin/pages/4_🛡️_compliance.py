@@ -1,4 +1,12 @@
 # ui_skin/pages/4_🛡️_compliance.py
+import sys
+from pathlib import Path
+
+# --- CRITICAL PATH RESOLUTION ---
+root_dir = Path(__file__).resolve().parent.parent.parent
+if str(root_dir) not in sys.path:
+    sys.path.append(str(root_dir))
+
 import streamlit as st
 import pandas as pd
 import numpy as np
