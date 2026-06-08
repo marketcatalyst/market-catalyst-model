@@ -1,4 +1,4 @@
-# ui_skin/pages/1_📥_ingestion.py
+# ui_skin/pages/1_🔌_ingestion.py
 import sys
 from pathlib import Path
 
@@ -14,80 +14,76 @@ from ui_skin.core_engine.mapping_manager import analyze_and_map_ledger, PLATFORM
 st.set_page_config(layout="wide", page_title="STRATA Ingestion Hub")
 
 st.title("📥 Enterprise Data Ingestion Hub")
-st.caption("Automated Human-in-the-Loop Corporate Onboarding Pipeline")
+st.caption("WinForecast-Style Step-by-Step Structural Account Alignment")
 st.markdown("---")
 
-st.markdown("### **Step 1: Financial Record Alignment**")
+st.markdown("### **Step 1: Account-by-Account Ledger Alignment**")
 st.markdown("""
-Upload an export of your company trial balance, bank statements, or legacy accounting files. 
-The system maps your lines to standard platform variables without requiring manual formula inputs.
+Input or modify your corporate accounts sequentially following standard Balance Sheet structure: 
+**Fixed Assets ➡️ Current Assets ➡️ Current Liabilities ➡️ Long-Term Liabilities ➡️ Equity**.
+Use the **"+"** button at the bottom of the grid to open new granular accounts and assign their target processing buckets.
 """)
 
-uploaded_file = st.file_uploader("Drop accounting document here...", type=["csv", "xlsx", "xls", "pdf", "jpg", "png"])
-
-# --- WINFORECAST BENCHMARK INGESTION FALLBACK SEED ---
-if uploaded_file is None:
-    st.info("💡 **Prototyping Mode:** Operating on preset benchmark inputs matching the reference WinForecast profile.")
-    raw_tb_df = pd.DataFrame({
-        "Account Code": ["1200", "1100", "0020", "2200", "2150", "3000"],
+# Standard sequential ledger template matching your traditional WinForecast onboarding flow
+if "raw_ledger_df" not in st.session_state:
+    st.session_state["raw_ledger_df"] = pd.DataFrame({
+        "Account Code": ["0020", "0040", "1200", "1205", "1100", "2200", "2150", "3000"],
+        "Account Group": ["Fixed Assets", "Fixed Assets", "Current Assets", "Current Assets", "Current Assets", "Current Liabilities", "Long-Term Liabilities", "Equity Reserve"],
         "Account Name": [
-            "Clearing Account Cash Reserves", 
-            "Trade Debtors Ledger Control", 
-            "Operational Fixed Assets Base NBV", 
-            "Trade Creditors Ledger",
-            "Long Term Commercial Debt Pool",
+            "Operational Plant & Machinery NBV", 
+            "Company Delivery Fleet Vehicles",
+            "Barclays Commercial Current A/C", 
+            "Petty Cash Float Reserves",
+            "Trade Debtors Control Ledger", 
+            "Trade Creditors Control Ledger",
+            "NatWest Long-Term Commercial Loan",
             "Prior Year Accumulated Retained Profits"
         ],
-        "Balance": [69488.00, 44886.00, 531385.00, -8000.00, -341001.00, 82005.00]
-    })
-else:
-    st.success(f"Successfully uploaded: {uploaded_file.name}")
-    raw_tb_df = pd.DataFrame({
-        "Account Code": ["EXT-CASH", "EXT-DEBT"],
-        "Account Name": ["Imported Bank Cash Assets", "Imported Commercial Borrowings"],
-        "Balance": [100000.0, -100000.0]
+        "Net Balance (£)": [400000.00, 131385.00, 150000.00, 5400.00, 44886.00, -8000.00, -341001.00, 82005.00],
+        "Assigned Platform Destination": ["Fixed Assets Gross Cost", "Fixed Assets Gross Cost", "Liquid Bank Cash Base", "Liquid Bank Cash Base", "Trade Accounts Receivable (AR)", "Trade Accounts Payable (AP)", "Outstanding Debt Obligations", "Retained Earnings Reserve"]
     })
 
-# Run the semantic analyzer to automatically map source text strings to ledger categories
-analyzed_records = analyze_and_map_ledger(raw_tb_df)
-analyzed_df = pd.DataFrame(analyzed_records)
-
-# Friendly UI interaction overlay mapping custom data labels
+# Render the interactive editor allowing manual group-by-group entry
 final_mapped_df = st.data_editor(
-    analyzed_df,
-    num_rows="fixed",
+    st.session_state["raw_ledger_df"],
+    num_rows="dynamic", # Enables the WinForecast-style account-by-account row additions
     use_container_width=True,
-    disabled=["Account Code", "Account Name", "Net Balance (£)", "System Action Status"],
     column_config={
-        "Account Code": st.column_config.TextColumn("Ledger Code"),
-        "Account Name": st.column_config.TextColumn("Original Statement Label"),
-        "Net Balance (£)": st.column_config.NumberColumn("Balance Value (£)", format="£%,.2f"),
-        "Assigned Platform Destination": st.column_config.SelectboxColumn(
-            "System Map Destination",
-            options=PLATFORM_TARGET_SLOTS,
+        "Account Code": st.column_config.TextColumn("Ledger Code", required=True),
+        "Account Group": st.column_config.SelectboxColumn(
+            "Balance Sheet Group",
+            options=["Fixed Assets", "Current Assets", "Current Liabilities", "Long-Term Liabilities", "Equity Reserve"],
             required=True
         ),
-        "System Action Status": st.column_config.TextColumn("AI Mapping Verdict")
+        "Account Name": st.column_config.TextColumn("Account Description Label", required=True),
+        "Net Balance (£)": st.column_config.NumberColumn("Opening Balance (£)", format="£%,.2f", required=True),
+        "Assigned Platform Destination": st.column_config.SelectboxColumn(
+            "Engine Processing Bucket",
+            options=PLATFORM_TARGET_SLOTS,
+            required=True
+        )
     }
 )
 
-# --- CORRECTED MULTI-ACCOUNT ACCUMULATION CORE ---
-# Initialize the entry slots dictionary to avoid KeyErrors
-extracted_inputs = {slot: 0.0 for slot in PLATFORM_TARGET_SLOTS}
+# Save current table mutations directly back to session state so user entries are never lost
+st.session_state["raw_ledger_df"] = final_mapped_df
 
+# --- MULTI-ACCOUNT ACCUMULATOR CORE (FOR SUMMARY VIEWS) ---
+summary_totals = {slot: 0.0 for slot in PLATFORM_TARGET_SLOTS}
 for _, row in final_mapped_df.iterrows():
     slot = row["Assigned Platform Destination"]
-    bal = float(row["Net Balance (£)"])
+    try:
+        bal = float(row["Net Balance (£)"])
+    except (ValueError, TypeError):
+        bal = 0.0
     
-    # Accumulate compound values instead of overwriting existing keys
-    if slot in extracted_inputs:
-        extracted_inputs[slot] += bal
+    if slot in summary_totals:
+        summary_totals[slot] += bal
 
 st.markdown("---")
 st.markdown("### **Step 2: Operational Human-in-the-Loop Profiles**")
 
 col_wages, col_ops = st.columns(2)
-
 with col_wages:
     st.markdown("#### 👥 Baseline Workforce Settings")
     base_monthly_gross_wages = st.number_input("Monthly Production Gross Wages (£)", min_value=0.0, value=12000.00, step=1000.0)
@@ -98,36 +94,35 @@ with col_ops:
     st.markdown("#### ⚙️ Standard Corporate Overheads")
     admin_overheads_monthly = st.number_input("Monthly Fixed Administrative Overheads (£)", min_value=0.0, value=18575.00, step=500.0)
 
-# Hardcode the definitive monthly curve matching WinForecast's Year 1 path exactly
-y1_wf_curve = [
-    249310.00, 356310.00, 385200.00, 404460.00, 447260.00, 470800.00,
-    508785.00, 707525.00, 763067.00, 750127.00, 750025.00, 736017.00
-]
+# Year 1 benchmark curve targets
+y1_wf_curve = [249310.0, 356310.0, 385200.0, 404460.0, 447260.0, 470800.0, 508785.0, 707525.0, 763067.0, 750127.0, 750025.0, 736017.0]
 
-# Assemble the sanitized global input package
+# --- UNIFIED STRATA ATTRIBUTE CONTRACT DATA PACKAGE ---
 baseline_package = {
-    "nominal_seasonal_sales_base": 0.0,  # Controlled downstream via the timeline vector
+    # 1. Summary-Level Aggregations (For backward-compatibility with downstream core formulas)
+    "opening_cash_balance": summary_totals.get("Liquid Bank Cash Base", 0.0),
+    "opening_fixed_assets_nbv": summary_totals.get("Fixed Assets Gross Cost", 0.0),
+    "opening_accounts_receivable": summary_totals.get("Trade Accounts Receivable (AR)", 0.0),
+    "opening_accounts_payable": summary_totals.get("Trade Accounts Payable (AP)", 0.0),
+    "opening_long_term_debt": summary_totals.get("Outstanding Debt Obligations", 0.0),
+    "opening_retained_earnings": summary_totals.get("Retained Earnings Reserve", 0.0),
+    
+    # 2. Granular-Level List of Records (What unlocks dynamic detail Excel/PDF printing!)
+    "granular_ledger_records": final_mapped_df.to_dict(orient="records"),
+    
+    # 3. Operational Curves and Overheads
+    "nominal_seasonal_sales_base": 0.0,
     "fixed_contractual_sales_base": 0.0,
     "nominal_cogs_base": 0.0,
     "y1_monthly_revenue_curve": y1_wf_curve,
-    "y2_revenue_target": 10805679.00,    # Target totals from page 5 of report
-    "y3_revenue_target": 12126469.00,    # Target totals from page 8 of report
-    
+    "y2_revenue_target": 10805679.00,
+    "y3_revenue_target": 12126469.00,
     "admin_overheads_monthly": admin_overheads_monthly,
     "base_monthly_gross_wages": base_monthly_gross_wages,
     "directors_salaries_monthly": directors_salaries_monthly,
     "pension_opt_out": pension_opt_out,
     "seasonality_weights": [1.0] * 12,
     
-    # Ingest historical starting metrics directly from the Step 1 alignment editor matrix
-    "opening_cash_balance": extracted_inputs.get("Liquid Bank Cash Base", 69488.00),
-    "opening_fixed_assets_nbv": extracted_inputs.get("Fixed Assets Gross Cost", 531385.00),
-    "opening_accounts_receivable": extracted_inputs.get("Trade Accounts Receivable (AR)", 44886.00),
-    "opening_accounts_payable": extracted_inputs.get("Trade Accounts Payable (AP)", 8000.00),
-    "opening_long_term_debt": extracted_inputs.get("Outstanding Debt Obligations", 341001.00),
-    "opening_retained_earnings": extracted_inputs.get("Retained Earnings Reserve", -82005.00),
-    
-    # Build out structural tracking for CapEx events
     "planned_capex_list": [
         {"Asset Class": "Fixtures", "Gross Purchase Price (£)": 120000.0, "Transaction Month": 6, "Funding Mechanism": "Upfront Cash"},
         {"Asset Class": "Bridgend", "Gross Purchase Price (£)": 48000.0, "Transaction Month": 6, "Funding Mechanism": "Upfront Cash"},
@@ -136,10 +131,10 @@ baseline_package = {
     ]
 }
 
-# Preserve the data state across different dashboard page interactions
+# Preserve global state across multi-page jumps
 st.session_state["baseline_inputs"] = baseline_package
 st.session_state["raw_loan_register"] = pd.DataFrame()
 st.session_state["raw_revenue_matrix"] = pd.DataFrame()
 
 st.write("")
-st.success("✅ **STRATA General Ledger Synchronization Completed:** Data contract established with zero structural omissions.")
+st.success("✅ **STRATA General Ledger Synchronization Completed:** Attribute data contract established with zero omissions.")
