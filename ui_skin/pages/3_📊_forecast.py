@@ -134,7 +134,7 @@ with col_export:
         use_container_width=True
     )
 
-# --- 8. CONDITIONAL RENDERING OF DATA DEPTH VIEWS (MAX WIDTH DISPLAY FIX) ---
+# --- 8. CONDITIONAL RENDERING OF DATA DEPTH VIEWS (WHOLE POUND £1 FORMATTING) ---
 st.markdown("---")
 if report_depth == "Summary Level (Executive Dashboard Summary)":
     st.markdown("#### 📉 **Executive Summary: Consolidated Three-Way Schedules**")
@@ -143,14 +143,14 @@ if report_depth == "Summary Level (Executive Dashboard Summary)":
     st.dataframe(
         summary_p_and_l,
         use_container_width=True,
-        column_config={m: st.column_config.NumberColumn(format="£%,.2f") for m in months}
+        column_config={m: st.column_config.NumberColumn(format="£%,.0f") for m in months}
     )
     
     st.markdown("**Statement of Financial Position (Balance Sheet View)**")
     st.dataframe(
         summary_balance_sheet,
         use_container_width=True,
-        column_config={m: st.column_config.NumberColumn(format="£%,.2f") for m in months}
+        column_config={m: st.column_config.NumberColumn(format="£%,.0f") for m in months}
     )
 
 else:
@@ -162,9 +162,9 @@ else:
         granular_forecast_df["Sort_Order"] = granular_forecast_df["Account Group"].map(group_order)
         granular_forecast_df = granular_forecast_df.sort_values(by="Sort_Order").drop(columns=["Sort_Order"])
         
-        # Build comprehensive layout formatting parameters across the dynamic month series
-        config_map = {m: st.column_config.NumberColumn(format="£%,.2f") for m in months}
-        config_map["Opening Base"] = st.column_config.NumberColumn(format="£%,.2f")
+        # Build whole-pound configurations across the active time-series layout
+        config_map = {m: st.column_config.NumberColumn(format="£%,.0f") for m in months}
+        config_map["Opening Base"] = st.column_config.NumberColumn(format="£%,.0f")
         
         st.dataframe(
             granular_forecast_df,
