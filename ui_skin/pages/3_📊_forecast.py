@@ -29,7 +29,6 @@ st.markdown("---")
 # --- 3. SESSION STATE INTEGRITY CONTRACT ---
 if "baseline_inputs" not in st.session_state:
     st.warning("📋 No active ingestion contract detected. Seeding workspace memory with fallback WinForecast benchmark profiles.")
-    # Fallback backup matrix to keep engine alive if jumping straight to this page
     fallback_records = [
         {"Account Code": "0020", "Account Group": "Fixed Assets", "Account Name": "Operational Plant & Heavy Ovens Gross Cost", "Net Balance (£)": 150000.00, "Assigned Platform Destination": "Fixed Assets Gross Cost"},
         {"Account Code": "0040", "Account Group": "Fixed Assets", "Account Name": "Company Delivery Fleet Vehicles", "Net Balance (£)": 381385.00, "Assigned Platform Destination": "Fixed Assets Gross Cost"},
@@ -76,41 +75,35 @@ with col_view:
 # --- 6. CORE 60-MONTH COMPUTATION ENGINE ---
 months = [f"M{i:02d}" for i in range(1, 61)]
 
-# Establish time-series projections dynamically scaling for sensitivity factors
 simulated_revenue = [float(r * (1.0 + volume_delta)) for r in (inputs["y1_monthly_revenue_curve"] * 5)[:60]]
-simulated_cogs = [r * 0.40 for r in simulated_revenue] # Assuming a steady baseline margin
+simulated_cogs = [r * 0.40 for r in simulated_revenue]
 simulated_opex = [(inputs["admin_overheads_monthly"] + inputs["base_monthly_gross_wages"] + inputs["directors_salaries_monthly"]) * (1.0 + opex_delta)] * 60
 
-# Calculate liquid cash runways
 simulated_cash = []
 current_cash = inputs["opening_cash_balance"]
 for i in range(60):
-    # Operating cash flow bridge logic
     net_monthly_profit = simulated_revenue[i] - simulated_cogs[i] - simulated_opex[i]
-    current_cash += net_monthly_profit * 0.85 # Accounting for debtor / working capital collection lag
+    current_cash += net_monthly_profit * 0.85
     simulated_cash.append(current_cash)
 
-# Construct Summary Output Matrices
 summary_p_and_l = pd.DataFrame([simulated_revenue, simulated_cogs, simulated_opex], columns=months, index=["Gross Revenue Turnover", "Cost of Goods Sold (COGS)", "Total Administrative Expenses"])
 summary_balance_sheet = pd.DataFrame([simulated_cash, [inputs["opening_fixed_assets_nbv"]] * 60], columns=months, index=["Liquid Cash Base", "Net Tangible Fixed Assets"])
 
-# Construct Granular Output Matrix on the fly using individual ingestion attributes
 granular_rows = []
 for record in granular_records:
     base_bal = abs(float(record["Net Balance (£)"]))
     dest = record["Assigned Platform Destination"]
     
-    # Apply specific structural trend vectors based on asset/liability class attributes
     if dest == "Liquid Bank Cash Base":
         trend = simulated_cash
     elif dest == "Fixed Assets Gross Cost":
-        trend = [base_bal * (0.99 ** i) for i in range(1, 61)] # Simulated reducing balance depreciation
+        trend = [base_bal * (0.99 ** i) for i in range(1, 61)]
     elif dest == "Trade Accounts Receivable (AR)":
-        trend = [r * 0.12 for r in simulated_revenue] # Directly proportional to volume spikes
+        trend = [r * 0.12 for r in simulated_revenue]
     elif dest == "Outstanding Debt Obligations":
-        trend = [max(0.0, base_bal - (i * 2500)) for i in range(1, 61)] # Itemized scheduled principal paydowns
+        trend = [max(0.0, base_bal - (i * 2500)) for i in range(1, 61)]
     else:
-        trend = [base_bal] * 60 # Retained earnings and balancing equity allocations stay locked
+        trend = [base_bal] * 60
         
     row_data = {
         "Account Code": record["Account Code"],
@@ -124,7 +117,7 @@ for record in granular_records:
 
 granular_forecast_df = pd.DataFrame(granular_rows)
 
-# --- 7. EXCEL MEMORY BUFFER BUILDER (STEP 2 READY) ---
+# --- 7. EXCEL MEMORY BUFFER BUILDER ---
 with col_export:
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
@@ -141,32 +134,35 @@ with col_export:
         use_container_width=True
     )
 
-# --- 8. CONDITIONAL RENDERING OF DATA DEPTH VIEWS ---
+# --- 8. CONDITIONAL RENDERING OF DATA DEPTH VIEWS (FIXED STRING FORMATTING) ---
 st.markdown("---")
 if report_depth == "Summary Level (Executive Dashboard Summary)":
     st.markdown("#### 📉 **Executive Summary: Consolidated Three-Way Schedules**")
     
     st.markdown("**Profit & Loss Statement (Summary View)**")
-    st.dataframe(summary_p_and_l.style.format("£%,.2f"), use_container_width=True)
+    formatted_pl = summary_p_and_l.map(lambda x: f"£{x:,.2f}")
+    st.dataframe(formatted_pl, use_container_width=True)
     
     st.markdown("**Statement of Financial Position (Balance Sheet View)**")
-    st.dataframe(summary_balance_sheet.style.format("£%,.2f"), use_container_width=True)
+    formatted_bs = summary_balance_sheet.map(lambda x: f"£{x:,.2f}")
+    st.dataframe(formatted_bs, use_container_width=True)
 
 else:
     st.markdown("#### 🔍 **Granular Audit Appendix: Source Level Account Matrices**")
     st.markdown("##### *Line-by-Line System Attribute Track (WinForecast Target Order)*")
     
     if not granular_forecast_df.empty:
-        # Guarantee accounting layout sequence matches your classic trial balance workflow
         group_order = {"Fixed Assets": 0, "Current Assets": 1, "Current Liabilities": 2, "Long-Term Liabilities": 3, "Equity Reserve": 4}
         granular_forecast_df["Sort_Order"] = granular_forecast_df["Account Group"].map(group_order)
         granular_forecast_df = granular_forecast_df.sort_values(by="Sort_Order").drop(columns=["Sort_Order"])
         
-        # Display the full detailed matrix unrolled across all 60 months
-        st.dataframe(
-            granular_forecast_df.style.format({m: "£%,.2f" for m in months} | {"Opening Base": "£%,.2f"}),
-            use_container_width=True
-        )
+        # Format numerical cells natively prior to table generation
+        formatted_granular = granular_forecast_df.copy()
+        formatted_granular["Opening Base"] = formatted_granular["Opening Base"].apply(lambda x: f"£{x:,.2f}")
+        for m in months:
+            formatted_granular[m] = formatted_granular[m].apply(lambda x: f"£{x:,.2f}")
+            
+        st.dataframe(formatted_granular, use_container_width=True)
     else:
         st.warning("No custom ledger rows cached in active application RAM.")
 
