@@ -134,18 +134,24 @@ with col_export:
         use_container_width=True
     )
 
-# --- 8. CONDITIONAL RENDERING OF DATA DEPTH VIEWS (FIXED STRING FORMATTING) ---
+# --- 8. CONDITIONAL RENDERING OF DATA DEPTH VIEWS (MAX WIDTH DISPLAY FIX) ---
 st.markdown("---")
 if report_depth == "Summary Level (Executive Dashboard Summary)":
     st.markdown("#### 📉 **Executive Summary: Consolidated Three-Way Schedules**")
     
     st.markdown("**Profit & Loss Statement (Summary View)**")
-    formatted_pl = summary_p_and_l.map(lambda x: f"£{x:,.2f}")
-    st.dataframe(formatted_pl, use_container_width=True)
+    st.dataframe(
+        summary_p_and_l,
+        use_container_width=True,
+        column_config={m: st.column_config.NumberColumn(format="£%,.2f") for m in months}
+    )
     
     st.markdown("**Statement of Financial Position (Balance Sheet View)**")
-    formatted_bs = summary_balance_sheet.map(lambda x: f"£{x:,.2f}")
-    st.dataframe(formatted_bs, use_container_width=True)
+    st.dataframe(
+        summary_balance_sheet,
+        use_container_width=True,
+        column_config={m: st.column_config.NumberColumn(format="£%,.2f") for m in months}
+    )
 
 else:
     st.markdown("#### 🔍 **Granular Audit Appendix: Source Level Account Matrices**")
@@ -156,13 +162,15 @@ else:
         granular_forecast_df["Sort_Order"] = granular_forecast_df["Account Group"].map(group_order)
         granular_forecast_df = granular_forecast_df.sort_values(by="Sort_Order").drop(columns=["Sort_Order"])
         
-        # Format numerical cells natively prior to table generation
-        formatted_granular = granular_forecast_df.copy()
-        formatted_granular["Opening Base"] = formatted_granular["Opening Base"].apply(lambda x: f"£{x:,.2f}")
-        for m in months:
-            formatted_granular[m] = formatted_granular[m].apply(lambda x: f"£{x:,.2f}")
-            
-        st.dataframe(formatted_granular, use_container_width=True)
+        # Build comprehensive layout formatting parameters across the dynamic month series
+        config_map = {m: st.column_config.NumberColumn(format="£%,.2f") for m in months}
+        config_map["Opening Base"] = st.column_config.NumberColumn(format="£%,.2f")
+        
+        st.dataframe(
+            granular_forecast_df,
+            use_container_width=True,
+            column_config=config_map
+        )
     else:
         st.warning("No custom ledger rows cached in active application RAM.")
 
