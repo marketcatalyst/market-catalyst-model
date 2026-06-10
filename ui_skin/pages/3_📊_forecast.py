@@ -162,7 +162,6 @@ else:
         granular_forecast_df["Sort_Order"] = granular_forecast_df["Account Group"].map(group_order)
         granular_forecast_df = granular_forecast_df.sort_values(by="Sort_Order").drop(columns=["Sort_Order"])
         
-        # Build whole-pound configurations across the active time-series layout
         config_map = {m: st.column_config.NumberColumn(format="£%,.0f") for m in months}
         config_map["Opening Base"] = st.column_config.NumberColumn(format="£%,.0f")
         
@@ -174,31 +173,56 @@ else:
     else:
         st.warning("No custom ledger rows cached in active application RAM.")
 
-# --- 9. CONVERSATIONAL STRATEGY DIRECTOR ---
+# --- 9. ENHANCED CONVERSATIONAL STRATEGY DIRECTOR (STEP 4 COMPLETE) ---
 st.markdown("---")
 st.markdown("### 🧠 **Step 2: Conversational Strategy Director**")
 st.markdown("Ask our structural AI engine to interpret the systemic financial effects of your custom scenario changes.")
 
 user_query = st.text_input(
     "Submit scenario inquiry here...",
-    placeholder="e.g., How does our sales volume modifier affect our cash buffer and peak statutory corporation tax liabilities?",
-    value="How does our sales volume modifier affect our cash buffer and peak statutory corporation tax liabilities?"
+    placeholder="e.g., Analyze the working capital constraints if the Penarth acquisition's debtor delays scale while opex inflates.",
+    value="Analyze the working capital constraints if the Penarth acquisition's debtor delays scale while opex inflates."
 )
 
 if st.button("⚡ Execute AI Corporate Appraisal"):
-    ledger_context = f"Granular Ledger Count: {len(granular_records)}. Starting cash reserve position: £{inputs['opening_cash_balance']:,.2f}. Assigned Sensitivity Parameters: Volume Delta={volume_delta*100}%, Opex Inflation={opex_delta*100}%."
+    # Build structural string summaries of individual trial balance accounts to give the AI real visibility
+    itemized_ledger_summary = []
+    for rec in granular_records:
+        itemized_ledger_summary.append(
+            f"- Account [{rec.get('Account Code', 'N/A')}]: {rec.get('Account Name', 'N/A')} "
+            f"({rec.get('Account Group', 'N/A')}) -> Opening Base: £{abs(float(rec.get('Net Balance (£)', 0.0))):,.0f}"
+        )
+    ledger_context_block = "\n".join(itemized_ledger_summary)
     
+    # Construct a high-density corporate context token stack
     prompt = f"""
-    You are the Lead Strategic Corporate Director at STRATA Forecasting Analytics. 
-    Review this background accounting ledger context and the specific user inquiry. 
-    Provide a professional, concise executive briefing detailing the financial impact. 
-    Focus on connected cost behaviors, liquidity runway effects, and statutory obligations.
-    
-    Context: {ledger_context}
-    Inquiry: {user_query}
+    You are the Senior Strategic Corporate Director at STRATA Forecasting Analytics. 
+    You are interpreting an advanced, attribute-driven time-series financial model that has been synchronized against a 5-year WinForecast baseline.
+
+    ### ENVIRONMENT SENSITIVITY CONSTANTS
+    - Sales Volume Delta: {volume_delta * 100:.1f}%
+    - Administrative Overhead Inflation Delta: {opex_delta * 100:.1f}%
+    - Opening Liquid Bank Reserves: £{inputs['opening_cash_balance']:,.0f}
+    - Baseline Year 1 Revenue Ceiling: £{sum(inputs['y1_monthly_revenue_curve']):,.0f}
+
+    ### GRANULAR LEDGER AUDIT TRACK (TRIAL BALANCE INTEGRITY LAYER)
+    {ledger_context_block}
+
+    ### CORE OPERATIONAL PRINCIPLES
+    1. Working Capital Collection Delay: Revenue is recognized via standard P&L structures, but cash collection follows specific asset tranches. Notably, the Penarth acquisition follows a split debtor realization profile (20% immediate, 50% 30-day, 30% 60-day lag).
+    2. Corporate Debt Liabilities: The sub-ledger maps 6 facilities (Funding Circle, IWOCA, 3 explicit DBW tranches, and Hire Purchase) totaling £147,259.
+    3. Tax Cash Flow Compliance: PAYE/NI payroll taxes exit month-by-month on a 30-day delay cycle, whereas Corporation Tax strictly accumulates as a Balance Sheet liability and exits as a unified annual lump sum exactly 9 months and 1 day post-Year End (Months 21, 33, 45, 57).
+
+    ### USER STRATEGIC INQUIRY
+    "{user_query}"
+
+    ### DIRECTIVES FOR CORPORATE RESPONSE
+    - Conduct a professional, concise executive briefing focusing on connected cost behaviors, liquidity runway constraints, and peak risk points.
+    - Reference specific account classifications or operational profiles (e.g., Penarth cash lags or DBW financing weights) when relevant to ground the analysis.
+    - Present values rounded to the nearest whole pound (£1) in alignment with corporate tax and corporate treasury formatting standards.
     """
     
-    with st.spinner("Compiling parallel multi-year forecast matrices and synthesizing executive report..."):
+    with st.spinner("Analyzing custom scenario attributes and generating board briefing..."):
         try:
             model = genai.GenerativeModel("gemini-1.5-flash")
             response = model.generate_content(prompt)
