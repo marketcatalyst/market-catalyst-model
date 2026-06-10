@@ -18,6 +18,24 @@ if not st.session_state.get("authenticated", False) or "baseline_inputs" not in 
 
 st.title("📊 Integrated Financial Forecast Ledger")
 st.caption(f"Active Environment: {st.session_state.get('username', 'Standard Admin').capitalize()} Management Matrix")
+
+# Global CSS override injector to force absolute centering on dataframe column headers
+st.markdown(
+    """
+    <style>
+        /* Target Streamlit's custom data grid table column headers */
+        th [data-testid="stHeaderBlock"] {
+            justify-content: center !important;
+            text-align: center !important;
+        }
+        /* Fallback alignment selector for basic data rendering blocks */
+        .stDataFrame th {
+            text-align: center !important;
+        }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
 st.markdown("---")
 
 inputs = st.session_state["baseline_inputs"]
