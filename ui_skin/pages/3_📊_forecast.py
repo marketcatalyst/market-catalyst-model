@@ -9,209 +9,99 @@ if str(root_dir) not in sys.path:
 
 import streamlit as st
 import pandas as pd
-import numpy as np
-import io
-import google.generativeai as genai
 
-st.set_page_config(layout="wide", page_title="STRATA AI Strategy Room")
+st.set_page_config(layout="wide", page_title="STRATA Forecast Ledger")
 
 # --- 2. SECURITY GATEKEEPER CONSTRAINT ---
-# Hard-verify both the explicit login token and the existence of ingestion data
 if "authenticated" not in st.session_state or not st.session_state["authenticated"] or "baseline_inputs" not in st.session_state:
     st.error("🔒 **Access Denied: Unauthorized Endpoints Locked**")
     st.info("This environment is shielded by an enterprise security framework. You must log in via the main portal to open this workspace.")
-    
-    # Render an explicit rerouting button that strips sidebar nav access until pressed
     if st.button("Return to Portal Landing Page", use_container_width=True):
         st.switch_page("home.py")
-    st.stop()  # Aborts all downstream script compilation instantly
-
-# --- 3. SECURITY GUARDRAIL & INITIALIZATION ---
-if "GEMINI_API_KEY" not in st.secrets:
-    st.error("❌ Configuration Error: 'GEMINI_API_KEY' is missing from the top of your secrets.toml file.")
     st.stop()
 
-genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+from ui_skin.core_engine.master_model import generate_integrated_3way_forecast
 
-st.title("📊 AI Strategic Appraisal Room")
-st.caption("Parallel Multi-Scenario Simulation, Dual-Grained Reporting, & Executive Narrative Synth")
+st.title("📊 Integrated Three-Way Financial Forecast")
+st.caption("60-Month Whole-Pound Ledger: Income Statement, Balance Sheet Accruals, and Cash Runway Projections")
 st.markdown("---")
 
-# Extract our verified, validated data elements safely now that the lock is checked
-inputs = st.session_state["baseline_inputs"]
-granular_records = inputs.get("granular_ledger_records", [])
+# --- 3. LIVE CALCULATIONS RUNTIME ---
+inputs_package = st.session_state["baseline_inputs"]
 
-# --- 4. SIDEBAR MANAGEMENT CONTROLS ---
-st.sidebar.header("🎛️ Live Scenario Sensitivities")
-volume_delta = st.sidebar.slider("Sales Volume Modifier (%)", min_value=-50.0, max_value=50.0, value=0.0, step=5.0) / 100.0
-opex_delta = st.sidebar.slider("Overhead Inflation Pressure (%)", min_value=-20.0, max_value=50.0, value=0.0, step=2.5) / 100.0
-
-# --- 5. REPORTING DEPTH CONTROLLER CONTROLS ---
-st.markdown("### **Step 1: Financial Matrix Granularity Controls**")
-col_view, col_export = st.columns([2, 1])
-
-with col_view:
-    report_depth = st.selectbox(
-        "Select Active Data Presentation Depth:",
-        options=["Summary Level (Executive Dashboard Summary)", "Granular Detail Level (WinForecast Account Appendix)"],
-        help="Summary Level groups accounts into standard three-way layout lines. Granular maps out every individual ledger code sequentially."
-    )
-
-# --- 6. CORE 60-MONTH COMPUTATION ENGINE ---
-months = [f"M{i:02d}" for i in range(1, 61)]
-
-simulated_revenue = [float(r * (1.0 + volume_delta)) for r in (inputs["y1_monthly_revenue_curve"] * 5)[:60]]
-simulated_cogs = [r * 0.40 for r in simulated_revenue]
-simulated_opex = [(inputs["admin_overheads_monthly"] + inputs["base_monthly_gross_wages"] + inputs["directors_salaries_monthly"]) * (1.0 + opex_delta)] * 60
-
-simulated_cash = []
-current_cash = inputs["opening_cash_balance"]
-for i in range(60):
-    net_monthly_profit = simulated_revenue[i] - simulated_cogs[i] - simulated_opex[i]
-    current_cash += net_monthly_profit * 0.85
-    simulated_cash.append(current_cash)
-
-summary_p_and_l = pd.DataFrame([simulated_revenue, simulated_cogs, simulated_opex], columns=months, index=["Gross Revenue Turnover", "Cost of Goods Sold (COGS)", "Total Administrative Expenses"])
-summary_balance_sheet = pd.DataFrame([simulated_cash, [inputs["opening_fixed_assets_nbv"]] * 60], columns=months, index=["Liquid Cash Base", "Net Tangible Fixed Assets"])
-
-granular_rows = []
-for record in granular_records:
-    base_bal = abs(float(record["Net Balance (£)"]))
-    dest = record["Assigned Platform Destination"]
+# Generate the master computation matrix from our single source of truth
+try:
+    forecast_matrix = generate_integrated_3way_forecast(inputs_package, overrides={})
+    months = forecast_matrix.index
     
-    if dest == "Liquid Bank Cash Base":
-        trend = simulated_cash
-    elif dest == "Fixed Assets Gross Cost":
-        trend = [base_bal * (0.99 ** i) for i in range(1, 61)]
-    elif dest == "Trade Accounts Receivable (AR)":
-        trend = [r * 0.12 for r in simulated_revenue]
-    elif dest == "Outstanding Debt Obligations":
-        trend = [max(0.0, base_bal - (i * 2500)) for i in range(1, 61)]
-    else:
-        trend = [base_bal] * 60
+    # --- 4. EXECUTIVE SUMMARY METRICS ---
+    final_cash = forecast_matrix["Cash Reserves (£)"].iloc[-1]
+    peak_debt_service = forecast_matrix["Debt Service Cash Outflow (£)"].max()
+    total_revenue_projected = forecast_matrix["Revenue (£)"].sum()
+    
+    metric_col1, metric_col2, metric_col3 = st.columns(3)
+    with metric_col1:
+        st.metric(label="M60 Target Cash Reserves", value=f"£{final_cash:,.0f}")
+    with metric_col2:
+        st.metric(label="Peak Monthly Debt Service Obligation", value=f"£{peak_debt_service:,.0f}", delta="Fixed Liability Outflow", delta_color="inverse")
+    with metric_col3:
+        st.metric(label="60-Month Cumulative Gross Turnover", value=f"£{total_revenue_projected:,.0f}")
         
-    row_data = {
-        "Account Code": record["Account Code"],
-        "Account Group": record["Account Group"],
-        "Account Name": record["Account Name"],
-        "Opening Base": float(record["Net Balance (£)"])
-    }
-    for idx, m in enumerate(months):
-        row_data[m] = trend[idx] if float(record["Net Balance (£)"]) >= 0 else -trend[idx]
-    granular_rows.append(row_data)
-
-granular_forecast_df = pd.DataFrame(granular_rows)
-
-# --- 7. EXCEL MEMORY BUFFER BUILDER ---
-with col_export:
-    buffer = io.BytesIO()
-    with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
-        summary_p_and_l.to_excel(writer, sheet_name='Summary P&L', index=True)
-        summary_balance_sheet.to_excel(writer, sheet_name='Summary Balance Sheet', index=True)
-        granular_forecast_df.to_excel(writer, sheet_name='Granular Account Ledger', index=False)
+    st.markdown("---")
     
-    st.markdown("<p style='margin-bottom: 24px;'></p>", unsafe_allow_html=True)
-    st.download_button(
-        label="📥 Download Integrated Excel Model (.xlsx)",
-        data=buffer.getvalue(),
-        file_name="STRATA_Granular_Three_Way_Forecast.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        use_container_width=True
-    )
-
-# --- 8. CONDITIONAL RENDERING OF DATA DEPTH VIEWS (WHOLE POUND £1 FORMATTING) ---
-st.markdown("---")
-if report_depth == "Summary Level (Executive Dashboard Summary)":
-    st.markdown("#### 📉 **Executive Summary: Consolidated Three-Way Schedules**")
+    # --- 5. LEDGER TAB COMPONENT ARCHITECTURE ---
+    tab_pl, tab_cash, tab_tax_debt = st.tabs(["📈 Profit & Loss Statement", "💰 Cash Flow Runway", "🏛️ HMRC Tax & Debt Ledgers"])
     
-    st.markdown("**Profit & Loss Statement (Summary View)**")
-    st.dataframe(
-        summary_p_and_l,
-        use_container_width=True,
-        column_config={m: st.column_config.NumberColumn(format="£%,.0f") for m in months}
-    )
-    
-    st.markdown("**Statement of Financial Position (Balance Sheet View)**")
-    st.dataframe(
-        summary_balance_sheet,
-        use_container_width=True,
-        column_config={m: st.column_config.NumberColumn(format="£%,.0f") for m in months}
-    )
-
-else:
-    st.markdown("#### 🔍 **Granular Audit Appendix: Source Level Account Matrices**")
-    st.markdown("##### *Line-by-Line System Attribute Track (WinForecast Target Order)*")
-    
-    if not granular_forecast_df.empty:
-        group_order = {"Fixed Assets": 0, "Current Assets": 1, "Current Liabilities": 2, "Long-Term Liabilities": 3, "Equity Reserve": 4}
-        granular_forecast_df["Sort_Order"] = granular_forecast_df["Account Group"].map(group_order)
-        granular_forecast_df = granular_forecast_df.sort_values(by="Sort_Order").drop(columns=["Sort_Order"])
-        
-        config_map = {m: st.column_config.NumberColumn(format="£%,.0f") for m in months}
-        config_map["Opening Base"] = st.column_config.NumberColumn(format="£%,.0f")
+    with tab_pl:
+        st.subheader("Income Statement Projections")
+        pl_display = pd.DataFrame({
+            "Gross Revenue (£)": forecast_matrix["Revenue (£)"],
+            "Cost of Goods Sold (£)": forecast_matrix["COGS (£)"],
+            "Operating Expenses (£)": forecast_matrix["Opex (£)"],
+            "EBIT (Operating Profit) (£)": forecast_matrix["EBIT (£)"],
+            "Interest Overhead (£)": forecast_matrix["Interest Expense (£)"]
+        }, index=months).T
         
         st.dataframe(
-            granular_forecast_df,
-            use_container_width=True,
-            column_config=config_map
+            pl_display, use_container_width=True,
+            column_config={m: st.column_config.NumberColumn(format="£%,.0f") for m in months}
         )
-    else:
-        st.warning("No custom ledger rows cached in active application RAM.")
-
-# --- 9. ENHANCED CONVERSATIONAL STRATEGY DIRECTOR ---
-st.markdown("---")
-st.markdown("### 🧠 **Step 2: Conversational Strategy Director**")
-st.markdown("Ask our structural AI engine to interpret the systemic financial effects of your custom scenario changes.")
-
-user_query = st.text_input(
-    "Submit scenario inquiry here...",
-    placeholder="e.g., Analyze the working capital constraints if the Penarth acquisition's debtor delays scale while opex inflates.",
-    value="Analyze the working capital constraints if the Penarth acquisition's debtor delays scale while opex inflates."
-)
-
-if st.button("⚡ Execute AI Corporate Appraisal"):
-    # Build structural string summaries of individual trial balance accounts to give the AI real visibility
-    itemized_ledger_summary = []
-    for rec in granular_records:
-        itemized_ledger_summary.append(
-            f"- Account [{rec.get('Account Code', 'N/A')}]: {rec.get('Account Name', 'N/A')} "
-            f"({rec.get('Account Group', 'N/A')}) -> Opening Base: £{abs(float(rec.get('Net Balance (£)', 0.0))):,.0f}"
+        
+    with tab_cash:
+        st.subheader("Cash Positioning Timeline")
+        st.caption("Reflects trading profits, location-specific VAT collections, and your contractual loan repayments.")
+        
+        # Display our whole-pound cash ledger chart
+        st.line_chart(forecast_matrix["Cash Reserves (£)"], color="#2E7D32")
+        
+        cash_display = pd.DataFrame({
+            "Net Trading Cash Flow (£)": (forecast_matrix["EBIT (£)"] * 0.85),
+            "Debt Service Outflow (£)": forecast_matrix["Debt Service Cash Outflow (£)"],
+            "Quarterly VAT Cash Settled (£)": forecast_matrix["VAT Cash Outflow (£)"],
+            "Closing Bank Balance (£)": forecast_matrix["Cash Reserves (£)"]
+        }, index=months).T
+        
+        st.dataframe(
+            cash_display, use_container_width=True,
+            column_config={m: st.column_config.NumberColumn(format="£%,.0f") for m in months}
         )
-    ledger_context_block = "\n".join(itemized_ledger_summary)
-    
-    # Construct a high-density corporate context token stack
-    prompt = f"""
-    You are the Senior Strategic Corporate Director at STRATA Forecasting Analytics. 
-    You are interpreting an advanced, attribute-driven time-series financial model that has been synchronized against a 5-year WinForecast baseline.
-
-    ### ENVIRONMENT SENSITIVITY CONSTANTS
-    - Sales Volume Delta: {volume_delta * 100:.1f}%
-    - Administrative Overhead Inflation Delta: {opex_delta * 100:.1f}%
-    - Opening Liquid Bank Reserves: £{inputs['opening_cash_balance']:,.0f}
-    - Baseline Year 1 Revenue Ceiling: £{sum(inputs['y1_monthly_revenue_curve']):,.0f}
-
-    ### GRANULAR LEDGER AUDIT TRACK (TRIAL BALANCE INTEGRITY LAYER)
-    {ledger_context_block}
-
-    ### CORE OPERATIONAL PRINCIPLES
-    1. Working Capital Collection Delay: Revenue is recognized via standard P&L structures, but cash collection follows specific asset tranches. Notably, the Penarth acquisition follows a split debtor realization profile (20% immediate, 50% 30-day, 30% 60-day lag).
-    2. Corporate Debt Liabilities: The sub-ledger maps 6 facilities (Funding Circle, IWOCA, 3 explicit DBW tranches, and Hire Purchase) totaling £147,259.
-    3. Tax Cash Flow Compliance: PAYE/NI payroll taxes exit month-by-month on a 30-day delay cycle, whereas Corporation Tax strictly accumulates as a Balance Sheet liability and exits as a unified annual lump sum exactly 9 months and 1 day post-Year End (Months 21, 33, 45, 57).
-
-    ### USER STRATEGIC INQUIRY
-    "{user_query}"
-
-    ### DIRECTIVES FOR CORPORATE RESPONSE
-    - Conduct a professional, concise executive briefing focusing on connected cost behaviors, liquidity runway constraints, and peak risk points.
-    - Reference specific account classifications or operational profiles (e.g., Penarth cash lags or DBW financing weights) when relevant to ground the analysis.
-    - Present values rounded to the nearest whole pound (£1) in alignment with corporate tax and corporate treasury formatting standards.
-    """
-    
-    with st.spinner("Analyzing custom scenario attributes and generating board briefing..."):
-        try:
-            model = genai.GenerativeModel("gemini-1.5-flash")
-            response = model.generate_content(prompt)
-            st.markdown("#### 📑 **Automated Executive Briefing Response:**")
-            st.info(response.text)
-        except Exception as e:
-            st.error(f"AI Generation Interrupted: {str(e)}")
+        
+    with tab_tax_debt:
+        st.subheader("HMRC Statutory Obligations & Corporate Debt Balances")
+        st.markdown("Track rolling corporate tax provisions, quarterly VAT liability hold accounts, and outstanding debt amortization sweeps.")
+        
+        tax_debt_display = pd.DataFrame({
+            "Outstanding Debt Balance (£)": forecast_matrix["Outstanding Debt Balance (£)"],
+            "Monthly Debt Cash Outflow (£)": forecast_matrix["Debt Service Cash Outflow (£)"],
+            "HMRC Corp Tax Provision BS (£)": forecast_matrix["Tax Liability BS (£)"],
+            "HMRC Rolling VAT Hold BS (£)": forecast_matrix["VAT Liability BS (£)"]
+        }, index=months).T
+        
+        st.dataframe(
+            tax_debt_display, use_container_width=True,
+            column_config={m: st.column_config.NumberColumn(format="£%,.0f") for m in months}
+        )
+        
+except Exception as e:
+    st.error(f"Execution Error: Downstream matrices could not compile.")
+    st.info("Please ensure your operational attributes are fully synchronized on the Data Ingestion Page.")
