@@ -10,3 +10,5 @@ reportlab
 psycopg2-binary
 xlsxwriter
 fpdf2
+weasyprint==61.2
+Jinja2==3.1.3

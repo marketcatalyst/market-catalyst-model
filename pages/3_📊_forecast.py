@@ -10,6 +10,7 @@ if str(root_dir) not in sys.path:
 
 from ui_skin.core_engine.master_model import generate_integrated_3way_forecast
 from ui_skin.core_engine.report_generator import export_forecast_to_excel
+from ui_skin.core_engine.pdf_generator import generate_pdf_executive_summary
 
 # Line 1 Gatekeeper Execution Shield
 if not st.session_state.get("authenticated", False) or "baseline_inputs" not in st.session_state:
@@ -100,27 +101,41 @@ with tab3:
 
 st.markdown("---")
 st.subheader("💾 Export Financial Intelligence Report")
-st.markdown("Compile and download this exact 60-month multi-tab ledger configuration as an audited Excel model package for reporting distributions.")
+st.markdown("Compile and download active scenario configurations as formatted corporate-ready outputs.")
 
-# Generate Excel bytes asset dynamically via the report generator module
-try:
-    excel_data = export_forecast_to_excel(inputs, overrides)
-    
-    # Extract trading name safe string for filename labeling
-    trading_name = "Group"
-    if "sales_locations" in inputs and inputs["sales_locations"]:
-        trading_name = inputs["sales_locations"][0].get("Trading Location Name", "Group")
-    elif "sales_locations_clean" in inputs and inputs["sales_locations_clean"]:
-        trading_name = inputs["sales_locations_clean"][0].get("site_name", "Group")
-        
-    safe_filename = f"STRATA_Forecast_Report_{trading_name.replace(' ', '_')}.xlsx"
-    
-    st.download_button(
-        label="📥 Download Complete 3-Way Model (.xlsx)",
-        data=excel_data,
-        file_name=safe_filename,
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        use_container_width=True
-    )
-except Exception as e:
-    st.error(f"Failed to generate spreadsheet package: {str(e)}")
+# Extract trading name safe string for filename labeling
+trading_name = "Group"
+if "sales_locations" in inputs and inputs["sales_locations"]:
+    trading_name = inputs["sales_locations"][0].get("Trading Location Name", "Group")
+elif "sales_locations_clean" in inputs and inputs["sales_locations_clean"]:
+    trading_name = inputs["sales_locations_clean"][0].get("site_name", "Group")
+safe_trading_string = trading_name.replace(' ', '_')
+
+# Create two clean distribution columns for buttons
+btn_col1, btn_col2 = st.columns(2)
+
+with btn_col1:
+    try:
+        excel_data = export_forecast_to_excel(inputs, overrides)
+        st.download_button(
+            label="📥 Export Complete Ledger (.xlsx)",
+            data=excel_data,
+            file_name=f"STRATA_Forecast_Ledger_{safe_trading_string}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True
+        )
+    except Exception as e:
+        st.error(f"Excel Generator Error: {str(e)}")
+
+with btn_col2:
+    try:
+        pdf_data = generate_pdf_executive_summary(inputs, overrides)
+        st.download_button(
+            label="📄 Export Executive Briefing (.pdf)",
+            data=pdf_data,
+            file_name=f"STRATA_Executive_Summary_{safe_trading_string}.pdf",
+            mime="application/pdf",
+            use_container_width=True
+        )
+    except Exception as e:
+        st.error(f"PDF Generator Error: {str(e)}")
