@@ -29,7 +29,8 @@ if not st.session_state["authenticated"]:
     pass_input = st.text_input("Security Access Passphrase:", type="password")
     
     if st.button("Authenticate Corporate Identity", use_container_width=True):
-        if (user_input in ["admin", "user2"]) and pass_input == "strata2026":
+        # Permitted handles updated to naturally accept 'marketcatalyst'
+        if (user_input in ["admin", "marketcatalyst", "user2"]) and pass_input == "strata2026":
             st.session_state["authenticated"] = True
             st.session_state["username"] = user_input
             st.success("🔒 Access Granted. Initializing authorized project files...")

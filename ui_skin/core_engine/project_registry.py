@@ -38,8 +38,13 @@ def get_user_projects(username: str) -> dict:
         ]
     }
 
+    # Added 'marketcatalyst' explicitly to the secure workspace map
     registry = {
         "admin": {
+            "AHOTG Multi-Shop Baseline (Scenario 2)": ahotg_y2_baseline,
+            "Greenfield Project Alpha (Scenario 1)": clean_slate_venture
+        },
+        "marketcatalyst": {
             "AHOTG Multi-Shop Baseline (Scenario 2)": ahotg_y2_baseline,
             "Greenfield Project Alpha (Scenario 1)": clean_slate_venture
         },
