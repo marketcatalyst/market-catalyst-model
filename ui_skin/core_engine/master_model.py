@@ -6,7 +6,7 @@ def generate_integrated_3way_forecast(inputs: dict, overrides: dict = None) -> p
     """
     Core 60-Month Integrated Three-Way Calculation Engine.
     Processes baseline ingestion datasets and outputs unified rows 
-    for P&L, Balance Sheet, statutory taxes, debt, and quarterly VAT cycles.
+    for P&L, Balance Sheet, statutory taxes, debt, and location-specific VAT cycles.
     """
     if overrides is None:
         overrides = {}
@@ -87,11 +87,15 @@ def generate_integrated_3way_forecast(inputs: dict, overrides: dict = None) -> p
                 current_facility_bal -= principal_payment
             debt_balance_sheet_timeline[m] += current_facility_bal
 
-    # 5. DYNAMIC MULTI-SHOP VAT CALCULATOR
-    # Assume 75% of total revenue comes from standard-rated locations (20% VAT) 
-    # and 25% comes from exempt/zero-rated lines (0% VAT)
-    std_rate_mix = float(inputs.get("standard_rated_revenue_mix", 0.75))
-    
+    # 5. DYNAMIC MULTI-SHOP VAT CALCULATOR (LOCATION SPECIFIC)
+    # Pull the active site profile list from session state configuration
+    sales_locations = inputs.get("sales_locations_clean", [])
+    if not sales_locations:
+        # Fallback default mix mapping if no site editor matrix exists yet
+        sales_locations = [
+            {"site_name": "Standard Mix Unit", "revenue_share": 1.0, "standard_rated_share": 0.75}
+        ]
+        
     monthly_output_vat_collected = np.zeros(60)
     monthly_input_vat_reclaimed = np.zeros(60)
     vat_payment_outflows = np.zeros(60)
@@ -100,19 +104,26 @@ def generate_integrated_3way_forecast(inputs: dict, overrides: dict = None) -> p
     current_vat_liability_balance = 0.0
     
     for m in range(60):
-        # Output VAT collected from customers on standard-rated sales
-        monthly_output_vat_collected[m] = (simulated_revenue[m] * std_rate_mix) * 0.20
-        # Input VAT reclaimed on COGS and structural opex assets (approx 60% of opex has reclaimable VAT elements)
+        total_month_revenue = simulated_revenue[m]
+        
+        # Calculate blended Output VAT by looping across all active retail locations
+        month_output_vat = 0.0
+        for site in sales_locations:
+            site_rev = total_month_revenue * float(site["revenue_share"])
+            site_std_taxed_rev = site_rev * float(site["standard_rated_share"])
+            month_output_vat += (site_std_taxed_rev * 0.20)
+            
+        monthly_output_vat_collected[m] = month_output_vat
+        # Input VAT reclaimed on asset expenses
         monthly_input_vat_reclaimed[m] = (simulated_cogs[m] * 0.20) + ((simulated_opex[m] * 0.60) * 0.20)
         
-        # Net operational monthly change added to the ongoing liability ledger
         net_monthly_vat = monthly_output_vat_collected[m] - monthly_input_vat_reclaimed[m]
         current_vat_liability_balance += net_monthly_vat
         
         # Standard UK Quarterly Submission Cycle (Every 3 Months)
         if (m + 1) % 3 == 0:
             vat_payment_outflows[m] = current_vat_liability_balance
-            current_vat_liability_balance = 0.0 # Liability resets post-settlement
+            current_vat_liability_balance = 0.0
             
         vat_balance_sheet_timeline[m] = max(0.0, current_vat_liability_balance)
 
@@ -126,14 +137,10 @@ def generate_integrated_3way_forecast(inputs: dict, overrides: dict = None) -> p
     for m in range(60):
         current_tax_accrual_balance += tax_expense_timeline[m]
         
-        # Combine base profits, debt overheads, and the raw monthly customer VAT cash injection
         net_monthly_profit = simulated_ebit[m] - monthly_interest_expense_p_and_l[m]
         monthly_cash_flow = (net_monthly_profit * 0.85) - monthly_total_debt_service_cash[m]
-        
-        # Apply the VAT timing modifiers: inject collected cash, deduct reclaims, deduct quarterly tax outlays
         monthly_cash_flow += (monthly_output_vat_collected[m] - monthly_input_vat_reclaimed[m]) - vat_payment_outflows[m]
         
-        # Apply the explicit 9-month annual lump-sum Corporation Tax payment lag rule
         if m in [20, 32, 44, 56]:
             target_year = (m + 4) // 12
             start_idx = (target_year - 1) * 12
