@@ -36,18 +36,18 @@ with st.spinner("Compiling multi-shop three-way projections..."):
         st.error(f"Engine Calculation Error: {str(calc_error)}")
         st.stop()
 
-# Explicit column formatting mapping dictionary to prevent string printing bug
+# Programmatic NumberColumn configurations to handle formatting and headers cleanly
 currency_formatter = {
-    "Revenue (£)": "£{col:,.0f}",
-    "COGS (£)": "£{col:,.0f}",
-    "Opex (£)": "£{col:,.0f}",
-    "EBIT (£)": "£{col:,.0f}",
-    "Debt Service Cash Outflow (£)": "£{col:,.0f}",
-    "VAT Cash Outflow (£)": "£{col:,.0f}",
-    "Cash Reserves (£)": "£{col:,.0f}",
-    "VAT Liability BS (£)": "£{col:,.0f}",
-    "Tax Liability BS (£)": "£{col:,.0f}",
-    "Outstanding Debt Balance (£)": "£{col:,.0f}"
+    "Revenue (£)": st.column_config.NumberColumn("Revenue", format="£ %,.0f"),
+    "COGS (£)": st.column_config.NumberColumn("COGS", format="£ %,.0f"),
+    "Opex (£)": st.column_config.NumberColumn("Opex", format="£ %,.0f"),
+    "EBIT (£)": st.column_config.NumberColumn("EBIT", format="£ %,.0f"),
+    "Debt Service Cash Outflow (£)": st.column_config.NumberColumn("Debt Service Outflow", format="£ %,.0f"),
+    "VAT Cash Outflow (£)": st.column_config.NumberColumn("VAT Outflow", format="£ %,.0f"),
+    "Cash Reserves (£)": st.column_config.NumberColumn("Cash Reserves", format="£ %,.0f"),
+    "VAT Liability BS (£)": st.column_config.NumberColumn("VAT Liability", format="£ %,.0f"),
+    "Tax Liability BS (£)": st.column_config.NumberColumn("Tax Liability", format="£ %,.0f"),
+    "Outstanding Debt Balance (£)": st.column_config.NumberColumn("Outstanding Debt", format="£ %,.0f")
 }
 
 # Display interactive reporting tables
