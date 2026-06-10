@@ -2,10 +2,8 @@
 
 def get_user_projects(username: str) -> dict:
     """
-    Simulates a secure database lookup fetching all projects assigned
-    to a specific user identity.
+    Fetches all scenarios and project entries linked to a verified user profile.
     """
-    # Baseline dictionaries we've already verified
     ahotg_y2_baseline = {
         "opening_cash_balance": 69488.00,
         "opening_fixed_assets_nbv": 531385.00,
@@ -26,7 +24,6 @@ def get_user_projects(username: str) -> dict:
         ]
     }
     
-    # Alternative strategic scenario data block
     clean_slate_venture = {
         "opening_cash_balance": 250000.00,
         "opening_fixed_assets_nbv": 0.00,
@@ -41,7 +38,6 @@ def get_user_projects(username: str) -> dict:
         ]
     }
 
-    # User access dictionary control map
     registry = {
         "admin": {
             "AHOTG Multi-Shop Baseline (Scenario 2)": ahotg_y2_baseline,

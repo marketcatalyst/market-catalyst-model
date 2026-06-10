@@ -3,7 +3,7 @@ import streamlit as st
 import sys
 from pathlib import Path
 
-# Critical Path Resolution
+# Absolute project path resolution
 root_dir = Path(__file__).resolve().parent
 if str(root_dir) not in sys.path:
     sys.path.append(str(root_dir))
@@ -29,7 +29,6 @@ if not st.session_state["authenticated"]:
     pass_input = st.text_input("Security Access Passphrase:", type="password")
     
     if st.button("Authenticate Corporate Identity", use_container_width=True):
-        # Demo credentials check (Accepts username 'admin' or 'user2' with password 'strata2026')
         if (user_input in ["admin", "user2"]) and pass_input == "strata2026":
             st.session_state["authenticated"] = True
             st.session_state["username"] = user_input
@@ -44,24 +43,19 @@ else:
     st.subheader(f"👋 Welcome back, {current_user.capitalize()}")
     st.markdown("Select an active project workspace below. The platform will dynamically hydrate your calculation modules, local tax shapes, and loan structures.")
     
-    # Pull projects allocated to this user from the ledger
     available_projects = get_user_projects(current_user)
     
     if available_projects:
-        # User dropdown select element
         selected_project_name = st.selectbox(
             "Available Corporate Environments Registries:",
             options=list(available_projects.keys())
         )
-        
         st.markdown("---")
         
-        # Hydration Trigger Action Button
         if st.button(f"🚀 Hydrate Workspace & Launch {selected_project_name}", use_container_width=True):
-            # Overwrite active session baseline variables with the selected project dictionary snapshot
             st.session_state["baseline_inputs"] = available_projects[selected_project_name].copy()
             
-            # Explicitly force clean translated data models to clear historical tracking states
+            # Clear engine tracking cache states to ensure a pure data hydration
             if "debt_facilities_clean" in st.session_state["baseline_inputs"]:
                 del st.session_state["baseline_inputs"]["debt_facilities_clean"]
             if "sales_locations_clean" in st.session_state["baseline_inputs"]:
@@ -69,7 +63,6 @@ else:
                 
             st.toast(f"🎉 Fully hydrated {selected_project_name} into operational RAM!", icon="🧠")
             st.success("✅ Engine synchronized! Use the sidebar navigation panel to manage your active modules.")
-            
     else:
         st.warning("⚠️ No active project registries linked to your account profile. Contact your system controller.")
         
