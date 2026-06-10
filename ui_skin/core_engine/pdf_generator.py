@@ -9,20 +9,18 @@ if str(root_dir) not in sys.path:
 
 from ui_skin.core_engine.master_model import generate_integrated_3way_forecast
 
-# Defensive type-checker mitigation wrapper
+# Defensive type-checker mitigation wrapper for local IDE environments
 try:
     from weasyprint import HTML
     WEASYPRINT_AVAILABLE = True
 except (ImportError, OSError):
-    # This prevents your local VS Code environment from throwing typing faults
     HTML = None
     WEASYPRINT_AVAILABLE = False
 
 def generate_pdf_executive_summary(inputs: dict, overrides: dict = None) -> bytes:
     """
     Generates an enterprise-grade corporate PDF Executive Summary report
-    using HTML-to-PDF conversion via WeasyPrint. Handles local environment 
-    type-checking limits gracefully.
+    using HTML-to-PDF conversion via WeasyPrint.
     """
     if not WEASYPRINT_AVAILABLE:
         raise RuntimeError(
@@ -259,7 +257,6 @@ def generate_pdf_executive_summary(inputs: dict, overrides: dict = None) -> byte
             <tbody>
     """
     
-    # Build out first 12 months rows dynamically
     for idx in range(12):
         row = df.iloc[idx]
         html_content += f"""
@@ -291,7 +288,6 @@ def generate_pdf_executive_summary(inputs: dict, overrides: dict = None) -> byte
             <tbody>
     """
     
-    # Aggregate to annual rows
     for yr in range(1, 6):
         start_m = (yr - 1) * 12
         end_m = yr * 12
@@ -323,6 +319,4 @@ def generate_pdf_executive_summary(inputs: dict, overrides: dict = None) -> byte
     </html>
     """
     
-    # Explicitly pass html_content as a named keyword parameter to bypass instantiation mismatch
-    html_object = HTML(string=html_content)
-    return html_object.write_pdf()
+    return HTML(string=html_content).write_pdf()
