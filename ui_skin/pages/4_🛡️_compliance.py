@@ -2,20 +2,27 @@
 import sys
 from pathlib import Path
 
-# --- CRITICAL PATH RESOLUTION ---
+# --- 1. CRITICAL PATH RESOLUTION ---
 root_dir = Path(__file__).resolve().parent.parent.parent
 if str(root_dir) not in sys.path:
     sys.path.append(str(root_dir))
 
 import streamlit as st
+
+# --- 2. THE ABSOLUTE FIRST LINE SECURITY GATEKEEPER ---
+# We force a hard-stop here before any data processing or page layouts compile
+if "authenticated" not in st.session_state or not st.session_state["authenticated"] or "baseline_inputs" not in st.session_state:
+    st.set_page_config(layout="wide", page_title="Access Denied")
+    st.error("🔒 **Access Denied: Unauthorized Endpoints Locked**")
+    st.info("This environment is shielded by an enterprise security framework. You must log in via the main portal to open this workspace.")
+    if st.button("Return to Portal Landing Page", use_container_width=True):
+        st.switch_page("home.py")
+    st.stop()  # Completely kills downstream execution instantly
+
+# --- 3. AFTER SECURITY CLEARANCE: STAND-UP COMPLIANCE RUNTIME ---
 import pandas as pd
 import numpy as np
-
-try:
-    from ui_skin.core_engine.master_model import generate_integrated_3way_forecast
-    ENGINE_AVAILABLE = True
-except ImportError:
-    ENGINE_AVAILABLE = False
+from ui_skin.core_engine.master_model import generate_integrated_3way_forecast
 
 st.set_page_config(layout="wide", page_title="Compliance & Payroll Deck")
 
@@ -23,82 +30,30 @@ st.title("🛡️ Corporate Compliance & Payroll Auditor")
 st.caption("Statutory Tax Schedules, PAYE/NI Obligations, and Auto-Enrolment Pension Auditing")
 st.markdown("---")
 
-# --- 1. SESSION STATE VERIFICATION ---
-if "baseline_inputs" not in st.session_state:
-    st.warning("⚠️ **Upstream Data Missing:** Active session data not detected. Please initialize your parameters on the Ingestion page first.")
-    st.stop()
-
+# Safely copy inputs now that we have absolute verification data exists
 inputs_package = st.session_state["baseline_inputs"].copy()
 
-if "base_gross_wages" not in inputs_package and "base_monthly_gross_wages" in inputs_package:
-    inputs_package["base_gross_wages"] = inputs_package["base_monthly_gross_wages"]
+# --- 4. RENDER STATIC STATUTORY REPORTS ---
+st.markdown("### **Step 1: Statutory Payroll Burden Review**")
+st.markdown("This section maps out corporate employer overhead obligations based on synchronized ingestion baselines.")
 
-months = [f"M{i:02d}" for i in range(1, 61)]
-
-# --- 2. EXECUTE OR EMULATE UNIFIED MODEL ENGINE ---
-with st.spinner("Analyzing compliance tracking metrics..."):
-    if ENGINE_AVAILABLE:
-        engine_output = generate_integrated_3way_forecast(inputs=inputs_package, overrides={})
-        tax_expense_timeline = engine_output["Tax Expense (£)"].values
-        tax_balance_sheet_timeline = engine_output["Tax Liability BS (£)"].values
-    else:
-        tax_expense_timeline = np.array([4500.0] * 60)
-        tax_balance_sheet_timeline = np.zeros(60)
-        current_accrual = 0.0
-        for m in range(60):
-            current_accrual += 4500.0
-            tax_balance_sheet_timeline[m] = current_accrual
-
-# --- 3. COMPLIANCE METRICS CALCULATION ---
-gross_wages_monthly = float(inputs_package.get("base_monthly_gross_wages", 12000.0))
-directors_salaries_monthly = float(inputs_package.get("directors_salaries_monthly", 5150.0))
-pension_opt_out = inputs_package.get("pension_opt_out", False)
-
-employer_ni_monthly = max(0.0, (gross_wages_monthly - 758.0) * 0.138) if gross_wages_monthly > 758.0 else 0.0
-pension_contribution_monthly = 0.0 if pension_opt_out else (gross_wages_monthly * 0.03)
-total_payroll_burden = gross_wages_monthly + directors_salaries_monthly + employer_ni_monthly + pension_contribution_monthly
-
-# --- 4. SEPARATED CASH TIMING MECHANICS ---
-# PAYE/NI and Salaries clear immediately on a rolling month-by-month cash loop
-rolling_payroll_cash_outflow = np.full(60, total_payroll_burden)
-
-# Corporation Tax strictly isolates its cash exit to the annual 9-month lag window
-tax_cash_paid_timeline = np.zeros(60)
-for year in range(1, 5):  
-    ye_month_idx = (year * 12) - 1   
-    payment_month_idx = ye_month_idx + 9  
+# Process baseline metrics through our unified master calculation engine wheel
+try:
+    compliance_matrix = generate_integrated_3way_forecast(inputs_package, overrides={})
     
-    if payment_month_idx < 60:
-        annual_tax_provision = sum(tax_expense_timeline[(year-1)*12 : year*12])
-        tax_cash_paid_timeline[payment_month_idx] = annual_tax_provision
-
-# Build a synchronized audit schedule dataframe mapping directly to engine variables
-compliance_data = {
-    "Gross Staff Salaries (£)": np.full(60, gross_wages_monthly),
-    "Directors Remuneration (£)": np.full(60, directors_salaries_monthly),
-    "Estimated Employer National Insurance (NI) (£)": np.full(60, employer_ni_monthly),
-    "Auto-Enrolment Pension Contributions (£)": np.full(60, pension_contribution_monthly),
-    "Total Rolling Monthly Payroll Burden (£)": rolling_payroll_cash_outflow,
-    "Accrued Corporation Tax Liability (£)": tax_balance_sheet_timeline,
-    "Actual Corporation Tax Cash Paid (£)": tax_cash_paid_timeline
-}
-
-compliance_df = pd.DataFrame(compliance_data, index=months).T
-
-# --- 5. DISPLAY AUDIT METRIC BLOCKS ---
-col_stat1, col_stat2, col_stat3 = st.columns(3)
-with col_stat1:
-    st.metric("Auto-Enrolment Status", "COMPLIANT ✅" if not pension_opt_out else "OPTED OUT ⛔")
-with col_stat2:
-    st.metric("Monthly Payroll Tax Obligation", f"£{employer_ni_monthly:,.0f}")
-with col_stat3:
-    st.metric("Peak Corporate Tax Liability", f"£{tax_balance_sheet_timeline.max():,.0f}")
-
-st.markdown("### **Statutory Compliance & Payroll Audit Ledger**")
-st.caption("Verifies real-time tax provisions and workforce pension costs generated by the master three-way matrix engine.")
-
-st.dataframe(
-    compliance_df,
-    use_container_width=True,
-    column_config={m: st.column_config.NumberColumn(format="£%,.0f") for m in months}
-)
+    # Create a targeted compliance display dataframe
+    months = compliance_matrix.index
+    compliance_display = pd.DataFrame({
+        "Gross Wages (£)": [inputs_package.get("base_monthly_gross_wages", 0.0)] * 60,
+        "Director Salaries (£)": [inputs_package.get("directors_salaries_monthly", 0.0)] * 60,
+        "Accrued Corp Tax (£)": compliance_matrix["Tax Expense (£)"],
+        "HMRC Outstanding Balance (£)": compliance_matrix["Tax Liability BS (£)"]
+    }, index=months)
+    
+    st.dataframe(
+        compliance_display,
+        use_container_width=True,
+        column_config={col: st.column_config.NumberColumn(format="£%,.0f") for col in compliance_display.columns}
+    )
+except Exception as e:
+    st.warning(f"Compliance ledger rendering paused until active inputs are fully locked on the ingestion screen.")
