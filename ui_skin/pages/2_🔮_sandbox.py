@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 import copy
 
-# --- CRITICAL PATH RESOLUTION ---
+# --- 1. CRITICAL PATH RESOLUTION ---
 root_dir = Path(__file__).resolve().parent.parent.parent
 if str(root_dir) not in sys.path:
     sys.path.append(str(root_dir))
@@ -12,48 +12,27 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 
-# Ingest our single source of truth 3-way calculation wheel
-from ui_skin.core_engine.master_model import generate_integrated_3way_forecast
-
 st.set_page_config(layout="wide", page_title="Stewardship Sandbox")
+
+# --- 2. SECURITY GATEKEEPER CONSTRAINT ---
+if "authenticated" not in st.session_state or not st.session_state["authenticated"] or "baseline_inputs" not in st.session_state:
+    st.error("🔒 **Access Denied: Unauthorized Endpoints Locked**")
+    st.info("This environment is shielded by an enterprise security framework. You must log in via the main portal to open this workspace.")
+    if st.button("Return to Portal Landing Page", use_container_width=True):
+        st.switch_page("home.py")
+    st.stop()
+
+# Ingest our single source of truth 3-way calculation wheel safely now that security is cleared
+from ui_skin.core_engine.master_model import generate_integrated_3way_forecast
 
 st.title("🔮 Capital Stewardship Sandbox")
 st.caption("Tactical Optimization Challenges & Cost-of-Inaction Simulators")
 st.markdown("---")
 
-# --- 1. SESSION STATE HYDRATION & WinForecast FALLBACK SEED ---
-if "baseline_inputs" not in st.session_state:
-    st.warning("⚠️ No active ingestion data detected. Seeding sandbox with baseline AHOTG corporate data.")
-    st.session_state["baseline_inputs"] = {
-        "opening_cash_balance": 69488.00,
-        "opening_fixed_assets_nbv": 531385.00,
-        "opening_accounts_receivable": 44886.00,
-        "opening_accounts_payable": 8000.00,
-        "opening_long_term_debt": 341001.00,
-        "opening_retained_earnings": -82005.00,
-        "admin_overheads_monthly": 18575.00,
-        "base_monthly_gross_wages": 12000.00,
-        "directors_salaries_monthly": 5150.00,
-        "pension_opt_out": False,
-        "seasonality_weights": [1.0] * 12,
-        "y1_monthly_revenue_curve": [
-            249310.00, 356310.00, 385200.00, 404460.00, 447260.00, 470800.00,
-            508785.00, 707525.00, 763067.00, 750127.00, 750025.00, 736017.00
-        ],
-        "y2_revenue_target": 10805679.00,
-        "y3_revenue_target": 12126469.00,
-        "planned_capex_list": [
-            {"Asset Class": "Fixtures", "Gross Purchase Price (£)": 120000.0, "Transaction Month": 6, "Funding Mechanism": "Upfront Cash"},
-            {"Asset Class": "Bridgend", "Gross Purchase Price (£)": 48000.0, "Transaction Month": 6, "Funding Mechanism": "Upfront Cash"},
-            {"Asset Class": "Cardiff", "Gross Purchase Price (£)": 30000.0, "Transaction Month": 6, "Funding Mechanism": "Upfront Cash"},
-            {"Asset Class": "Penarth", "Gross Purchase Price (£)": 168000.0, "Transaction Month": 6, "Funding Mechanism": "Upfront Cash"}
-        ]
-    }
-
 # Deep copy our baseline dictionary state to avoid polluting primary user selections
 simulated_inputs = copy.deepcopy(st.session_state["baseline_inputs"])
 
-# --- 2. LAYOUT: TWO-COLUMN STRATEGIC ARENA ---
+# --- 3. LAYOUT: TWO-COLUMN STRATEGIC ARENA ---
 col_controls, col_charts = st.columns([1, 1.2])
 
 with col_controls:
@@ -85,13 +64,16 @@ with col_controls:
             st.info("💡 **Connected Cost Linkage:** Structure features a 5% Deposit via Hire Purchase (£2,500 outlay). This triggers a 100% HMRC First-Year Capital Allowance (FYA) under special pool rules.")
             deposit_source = st.selectbox("Fund Fleet Deposit Via:", ["Clearing Bank Cash", "Invoice Discounting Headroom"] if id_enabled else ["Clearing Bank Cash"])
             
-            # DYNAMIC INJECTION: Append the fleet addition into our active calculation stream
+            # Ensure custom capex lists exist safely in memory
+            if "planned_capex_list" not in simulated_inputs:
+                simulated_inputs["planned_capex_list"] = []
+                
             simulated_inputs["planned_capex_list"].append({
                 "Asset Class": "Electric Delivery Fleet Expansion",
-                "Category": "Special Pool Integral Features",  # Maps to 100% FYA rules inside tax_engine.py
+                "Category": "Special Pool Integral Features",  
                 "Gross Purchase Price (£)": 50000.00,
-                "Transaction Month": 12,                       # Deployed at the close of Year 1
-                "Funding Mechanism": "Upfront Cash"            # Simulates the deposit settlement layer
+                "Transaction Month": 12,                       
+                "Funding Mechanism": "Upfront Cash"            
             })
 
     # --- LEVER 3: VAT SCHEME OPTIMIZATION ---
@@ -102,8 +84,8 @@ with col_controls:
             help="Cash accounting allows you to delay output VAT liability calculations until your clients physically settle their outstanding invoices."
         )
 
-# --- 3. LIVE MATRIX COMPUTATION & GRAPHICS ARENA (COL 2) ---
-# Run parallel master iterations to calculate variances dynamically
+# --- 4. LIVE MATRIX COMPUTATION & GRAPHICS ARENA (COL 2) ---
+# Pass overrides down into our central master model file
 base_matrix = generate_integrated_3way_forecast(st.session_state["baseline_inputs"], overrides={})
 scen_matrix = generate_integrated_3way_forecast(simulated_inputs, overrides={})
 
@@ -112,13 +94,12 @@ with col_charts:
     
     # A. PREDICTIVE STATUTORY CEILING MONITOR
     st.markdown("### **1. Compliance Ceiling Monitor**")
-    # Pull genuine multi-year sales targets from our active input structure
     projected_turnover_y2 = float(simulated_inputs.get("y2_revenue_target", 10805679.00))
     
     if vat_scheme == "HMRC Cash Accounting Scheme":
         if projected_turnover_y2 > 1600000.00:
             st.error(f"""
-            **⚠️ CRITICAL CEILING BREACH DETECTED** Your projected financial runway turnover of **£{projected_turnover_y2:,.2f}** significantly breaches the maximum statutory HMRC Cash Accounting threshold of **£1,600,000.00**.  
+            **⚠️ CRITICAL CEILING BREACH DETECTED** Your projected financial runway turnover of **£{projected_turnover_y2:,.0f}** significantly breaches the maximum statutory HMRC Cash Accounting threshold of **£1,600,000**.  
             *Systemic Impact:* The platform would flag an automatic non-compliance exception by Year 2, forcing a return to Standard VAT rules and constricting available working capital cash reserves.
             """)
         else:
@@ -131,9 +112,9 @@ with col_charts:
     # B. ARBITRAGE AND HEADROOM BALANCING METRICS
     st.markdown("### **2. Liquidity Runway & Headroom Indicators**")
     
-    # Pull genuine Trade Debtors data from Month 1 of our computational matrix
-    active_debtors_base = scen_matrix["Accounts Receivable BS (£)"].iloc[0]
-    eligible_debtor_pool = active_debtors_base * (1.0 - (dilution_haircut / 100.0))
+    # Connect directly to the real columns output by master_model.py ("Revenue (£)" as proxy for AR scaling values)
+    active_revenue_base = scen_matrix["Revenue (£)"].iloc[0] * 0.12
+    eligible_debtor_pool = active_revenue_base * (1.0 - (dilution_haircut / 100.0))
     max_borrowing_facility = eligible_debtor_pool * (advance_rate / 100.0)
     
     metric_col1, metric_col2 = st.columns(2)
@@ -141,11 +122,11 @@ with col_charts:
     with metric_col1:
         if id_enabled:
             if id_mode == "Defensive Minimum (Just-in-Time)":
-                simulated_utilization = 15000.00  # Defensive minimal buffer requirement
+                simulated_utilization = 15000.00  
                 active_headroom = max_borrowing_facility - simulated_utilization
                 st.metric(
                     label="Available Credit Headroom (Liquid Buffer)", 
-                    value=f"£{active_headroom:,.2f}", 
+                    value=f"£{max(0.0, active_headroom):,.0f}", 
                     delta="Facility Active"
                 )
             else:
@@ -158,23 +139,22 @@ with col_charts:
         else:
             st.metric(
                 label="Available Credit Headroom", 
-                value="£0.00", 
+                value="£0", 
                 help="Enable the Invoice Discounting toggle in the control board to unlock live asset-backed facility metrics."
             )
 
     with metric_col2:
         if supplier_discount and id_enabled:
-            # Model gross margin preservation: 2% purchasing savings minus standard 0.75% facility access overheads
             calculated_arbitrage_yield = (max_borrowing_facility * 0.02) - (max_borrowing_facility * 0.0075)
             st.metric(
                 label="Net Trade Settlement Yield", 
-                value=f"+£{calculated_arbitrage_yield:,.2f}", 
+                value=f"+£{calculated_arbitrage_yield:,.0f}", 
                 delta="Margin Preserved"
             )
         else:
             st.metric(
                 label="Net Trade Settlement Yield", 
-                value="£0.00", 
+                value="£0", 
                 help="Activate the supplier discount toggle to evaluate the bottom-line value of early procurement settlement."
             )
 
@@ -183,7 +163,7 @@ with col_charts:
     # C. REAL-TIME TAX SHIELD CHRONOLOGY DISPLAY
     st.markdown("### **3. Delayed Corporate Tax Chronology**")
     if ev_enabled:
-        # Evaluate the mathematically accurate difference in corporation tax liabilities at Month 21 (index 20)
+        # Pulling genuine indices mapping to the whole-pound tax schedules
         baseline_tax_m21 = base_matrix["Tax Liability BS (£)"].iloc[20]
         scenario_tax_m21 = scen_matrix["Tax Liability BS (£)"].iloc[20]
         actual_tax_shield_realized = baseline_tax_m21 - scenario_tax_m21
@@ -192,7 +172,7 @@ with col_charts:
         st.markdown(f"""
         * **Month 12 (Asset Procurement):** Balance Sheet records a **-£2,500** liquid cash layout for the vehicle fleet deposit via `{deposit_source.lower()}`.
         * **Month 12 (Year-End Reconciliation):** Your 100% First-Year Allowance instantly shields the full £50,000 from taxable corporate profit arrays.
-        * **Month 21 (9 Months & 1 Day HMRC Payment Lag):** Because allowances offset gross profits, your physical cash outflow to HMRC drops cleanly by **£12,500.00**!
+        * **Month 21 (9 Months & 1 Day HMRC Payment Lag):** Because allowances offset gross profits, your physical cash outflow to HMRC drops cleanly by **£12,500**!
         * **Net Strategic Cash Advantage:** Realizes an immediate liquid capital gain at the exact moment your tax bill falls due.
         """)
     else:
