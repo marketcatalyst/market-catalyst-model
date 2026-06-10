@@ -15,9 +15,20 @@ import google.generativeai as genai
 
 st.set_page_config(layout="wide", page_title="STRATA AI Strategy Room")
 
-# --- 2. SECURITY GUARDRAIL & INITIALIZATION ---
+# --- 2. SECURITY GATEKEEPER CONSTRAINT ---
+# Hard-verify both the explicit login token and the existence of ingestion data
+if "authenticated" not in st.session_state or not st.session_state["authenticated"] or "baseline_inputs" not in st.session_state:
+    st.error("🔒 **Access Denied: Unauthorized Endpoints Locked**")
+    st.info("This environment is shielded by an enterprise security framework. You must log in via the main portal to open this workspace.")
+    
+    # Render an explicit rerouting button that strips sidebar nav access until pressed
+    if st.button("Return to Portal Landing Page", use_container_width=True):
+        st.switch_page("home.py")
+    st.stop()  # Aborts all downstream script compilation instantly
+
+# --- 3. SECURITY GUARDRAIL & INITIALIZATION ---
 if "GEMINI_API_KEY" not in st.secrets:
-    st.error("❌ Configuration Error: 'GEMINI_API_KEY' is missing from the top of your local .streamlit/secrets.toml file.")
+    st.error("❌ Configuration Error: 'GEMINI_API_KEY' is missing from the top of your secrets.toml file.")
     st.stop()
 
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
@@ -26,33 +37,7 @@ st.title("📊 AI Strategic Appraisal Room")
 st.caption("Parallel Multi-Scenario Simulation, Dual-Grained Reporting, & Executive Narrative Synth")
 st.markdown("---")
 
-# --- 3. SESSION STATE INTEGRITY CONTRACT ---
-if "baseline_inputs" not in st.session_state:
-    st.warning("📋 No active ingestion contract detected. Seeding workspace memory with fallback WinForecast benchmark profiles.")
-    fallback_records = [
-        {"Account Code": "0020", "Account Group": "Fixed Assets", "Account Name": "Operational Plant & Heavy Ovens Gross Cost", "Net Balance (£)": 150000.00, "Assigned Platform Destination": "Fixed Assets Gross Cost"},
-        {"Account Code": "0040", "Account Group": "Fixed Assets", "Account Name": "Company Delivery Fleet Vehicles", "Net Balance (£)": 381385.00, "Assigned Platform Destination": "Fixed Assets Gross Cost"},
-        {"Account Code": "1200", "Account Group": "Current Assets", "Account Name": "Barclays Commercial Current A/C", "Net Balance (£)": 69488.00, "Assigned Platform Destination": "Liquid Bank Cash Base"},
-        {"Account Code": "1100", "Account Group": "Current Assets", "Account Name": "Trade Debtors Control Ledger", "Net Balance (£)": 44886.00, "Assigned Platform Destination": "Trade Accounts Receivable (AR)"},
-        {"Account Code": "2200", "Account Group": "Current Liabilities", "Account Name": "Trade Creditors Control Ledger", "Net Balance (£)": -8000.00, "Assigned Platform Destination": "Trade Accounts Payable (AP)"},
-        {"Account Code": "2150", "Account Group": "Long-Term Liabilities", "Account Name": "Development Bank of Wales (DBW) Term Loan", "Net Balance (£)": -130176.00, "Assigned Platform Destination": "Outstanding Debt Obligations"},
-        {"Account Code": "3000", "Account Group": "Equity Reserve", "Account Name": "Prior Year Accumulated Retained Profits", "Net Balance (£)": 82005.00, "Assigned Platform Destination": "Retained Earnings Reserve"}
-    ]
-    st.session_state["baseline_inputs"] = {
-        "opening_cash_balance": 69488.00,
-        "opening_fixed_assets_nbv": 531385.00,
-        "opening_accounts_receivable": 44886.00,
-        "opening_accounts_payable": 8000.00,
-        "opening_long_term_debt": 130176.00,
-        "opening_retained_earnings": 82005.00,
-        "granular_ledger_records": fallback_records,
-        "admin_overheads_monthly": 18575.00,
-        "base_monthly_gross_wages": 12000.00,
-        "directors_salaries_monthly": 5150.00,
-        "pension_opt_out": False,
-        "y1_monthly_revenue_curve": [249310.0, 356310.0, 385200.0, 404460.0, 447260.0, 470800.0, 508785.0, 707525.0, 763067.0, 750127.0, 750025.0, 736017.0],
-    }
-
+# Extract our verified, validated data elements safely now that the lock is checked
 inputs = st.session_state["baseline_inputs"]
 granular_records = inputs.get("granular_ledger_records", [])
 
@@ -173,7 +158,7 @@ else:
     else:
         st.warning("No custom ledger rows cached in active application RAM.")
 
-# --- 9. ENHANCED CONVERSATIONAL STRATEGY DIRECTOR (STEP 4 COMPLETE) ---
+# --- 9. ENHANCED CONVERSATIONAL STRATEGY DIRECTOR ---
 st.markdown("---")
 st.markdown("### 🧠 **Step 2: Conversational Strategy Director**")
 st.markdown("Ask our structural AI engine to interpret the systemic financial effects of your custom scenario changes.")
