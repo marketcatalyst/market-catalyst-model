@@ -14,7 +14,7 @@ try:
     from weasyprint import HTML
     WEASYPRINT_AVAILABLE = True
 except (ImportError, OSError):
-    # This prevents your local VS Code environment from throwing 1K+ typing faults
+    # This prevents your local VS Code environment from throwing typing faults
     HTML = None
     WEASYPRINT_AVAILABLE = False
 
@@ -323,4 +323,6 @@ def generate_pdf_executive_summary(inputs: dict, overrides: dict = None) -> byte
     </html>
     """
     
-    return HTML(string=html_content).write_pdf()
+    # Explicitly pass html_content as a named keyword parameter to bypass instantiation mismatch
+    html_object = HTML(string=html_content)
+    return html_object.write_pdf()
