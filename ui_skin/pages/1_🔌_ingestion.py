@@ -41,17 +41,16 @@ if "y1_monthly_revenue_curve" not in inputs_ref:
 
 if "debt_facilities" not in inputs_ref:
     inputs_ref["debt_facilities"] = [
-        {"Facility Name": "DBW Tranche 1", "Opening Balance (£)": 50000.0, "Annual Interest Rate (%)": 7.5, "Term (Months)": 60},
-        {"Facility Name": "Funding Circle Line", "Opening Balance (£)": 45000.0, "Annual Interest Rate (%)": 9.2, "Term (Months)": 48},
-        {"Facility Name": "IWOCA Short-Term", "Opening Balance (£)": 35176.0, "Annual Interest Rate (%)": 12.0, "Term (Months)": 24}
+        {"Facility Name Description": "DBW Tranche 1", "Opening Principal Balance (£)": 50000.0, "Annual Interest Rate (%)": 7.5, "Contractual Amortization Term (Months)": 60},
+        {"Facility Name Description": "Funding Circle Line", "Opening Principal Balance (£)": 45000.0, "Annual Interest Rate (%)": 9.2, "Contractual Amortization Term (Months)": 48},
+        {"Facility Name Description": "IWOCA Short-Term", "Opening Principal Balance (£)": 35176.0, "Annual Interest Rate (%)": 12.0, "Contractual Amortization Term (Months)": 24}
     ]
 
-# CRITICAL FIX: Seed specific sales locations matching your exact operational mix profiles
 if "sales_locations" not in inputs_ref:
     inputs_ref["sales_locations"] = [
-        {"Site Location Name": "Bridgend Hub", "Corporate Revenue Share (%)": 40.0, "Zero-Rated Mix (%)": 65.0},
-        {"Site Location Name": "Cardiff Bay Center", "Corporate Revenue Share (%)": 35.0, "Zero-Rated Mix (%)": 0.0},
-        {"Site Location Name": "Penarth Acquisition", "Corporate Revenue Share (%)": 25.0, "Zero-Rated Mix (%)": 100.0}
+        {"Trading Location Name": "Bridgend Hub", "Corporate Revenue Share (%)": 40.0, "Zero-Rated / Exempt Mix (%)": 65.0},
+        {"Trading Location Name": "Cardiff Bay Center", "Corporate Revenue Share (%)": 35.0, "Zero-Rated / Exempt Mix (%)": 0.0},
+        {"Trading Location Name": "Penarth Acquisition", "Corporate Revenue Share (%)": 25.0, "Zero-Rated / Exempt Mix (%)": 100.0}
     ]
 
 # --- 4. STEP 1: TRIAL BALANCE AND REVENUE VERIFICATION ---
@@ -68,13 +67,14 @@ with col3:
 st.markdown("---")
 st.markdown("### **Step 2: Corporate Debt Liabilities Amortization Grid**")
 current_debt_df = pd.DataFrame(inputs_ref["debt_facilities"])
+
 edited_debt_df = st.data_editor(
-    current_debt_df, num_rows="dynamic", use_container_width=True, key="debt_editor",
+    current_debt_df, num_rows="dynamic", use_container_width=True, key="debt_editor_v2",
     column_config={
-        "Facility Name": st.column_config.TextColumn("Facility Name Description", required=True),
-        "Opening Balance (£)": st.column_config.NumberColumn("Opening Principal Balance (£)", format="£%,.0f", min_value=0.0, required=True),
+        "Facility Name Description": st.column_config.TextColumn("Facility Name Description", required=True),
+        "Opening Principal Balance (£)": st.column_config.NumberColumn("Opening Principal Balance (£)", format="£%,.0f", min_value=0.0, required=True),
         "Annual Interest Rate (%)": st.column_config.NumberColumn("Annual Interest Rate (%)", format="%.2f%%", min_value=0.0, required=True),
-        "Term (Months)": st.column_config.NumberColumn("Contractual Amortization Term (Months)", format="%d", min_value=1, required=True),
+        "Contractual Amortization Term (Months)": st.column_config.NumberColumn("Contractual Amortization Term (Months)", format="%d", min_value=1, required=True),
     }
 )
 
@@ -85,37 +85,37 @@ st.caption("Allocate corporate revenue share weights and local tax attributes. T
 
 current_locations_df = pd.DataFrame(inputs_ref["sales_locations"])
 edited_locations_df = st.data_editor(
-    current_locations_df, num_rows="dynamic", use_container_width=True, key="location_editor",
+    current_locations_df, num_rows="dynamic", use_container_width=True, key="location_editor_v2",
     column_config={
-        "Site Location Name": st.column_config.TextColumn("Trading Location Name", placeholder="e.g., Penarth Shop", required=True),
+        "Trading Location Name": st.column_config.TextColumn("Trading Location Name", required=True),
         "Corporate Revenue Share (%)": st.column_config.NumberColumn("Corporate Revenue Share (%)", format="%.1f%%", min_value=0.0, max_value=100.0, required=True),
-        "Zero-Rated Mix (%)": st.column_config.NumberColumn("Zero-Rated / Exempt Mix (%)", format="%.1f%%", min_value=0.0, max_value=100.0, required=True),
+        "Zero-Rated / Exempt Mix (%)": st.column_config.NumberColumn("Zero-Rated / Exempt Mix (%)", format="%.1f%%", min_value=0.0, max_value=100.0, required=True),
     }
 )
 
-# Verify revenue share balances out correctly to protect model calculations from breaking
-total_share_entered = edited_locations_df["Corporate Revenue Share (%)"].sum()
+total_share_entered = edited_locations_df["Corporate Revenue Share (%)"].sum() if not edited_locations_df.empty else 0
 if abs(total_share_entered - 100.0) > 0.01:
     st.warning(f"⚠️ **Total Revenue Share Warning:** Your current location shares total **{total_share_entered:.1f}%**. Please adjust rows so they sum up to exactly 100.0%.")
 
 # --- 7. SAVE AND EMIT INPUTS PIPELINE ---
 st.markdown("---")
 if st.button("💾 Lock and Synchronize System Attributes", use_container_width=True):
-    # Map Debt Arrays
+    # Process Debt
     formatted_debt_list = []
     for _, row in edited_debt_df.iterrows():
         formatted_debt_list.append({
-            "facility_name": row["Facility Name"], "opening_balance": float(row["Opening Balance (£)"]),
-            "interest_rate_annual": float(row["Annual Interest Rate (%)"]) / 100.0, "term_months": int(row["Term (Months)"])
+            "facility_name": row["Facility Name Description"], 
+            "opening_balance": float(row["Opening Principal Balance (£)"]),
+            "interest_rate_annual": float(row["Annual Interest Rate (%)"]) / 100.0, 
+            "term_months": int(row["Contractual Amortization Term (Months)"])
         })
         
-    # Map Multi-Shop VAT Arrays
+    # Process Locations
     formatted_locations_list = []
     for _, row in edited_locations_df.iterrows():
-        # Standard Rated Share is the inverse of the Zero-Rated share
-        std_share = (100.0 - float(row["Zero-Rated Mix (%)"])) / 100.0
+        std_share = (100.0 - float(row["Zero-Rated / Exempt Mix (%)"])) / 100.0
         formatted_locations_list.append({
-            "site_name": row["Site Location Name"],
+            "site_name": row["Trading Location Name"],
             "revenue_share": float(row["Corporate Revenue Share (%)"]) / 100.0,
             "standard_rated_share": std_share
         })
@@ -125,8 +125,6 @@ if st.button("💾 Lock and Synchronize System Attributes", use_container_width=
     inputs_ref["pension_opt_out"] = pension_toggle
     inputs_ref["debt_facilities"] = edited_debt_df.to_dict(orient="records")
     inputs_ref["debt_facilities_clean"] = formatted_debt_list
-    
-    # Save optimized structures directly into master state context arrays
     inputs_ref["sales_locations"] = edited_locations_df.to_dict(orient="records")
     inputs_ref["sales_locations_clean"] = formatted_locations_list
     
