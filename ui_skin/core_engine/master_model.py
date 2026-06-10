@@ -101,7 +101,7 @@ def generate_integrated_3way_forecast(inputs: dict, overrides: dict = None) -> p
                 current_facility_bal -= principal_payment
             debt_balance_sheet_timeline[m] += current_facility_bal
 
-    # 5. DYNAMIC MULTI-SHOP VAT CALCULATOR (REAL-WORLD HMRC 40-DAY LAG LAYER)
+    # 5. DYNAMIC MULTI-SHOP VAT CALCULATOR (TRUE OVERLAPPING HMRC 40-DAY LAG)
     sales_locations = inputs.get("sales_locations_clean", [])
     if not sales_locations:
         sales_locations = [{"site_name": "Standard Mix Unit", "revenue_share": 1.0, "standard_rated_share": 0.75}]
@@ -111,9 +111,9 @@ def generate_integrated_3way_forecast(inputs: dict, overrides: dict = None) -> p
     vat_payment_outflows = np.zeros(60)
     vat_balance_sheet_timeline = np.zeros(60)
     
-    # Track discrete quarterly pots for the 1-month delayed payment mechanism
-    quarterly_accrual_pot = 0.0
-    current_vat_liability_balance = 0.0
+    # Dual-track variables to isolate historical bills from current collections
+    quarterly_finalized_bill = 0.0
+    rolling_quarter_accumulation = 0.0
     
     for m in range(60):
         total_month_revenue = simulated_revenue[m]
@@ -131,23 +131,23 @@ def generate_integrated_3way_forecast(inputs: dict, overrides: dict = None) -> p
         
         net_monthly_vat = monthly_output_vat_collected[m] - monthly_input_vat_reclaimed[m]
         
-        # Both the rolling balance sheet ledger and the current quarter's pot increase
-        current_vat_liability_balance += net_monthly_vat
-        quarterly_accrual_pot += net_monthly_vat
+        # Current month's net tax always goes into the active rolling quarter pot
+        rolling_quarter_accumulation += net_monthly_vat
         
-        # When a quarter ends (M3, M06, M09, M12), we lock the pot but do NOT clear the bank cash yet.
-        # The Direct Debit fires exactly 1 month later (e.g., M4, M07, M10, M13).
+        # A. QUARTER ENDS (M03, M06, M09, M12... which are indices 2, 5, 8, 11...)
+        # We lock the current quarter's pot into the 'finalized bill' track and clear the rolling pot
+        if (m + 1) % 3 == 0:
+            quarterly_finalized_bill = rolling_quarter_accumulation
+            rolling_quarter_accumulation = 0.0
+            
+        # B. DIRECT DEBIT FIRES (M04, M07, M10, M13... which are indices 3, 6, 9, 12...)
+        # The finalized bill physically exits the bank account here
         if m in [3, 6, 9, 12, 15, 18, 21, 24, 27, 30, 33, 36, 39, 42, 45, 48, 51, 54, 57]:
-            # Deduct what sat in the locked pot at the end of the previous month (excluding the current month's new quarter accumulation)
-            vat_payment_outflows[m] = quarterly_accrual_pot - net_monthly_vat
+            vat_payment_outflows[m] = max(0.0, quarterly_finalized_bill)
+            quarterly_finalized_bill = 0.0 # Bill is completely settled
             
-            # Reduce the master liability ledger by the payment amount
-            current_vat_liability_balance -= vat_payment_outflows[m]
-            
-            # Reset the quarterly calculation pot to begin tracking the next cycle fresh, pre-seeded with current month's accumulation
-            quarterly_accrual_pot = net_monthly_vat
-            
-        vat_balance_sheet_timeline[m] = max(0.0, current_vat_liability_balance)
+        # Total liability on the Balance Sheet is the unpaid historical bill PLUS the ongoing new quarter growth
+        vat_balance_sheet_timeline[m] = max(0.0, quarterly_finalized_bill + rolling_quarter_accumulation)
 
     # 6. Cash Flow & Statutory Accrual Balances
     simulated_cash = []
