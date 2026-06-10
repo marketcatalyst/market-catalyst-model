@@ -6,12 +6,11 @@ def generate_integrated_3way_forecast(inputs: dict, overrides: dict = None) -> p
     """
     Core 60-Month Integrated Three-Way Calculation Engine.
     Processes baseline ingestion datasets and outputs unified rows 
-    for P&L, Balance Sheet, statutory taxes, and generic debt amortization.
+    for P&L, Balance Sheet, statutory taxes, debt, and quarterly VAT cycles.
     """
     if overrides is None:
         overrides = {}
         
-    # Extract scenario multipliers or default to zero structural change
     volume_delta = overrides.get("volume_delta", 0.0)
     opex_delta = overrides.get("opex_delta", 0.0)
     
@@ -23,7 +22,7 @@ def generate_integrated_3way_forecast(inputs: dict, overrides: dict = None) -> p
     extended_revenue = (base_revenue_curve * 5)[:60]
     
     simulated_revenue = [float(r * (1.0 + volume_delta)) for r in extended_revenue]
-    simulated_cogs = [r * 0.40 for r in simulated_revenue] # 40% Target Cost of Goods Sold
+    simulated_cogs = [r * 0.40 for r in simulated_revenue]
     
     # Extract structural fixed overhead run-rates
     admin_overheads = float(inputs.get("admin_overheads_monthly", 0.0))
@@ -45,23 +44,16 @@ def generate_integrated_3way_forecast(inputs: dict, overrides: dict = None) -> p
     for m in range(60):
         ebit = simulated_revenue[m] - simulated_cogs[m] - simulated_opex[m]
         simulated_ebit.append(ebit)
-        
-        # Approximate 19% Corporation Tax accrual on positive operating cycles
         tax_accrual = max(0.0, ebit * 0.19)
         tax_expense_timeline.append(tax_accrual)
         
-    # 4. GENERIC DEBT AMORTIZATION RECONCILIATION LAYER
-    # Ingest translated clean debt structures first, fallback to standard UI grid names, or seed defaults
+    # 4. GENERIC DEBT AMORTIZATION LAYER
     debt_facilities = inputs.get("debt_facilities_clean", [])
-    
-    # Fallback safety translation: If clean list is missing but raw UI dict exists, parse it dynamically
     if not debt_facilities and "debt_facilities" in inputs:
         debt_facilities = []
         for raw in inputs["debt_facilities"]:
             raw_rate = float(raw.get("Annual Interest Rate (%)", 0.0))
-            # Handle user entries format safely (e.g., if entered as 7.5 instead of 0.075)
             clean_rate = raw_rate / 100.0 if raw_rate > 1.0 else raw_rate
-            
             debt_facilities.append({
                 "facility_name": raw.get("Facility Name", "Corporate Loan"),
                 "opening_balance": float(raw.get("Opening Balance (£)", 0.0)),
@@ -69,7 +61,6 @@ def generate_integrated_3way_forecast(inputs: dict, overrides: dict = None) -> p
                 "term_months": int(raw.get("Term (Months)", 60))
             })
             
-    # Default fallback matrix state if no records exist whatsoever
     if not debt_facilities:
         debt_facilities = [
             {"facility_name": "Consolidated Corporate Debt", "opening_balance": float(inputs.get("opening_long_term_debt", 130176.0)), "interest_rate_annual": 0.08, "term_months": 60}
@@ -79,57 +70,76 @@ def generate_integrated_3way_forecast(inputs: dict, overrides: dict = None) -> p
     monthly_interest_expense_p_and_l = np.zeros(60)
     debt_balance_sheet_timeline = np.zeros(60)
     
-    # Process each liability tranche independently using a generic amortization math loop
     for facility in debt_facilities:
         bal = float(facility["opening_balance"])
         rate_monthly = float(facility["interest_rate_annual"]) / 12.0
         term = int(facility["term_months"])
         
-        # Calculate standard monthly regularized payment using the classic PMT annuity formula
-        if rate_monthly > 0 and term > 0:
-            pmt = bal * (rate_monthly * (1 + rate_monthly)**term) / ((1 + rate_monthly)**term - 1)
-        else:
-            pmt = bal / max(1, term)
+        pmt = bal * (rate_monthly * (1 + rate_monthly)**term) / ((1 + rate_monthly)**term - 1) if rate_monthly > 0 and term > 0 else bal / max(1, term)
             
         current_facility_bal = bal
         for m in range(60):
             if current_facility_bal > 0:
                 interest_payment = current_facility_bal * rate_monthly
                 principal_payment = min(current_facility_bal, pmt - interest_payment)
-                
                 monthly_interest_expense_p_and_l[m] += interest_payment
                 monthly_total_debt_service_cash[m] += (interest_payment + principal_payment)
-                
                 current_facility_bal -= principal_payment
             debt_balance_sheet_timeline[m] += current_facility_bal
 
-    # 5. Cash Flow & Statutory Accrual Balances
+    # 5. DYNAMIC MULTI-SHOP VAT CALCULATOR
+    # Assume 75% of total revenue comes from standard-rated locations (20% VAT) 
+    # and 25% comes from exempt/zero-rated lines (0% VAT)
+    std_rate_mix = float(inputs.get("standard_rated_revenue_mix", 0.75))
+    
+    monthly_output_vat_collected = np.zeros(60)
+    monthly_input_vat_reclaimed = np.zeros(60)
+    vat_payment_outflows = np.zeros(60)
+    vat_balance_sheet_timeline = np.zeros(60)
+    
+    current_vat_liability_balance = 0.0
+    
+    for m in range(60):
+        # Output VAT collected from customers on standard-rated sales
+        monthly_output_vat_collected[m] = (simulated_revenue[m] * std_rate_mix) * 0.20
+        # Input VAT reclaimed on COGS and structural opex assets (approx 60% of opex has reclaimable VAT elements)
+        monthly_input_vat_reclaimed[m] = (simulated_cogs[m] * 0.20) + ((simulated_opex[m] * 0.60) * 0.20)
+        
+        # Net operational monthly change added to the ongoing liability ledger
+        net_monthly_vat = monthly_output_vat_collected[m] - monthly_input_vat_reclaimed[m]
+        current_vat_liability_balance += net_monthly_vat
+        
+        # Standard UK Quarterly Submission Cycle (Every 3 Months)
+        if (m + 1) % 3 == 0:
+            vat_payment_outflows[m] = current_vat_liability_balance
+            current_vat_liability_balance = 0.0 # Liability resets post-settlement
+            
+        vat_balance_sheet_timeline[m] = max(0.0, current_vat_liability_balance)
+
+    # 6. Cash Flow & Statutory Accrual Balances
     simulated_cash = []
     tax_balance_sheet_timeline = []
     
     current_cash = float(inputs.get("opening_cash_balance", 0.0))
     current_tax_accrual_balance = 0.0
     
-    # Matrix engine tracking loops
     for m in range(60):
-        # Accumulate the current month's provision onto the Balance Sheet liability line
         current_tax_accrual_balance += tax_expense_timeline[m]
         
-        # Deduct both standard trading adjustments and our active debt service overheads
+        # Combine base profits, debt overheads, and the raw monthly customer VAT cash injection
         net_monthly_profit = simulated_ebit[m] - monthly_interest_expense_p_and_l[m]
         monthly_cash_flow = (net_monthly_profit * 0.85) - monthly_total_debt_service_cash[m]
         
+        # Apply the VAT timing modifiers: inject collected cash, deduct reclaims, deduct quarterly tax outlays
+        monthly_cash_flow += (monthly_output_vat_collected[m] - monthly_input_vat_reclaimed[m]) - vat_payment_outflows[m]
+        
         # Apply the explicit 9-month annual lump-sum Corporation Tax payment lag rule
-        # Months 21 (Y1 payment), 33 (Y2 payment), 45 (Y3 payment), 57 (Y4 payment)
         if m in [20, 32, 44, 56]:
-            target_year = (m + 4) // 12  # Identifies completed year index (1, 2, 3, or 4)
+            target_year = (m + 4) // 12
             start_idx = (target_year - 1) * 12
             end_idx = target_year * 12
-            
-            # Sum up the historical 12-month provision bundle for that exact year block
             annual_lump_sum_exit = sum(tax_expense_timeline[start_idx:end_idx])
             
-            # Deduct the payment from both cash reserves and the ongoing liability line
             monthly_cash_flow -= annual_lump_sum_exit
             current_tax_accrual_balance -= annual_lump_sum_exit
             
@@ -137,7 +147,7 @@ def generate_integrated_3way_forecast(inputs: dict, overrides: dict = None) -> p
         simulated_cash.append(current_cash)
         tax_balance_sheet_timeline.append(max(0.0, current_tax_accrual_balance))
         
-    # 6. Compile into structured Pandas Frame matching our UI hooks
+    # 7. Compile into structured Pandas Frame matching our UI hooks
     output_df = pd.DataFrame({
         "Revenue (£)": simulated_revenue,
         "COGS (£)": simulated_cogs,
@@ -145,6 +155,8 @@ def generate_integrated_3way_forecast(inputs: dict, overrides: dict = None) -> p
         "EBIT (£)": simulated_ebit,
         "Interest Expense (£)": monthly_interest_expense_p_and_l,
         "Debt Service Cash Outflow (£)": monthly_total_debt_service_cash,
+        "VAT Cash Outflow (£)": vat_payment_outflows,
+        "VAT Liability BS (£)": vat_balance_sheet_timeline,
         "Cash Reserves (£)": simulated_cash,
         "Tax Expense (£)": tax_expense_timeline,
         "Tax Liability BS (£)": tax_balance_sheet_timeline,
