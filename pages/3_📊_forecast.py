@@ -36,6 +36,20 @@ with st.spinner("Compiling multi-shop three-way projections..."):
         st.error(f"Engine Calculation Error: {str(calc_error)}")
         st.stop()
 
+# Explicit column formatting mapping dictionary to prevent string printing bug
+currency_formatter = {
+    "Revenue (£)": "£{col:,.0f}",
+    "COGS (£)": "£{col:,.0f}",
+    "Opex (£)": "£{col:,.0f}",
+    "EBIT (£)": "£{col:,.0f}",
+    "Debt Service Cash Outflow (£)": "£{col:,.0f}",
+    "VAT Cash Outflow (£)": "£{col:,.0f}",
+    "Cash Reserves (£)": "£{col:,.0f}",
+    "VAT Liability BS (£)": "£{col:,.0f}",
+    "Tax Liability BS (£)": "£{col:,.0f}",
+    "Outstanding Debt Balance (£)": "£{col:,.0f}"
+}
+
 # Display interactive reporting tables
 tab1, tab2, tab3 = st.tabs(["📈 Profit & Loss", "💰 Cash Flow Runway", "🏛️ HMRC Tax & Debt Accruals"])
 
@@ -43,7 +57,8 @@ with tab1:
     st.subheader("60-Month Operating Income Statement")
     st.markdown("Tracks operational revenues, direct costs of goods sold, overhead run-rates, and calculated operating profit margins.")
     st.dataframe(
-        forecast_df[["Revenue (£)", "COGS (£)", "Opex (£)", "EBIT (£)"]].style.format("£%,.0f"),
+        forecast_df[["Revenue (£)", "COGS (£)", "Opex (£)", "EBIT (£)"]],
+        column_config=currency_formatter,
         use_container_width=True
     )
 
@@ -51,7 +66,8 @@ with tab2:
     st.subheader("Liquidity Profile & Bank Account Balances")
     st.markdown("Monitors real cash movements reflecting physical outlays, debt servicing burdens, and staggered statutory direct debits.")
     st.dataframe(
-        forecast_df[["EBIT (£)", "Debt Service Cash Outflow (£)", "VAT Cash Outflow (£)", "Cash Reserves (£)"]].style.format("£%,.0f"),
+        forecast_df[["EBIT (£)", "Debt Service Cash Outflow (£)", "VAT Cash Outflow (£)", "Cash Reserves (£)"]],
+        column_config=currency_formatter,
         use_container_width=True
     )
 
@@ -59,7 +75,8 @@ with tab3:
     st.subheader("Statutory Balance Sheet Liabilities Tracking")
     st.markdown("Accumulates non-cash operational provisions, unpaid quarterly VAT blocks, and remaining contractual credit principals.")
     st.dataframe(
-        forecast_df[["VAT Liability BS (£)", "Tax Liability BS (£)", "Outstanding Debt Balance (£)"]].style.format("£%,.0f"),
+        forecast_df[["VAT Liability BS (£)", "Tax Liability BS (£)", "Outstanding Debt Balance (£)"]],
+        column_config=currency_formatter,
         use_container_width=True
     )
 
