@@ -29,7 +29,6 @@ if not st.session_state["authenticated"]:
     pass_input = st.text_input("Security Access Passphrase:", type="password")
     
     if st.button("Authenticate Corporate Identity", use_container_width=True):
-        # Permitted handles updated to naturally accept 'marketcatalyst'
         if (user_input in ["admin", "marketcatalyst", "user2"]) and pass_input == "strata2026":
             st.session_state["authenticated"] = True
             st.session_state["username"] = user_input
@@ -63,7 +62,7 @@ else:
                 del st.session_state["baseline_inputs"]["sales_locations_clean"]
                 
             st.toast(f"🎉 Fully hydrated {selected_project_name} into operational RAM!", icon="🧠")
-            st.success("✅ Engine synchronized! Use the sidebar navigation panel to manage your active modules.")
+            st.success("✅ Engine synchronized! The sidebar navigation links are now unlocked and active.")
     else:
         st.warning("⚠️ No active project registries linked to your account profile. Contact your system controller.")
         
