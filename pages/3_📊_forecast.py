@@ -19,24 +19,6 @@ if not st.session_state.get("authenticated", False) or "baseline_inputs" not in 
 
 st.title("📊 Integrated Financial Forecast Ledger")
 st.caption(f"Active Environment: {st.session_state.get('username', 'Standard Admin').capitalize()} Management Matrix")
-
-# Global CSS override injector to force absolute centering on dataframe column headers
-st.markdown(
-    """
-    <style>
-        /* Target Streamlit's custom data grid table column headers */
-        th [data-testid="stHeaderBlock"] {
-            justify-content: center !important;
-            text-align: center !important;
-        }
-        /* Fallback alignment selector for basic data rendering blocks */
-        .stDataFrame th {
-            text-align: center !important;
-        }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
 st.markdown("---")
 
 inputs = st.session_state["baseline_inputs"]
@@ -55,18 +37,18 @@ with st.spinner("Compiling multi-shop three-way projections..."):
         st.error(f"Engine Calculation Error: {str(calc_error)}")
         st.stop()
 
-# Programmatic NumberColumn configurations to handle formatting and headers cleanly
+# Programmatic NumberColumn configurations with explicit native center alignment
 currency_formatter = {
-    "Revenue (£)": st.column_config.NumberColumn("Revenue", format="£ %,.0f"),
-    "COGS (£)": st.column_config.NumberColumn("COGS", format="£ %,.0f"),
-    "Opex (£)": st.column_config.NumberColumn("Opex", format="£ %,.0f"),
-    "EBIT (£)": st.column_config.NumberColumn("EBIT", format="£ %,.0f"),
-    "Debt Service Cash Outflow (£)": st.column_config.NumberColumn("Debt Service Outflow", format="£ %,.0f"),
-    "VAT Cash Outflow (£)": st.column_config.NumberColumn("VAT Outflow", format="£ %,.0f"),
-    "Cash Reserves (£)": st.column_config.NumberColumn("Cash Reserves", format="£ %,.0f"),
-    "VAT Liability BS (£)": st.column_config.NumberColumn("VAT Liability", format="£ %,.0f"),
-    "Tax Liability BS (£)": st.column_config.NumberColumn("Tax Liability", format="£ %,.0f"),
-    "Outstanding Debt Balance (£)": st.column_config.NumberColumn("Outstanding Debt", format="£ %,.0f")
+    "Revenue (£)": st.column_config.NumberColumn("Revenue", format="£ %,.0f", alignment="center"),
+    "COGS (£)": st.column_config.NumberColumn("COGS", format="£ %,.0f", alignment="center"),
+    "Opex (£)": st.column_config.NumberColumn("Opex", format="£ %,.0f", alignment="center"),
+    "EBIT (£)": st.column_config.NumberColumn("EBIT", format="£ %,.0f", alignment="center"),
+    "Debt Service Cash Outflow (£)": st.column_config.NumberColumn("Debt Service Outflow", format="£ %,.0f", alignment="center"),
+    "VAT Cash Outflow (£)": st.column_config.NumberColumn("VAT Outflow", format="£ %,.0f", alignment="center"),
+    "Cash Reserves (£)": st.column_config.NumberColumn("Cash Reserves", format="£ %,.0f", alignment="center"),
+    "VAT Liability BS (£)": st.column_config.NumberColumn("VAT Liability", format="£ %,.0f", alignment="center"),
+    "Tax Liability BS (£)": st.column_config.NumberColumn("Tax Liability", format="£ %,.0f", alignment="center"),
+    "Outstanding Debt Balance (£)": st.column_config.NumberColumn("Outstanding Debt", format="£ %,.0f", alignment="center")
 }
 
 # Display interactive reporting tables
