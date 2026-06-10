@@ -69,7 +69,7 @@ st.markdown("### **Step 2: Corporate Debt Liabilities Amortization Grid**")
 current_debt_df = pd.DataFrame(inputs_ref["debt_facilities"])
 
 edited_debt_df = st.data_editor(
-    current_debt_df, num_rows="dynamic", use_container_width=True, key="debt_editor_v2",
+    current_debt_df, num_rows="dynamic", use_container_width=True, key="debt_editor_v3",
     column_config={
         "Facility Name Description": st.column_config.TextColumn("Facility Name Description", required=True),
         "Opening Principal Balance (£)": st.column_config.NumberColumn("Opening Principal Balance (£)", format="£%,.0f", min_value=0.0, required=True),
@@ -85,7 +85,7 @@ st.caption("Allocate corporate revenue share weights and local tax attributes. T
 
 current_locations_df = pd.DataFrame(inputs_ref["sales_locations"])
 edited_locations_df = st.data_editor(
-    current_locations_df, num_rows="dynamic", use_container_width=True, key="location_editor_v2",
+    current_locations_df, num_rows="dynamic", use_container_width=True, key="location_editor_v3",
     column_config={
         "Trading Location Name": st.column_config.TextColumn("Trading Location Name", required=True),
         "Corporate Revenue Share (%)": st.column_config.NumberColumn("Corporate Revenue Share (%)", format="%.1f%%", min_value=0.0, max_value=100.0, required=True),
@@ -100,26 +100,36 @@ if abs(total_share_entered - 100.0) > 0.01:
 # --- 7. SAVE AND EMIT INPUTS PIPELINE ---
 st.markdown("---")
 if st.button("💾 Lock and Synchronize System Attributes", use_container_width=True):
-    # Process Debt
+    # Process Debt Rows Defensively
     formatted_debt_list = []
     for _, row in edited_debt_df.iterrows():
+        name = row.get("Facility Name Description", row.get("Facility Name", "Corporate Loan"))
+        bal = row.get("Opening Principal Balance (£)", row.get("Opening Balance (£)", 0.0))
+        rate = row.get("Annual Interest Rate (%)", 0.0)
+        term = row.get("Contractual Amortization Term (Months)", row.get("Term (Months)", 60))
+        
         formatted_debt_list.append({
-            "facility_name": row["Facility Name Description"], 
-            "opening_balance": float(row["Opening Principal Balance (£)"]),
-            "interest_rate_annual": float(row["Annual Interest Rate (%)"]) / 100.0, 
-            "term_months": int(row["Contractual Amortization Term (Months)"])
+            "facility_name": name, 
+            "opening_balance": float(bal),
+            "interest_rate_annual": float(rate) / 100.0, 
+            "term_months": int(term)
         })
         
-    # Process Locations
+    # Process Location Rows Defensively
     formatted_locations_list = []
     for _, row in edited_locations_df.iterrows():
-        std_share = (100.0 - float(row["Zero-Rated / Exempt Mix (%)"])) / 100.0
+        name = row.get("Trading Location Name", row.get("Site Location Name", "Retail Outlet"))
+        share = row.get("Corporate Revenue Share (%)", 0.0)
+        zero_mix = row.get("Zero-Rated / Exempt Mix (%)", row.get("Zero-Rated Mix (%)", 0.0))
+        
+        std_share = (100.0 - float(zero_mix)) / 100.0
         formatted_locations_list.append({
-            "site_name": row["Trading Location Name"],
-            "revenue_share": float(row["Corporate Revenue Share (%)"]) / 100.0,
+            "site_name": name,
+            "revenue_share": float(share) / 100.0,
             "standard_rated_share": std_share
         })
         
+    # Commit directly to the persistent master state dictionary
     inputs_ref["admin_overheads_monthly"] = admin_input
     inputs_ref["base_monthly_gross_wages"] = wages_input
     inputs_ref["pension_opt_out"] = pension_toggle
