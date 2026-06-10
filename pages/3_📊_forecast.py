@@ -1,107 +1,91 @@
-# ui_skin/pages/3_📊_forecast.py
+# pages/3_📊_forecast.py
+import streamlit as st
 import sys
 from pathlib import Path
 
-# --- 1. CRITICAL PATH RESOLUTION ---
-root_dir = Path(__file__).resolve().parent.parent.parent
+# Absolute project path resolution to handle multi-page layout shifts smoothly
+root_dir = Path(__file__).resolve().parent.parent
 if str(root_dir) not in sys.path:
     sys.path.append(str(root_dir))
 
-import streamlit as st
-import pandas as pd
+from ui_skin.core_engine.master_model import generate_integrated_3way_forecast
+from ui_skin.core_engine.report_generator import export_forecast_to_excel
 
-st.set_page_config(layout="wide", page_title="STRATA Forecast Ledger")
-
-# --- 2. SECURITY GATEKEEPER CONSTRAINT ---
-if "authenticated" not in st.session_state or not st.session_state["authenticated"] or "baseline_inputs" not in st.session_state:
-    st.error("🔒 **Access Denied: Unauthorized Endpoints Locked**")
-    st.info("This environment is shielded by an enterprise security framework. You must log in via the main portal to open this workspace.")
-    if st.button("Return to Portal Landing Page", use_container_width=True):
-        st.switch_page("home.py")
+# Line 1 Gatekeeper Execution Shield
+if not st.session_state.get("authenticated", False) or "baseline_inputs" not in st.session_state:
+    st.warning("🛡️ Active session credentials or project data missing. Re-authenticate via the Security Gateway.")
     st.stop()
 
-from ui_skin.core_engine.master_model import generate_integrated_3way_forecast
-
-st.title("📊 Integrated Three-Way Financial Forecast")
-st.caption("60-Month Whole-Pound Ledger: Income Statement, Balance Sheet Accruals, and Cash Runway Projections")
+st.title("📊 Integrated Financial Forecast Ledger")
+st.caption(f"Active Environment: {st.session_state.get('username', 'Standard Admin').capitalize()} Management Matrix")
 st.markdown("---")
 
-# --- 3. LIVE CALCULATIONS RUNTIME ---
-inputs_package = st.session_state["baseline_inputs"]
+inputs = st.session_state["baseline_inputs"]
 
-# Generate the master computation matrix from our single source of truth
+# Check for manual overrides from the sandbox session if they exist
+overrides = {
+    "volume_delta": st.session_state.get("sandbox_volume_delta", 0.0),
+    "opex_delta": st.session_state.get("sandbox_opex_delta", 0.0)
+}
+
+# Run the integration calculation pipeline
+with st.spinner("Compiling multi-shop three-way projections..."):
+    try:
+        forecast_df = generate_integrated_3way_forecast(inputs, overrides)
+    except Exception as calc_error:
+        st.error(f"Engine Calculation Error: {str(calc_error)}")
+        st.stop()
+
+# Display interactive reporting tables
+tab1, tab2, tab3 = st.tabs(["📈 Profit & Loss", "💰 Cash Flow Runway", "🏛️ HMRC Tax & Debt Accruals"])
+
+with tab1:
+    st.subheader("60-Month Operating Income Statement")
+    st.markdown("Tracks operational revenues, direct costs of goods sold, overhead run-rates, and calculated operating profit margins.")
+    st.dataframe(
+        forecast_df[["Revenue (£)", "COGS (£)", "Opex (£)", "EBIT (£)"]].style.format("£%,.0f"),
+        use_container_width=True
+    )
+
+with tab2:
+    st.subheader("Liquidity Profile & Bank Account Balances")
+    st.markdown("Monitors real cash movements reflecting physical outlays, debt servicing burdens, and staggered statutory direct debits.")
+    st.dataframe(
+        forecast_df[["EBIT (£)", "Debt Service Cash Outflow (£)", "VAT Cash Outflow (£)", "Cash Reserves (£)"]].style.format("£%,.0f"),
+        use_container_width=True
+    )
+
+with tab3:
+    st.subheader("Statutory Balance Sheet Liabilities Tracking")
+    st.markdown("Accumulates non-cash operational provisions, unpaid quarterly VAT blocks, and remaining contractual credit principals.")
+    st.dataframe(
+        forecast_df[["VAT Liability BS (£)", "Tax Liability BS (£)", "Outstanding Debt Balance (£)"]].style.format("£%,.0f"),
+        use_container_width=True
+    )
+
+st.markdown("---")
+st.subheader("💾 Export Financial Intelligence Report")
+st.markdown("Compile and download this exact 60-month multi-tab ledger configuration as an audited Excel model package for reporting distributions.")
+
+# Generate Excel bytes asset dynamically via the report generator module
 try:
-    forecast_matrix = generate_integrated_3way_forecast(inputs_package, overrides={})
-    months = forecast_matrix.index
+    excel_data = export_forecast_to_excel(inputs, overrides)
     
-    # --- 4. EXECUTIVE SUMMARY METRICS ---
-    final_cash = forecast_matrix["Cash Reserves (£)"].iloc[-1]
-    peak_debt_service = forecast_matrix["Debt Service Cash Outflow (£)"].max()
-    total_revenue_projected = forecast_matrix["Revenue (£)"].sum()
+    # Extract trading name safe string for filename labeling
+    trading_name = "Group"
+    if "sales_locations" in inputs and inputs["sales_locations"]:
+        trading_name = inputs["sales_locations"][0].get("Trading Location Name", "Group")
+    elif "sales_locations_clean" in inputs and inputs["sales_locations_clean"]:
+        trading_name = inputs["sales_locations_clean"][0].get("site_name", "Group")
+        
+    safe_filename = f"STRATA_Forecast_Report_{trading_name.replace(' ', '_')}.xlsx"
     
-    metric_col1, metric_col2, metric_col3 = st.columns(3)
-    with metric_col1:
-        st.metric(label="M60 Target Cash Reserves", value=f"£{final_cash:,.0f}")
-    with metric_col2:
-        st.metric(label="Peak Monthly Debt Service Obligation", value=f"£{peak_debt_service:,.0f}", delta="Fixed Liability Outflow", delta_color="inverse")
-    with metric_col3:
-        st.metric(label="60-Month Cumulative Gross Turnover", value=f"£{total_revenue_projected:,.0f}")
-        
-    st.markdown("---")
-    
-    # --- 5. LEDGER TAB COMPONENT ARCHITECTURE ---
-    tab_pl, tab_cash, tab_tax_debt = st.tabs(["📈 Profit & Loss Statement", "💰 Cash Flow Runway", "🏛️ HMRC Tax & Debt Ledgers"])
-    
-    with tab_pl:
-        st.subheader("Income Statement Projections")
-        pl_display = pd.DataFrame({
-            "Gross Revenue (£)": forecast_matrix["Revenue (£)"],
-            "Cost of Goods Sold (£)": forecast_matrix["COGS (£)"],
-            "Operating Expenses (£)": forecast_matrix["Opex (£)"],
-            "EBIT (Operating Profit) (£)": forecast_matrix["EBIT (£)"],
-            "Interest Overhead (£)": forecast_matrix["Interest Expense (£)"]
-        }, index=months).T
-        
-        st.dataframe(
-            pl_display, use_container_width=True,
-            column_config={m: st.column_config.NumberColumn(format="£%,.0f") for m in months}
-        )
-        
-    with tab_cash:
-        st.subheader("Cash Positioning Timeline")
-        st.caption("Reflects trading profits, location-specific VAT collections, and your contractual loan repayments.")
-        
-        # Display our whole-pound cash ledger chart
-        st.line_chart(forecast_matrix["Cash Reserves (£)"], color="#2E7D32")
-        
-        cash_display = pd.DataFrame({
-            "Net Trading Cash Flow (£)": (forecast_matrix["EBIT (£)"] * 0.85),
-            "Debt Service Outflow (£)": forecast_matrix["Debt Service Cash Outflow (£)"],
-            "Quarterly VAT Cash Settled (£)": forecast_matrix["VAT Cash Outflow (£)"],
-            "Closing Bank Balance (£)": forecast_matrix["Cash Reserves (£)"]
-        }, index=months).T
-        
-        st.dataframe(
-            cash_display, use_container_width=True,
-            column_config={m: st.column_config.NumberColumn(format="£%,.0f") for m in months}
-        )
-        
-    with tab_tax_debt:
-        st.subheader("HMRC Statutory Obligations & Corporate Debt Balances")
-        st.markdown("Track rolling corporate tax provisions, quarterly VAT liability hold accounts, and outstanding debt amortization sweeps.")
-        
-        tax_debt_display = pd.DataFrame({
-            "Outstanding Debt Balance (£)": forecast_matrix["Outstanding Debt Balance (£)"],
-            "Monthly Debt Cash Outflow (£)": forecast_matrix["Debt Service Cash Outflow (£)"],
-            "HMRC Corp Tax Provision BS (£)": forecast_matrix["Tax Liability BS (£)"],
-            "HMRC Rolling VAT Hold BS (£)": forecast_matrix["VAT Liability BS (£)"]
-        }, index=months).T
-        
-        st.dataframe(
-            tax_debt_display, use_container_width=True,
-            column_config={m: st.column_config.NumberColumn(format="£%,.0f") for m in months}
-        )
-        
+    st.download_button(
+        label="📥 Download Complete 3-Way Model (.xlsx)",
+        data=excel_data,
+        file_name=safe_filename,
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        use_container_width=True
+    )
 except Exception as e:
-    st.error(f"Execution Error: Downstream matrices could not compile.")
-    st.info("Please ensure your operational attributes are fully synchronized on the Data Ingestion Page.")
+    st.error(f"Failed to generate spreadsheet package: {str(e)}")
