@@ -19,36 +19,35 @@ st.title("🔐 STRATA Enterprise Forecasting Portal")
 st.caption("Secure Accounting Migration & Analytical Suite (WinForecast Compliance Pipeline)")
 st.markdown("---")
 
-# --- 3. SECURE SIGN-IN GATING LOGIC ---
-# If already authenticated, bypass the form and offer direct entrance
+# --- 3. SECURE CREDENTIAL SIGN-IN GATING ---
 if st.session_state["authenticated"]:
     st.success("🔒 Your corporate session is active and authenticated.")
     if st.button("Enter Active Workspace Hub", use_container_width=True):
         st.switch_page("pages/1_🔌_ingestion.py")
 else:
-    # Render secure sign-in panel container
     with st.form("login_form"):
         st.subheader("Corporate Workspace Sign-In")
-        st.markdown("Please input your designated operational passkey to initialize your baseline metrics and unlock your analytical endpoints.")
+        st.markdown("Please input your designated corporate credentials to verify identity and unlock your analytical endpoints.")
         
-        user_password = st.text_input("Enter Workspace Security Passkey:", type="password")
+        # Restored traditional Username and Password combination fields
+        username = st.text_input("Username:", placeholder="e.g., admin")
+        password = st.text_input("Password:", type="password", placeholder="••••••••")
+        
         submit_button = st.form_submit_button("Authenticate & Initialize Session")
 
     if submit_button:
-        # Secure credential gate comparison block
-        # For security best practices, we cross-reference a set key. 
-        # (You can also map this to st.secrets['passkeys'] later if preferred)
-        if user_password == "STRATA2026!": 
-            # Raise the master session token flag in hidden application RAM
+        # Cross-reference explicit username and password combinations
+        if username == "admin" and password == "STRATA2026!": 
+            # Raise the master session token flag in application memory
             st.session_state["authenticated"] = True
             st.success("✅ Authentication successful! System state unlocked.")
             
-            # Flush UI and reroute the authenticated session directly into Ingestion
+            # Refresh UI and pass through to the ingestion suite
             st.rerun()
         else:
-            st.error("❌ Invalid passkey detected. Access denied. Please verify your credentials or contact system operations.")
+            st.error("❌ Invalid Username or Password combination detected. Access denied.")
 
-# --- 4. OPTIONAL FOOTER TRACEABILITY ---
+# --- 4. FOOTER TRACEABILITY ---
 st.markdown("<br><br>", unsafe_allow_html=True)
 st.markdown("---")
 st.caption("STRATA Engine v1.4 • Data Security Layer Enforced")
