@@ -2,20 +2,17 @@ import streamlit as st
 import sys
 from pathlib import Path
 
-# --- 1. THE ABSOLUTE FIRST STREAMLIT SYSTEM COMMAND ---
-# This must sit at the very top of the execution thread to prevent sidebar DOM erasure.
+# --- 1. INITIAL SYSTEM STATE PARAMETERS ---
 st.set_page_config(layout="wide", page_title="STRATA Financial Intelligence Portal")
 
-# --- 2. CRITICAL PATH RESOLUTION ---
 root_dir = Path(__file__).resolve().parent
 if str(root_dir) not in sys.path:
     sys.path.append(str(root_dir))
 
-# --- 3. INITIALIZE ENHANCED SESSION STATE SECURITY ---
 if "authenticated" not in st.session_state:
     st.session_state["authenticated"] = False
 
-# Force security barrier if credentials aren't initialized
+# --- 2. SECURITY GATEKEEPER ---
 if not st.session_state["authenticated"]:
     st.title("🔒 STRATA Security Access Gateway")
     st.caption("Enterprise Workspace Security Engine & Scenario Access Control Gateway")
@@ -29,23 +26,12 @@ if not st.session_state["authenticated"]:
             st.session_state["authenticated"] = True
             st.rerun()
         else:
-            st.error("Authentication Fault: Invalid profile configuration credentials.")
+            st.error("Authentication Fault: Invalid profile credentials.")
     st.stop()
 
-# --- 4. PROGRAMMATIC ROUTING GRAPH DECLARATION ---
-# Explicitly registers the dashboard file paths to bind the sidebar navigation layout.
-try:
-    page_home = st.Page("home.py", title="Secure Portal Launcher", icon="🛡️")
-    page_ingestion = st.Page("pages/1_🔌_ingestion.py", title="Data Ingestion Suite", icon="🔌")
-    page_forecast = st.Page("pages/3_📊_forecast.py", title="Financial Forecast", icon="📊")
-    
-    # Declare the programmatic routing graph natively
-    pg = st.navigation([page_home, page_ingestion, page_forecast], position="sidebar")
-except Exception as e:
-    st.error(f"Routing Fault: Streamlit engine could not map the dashboard page files. Details: {str(e)}")
-
-# --- 5. ACTIVE SCENARIO REGISTRY DATA MATRIX ---
-available_projects = {
+# --- 3. MASTER SCENARIO REGISTRY DATA MATRIX ---
+# Caching this matrix directly into session state ensures pages can read it securely
+st.session_state["available_projects"] = {
     "Greenfield Project Alpha (Scenario 1)": {
         "opening_cash_balance": 150000.00,
         "opening_fixed_assets_nbv": 780000.00,
@@ -81,27 +67,13 @@ available_projects = {
     }
 }
 
-# --- 6. LOGGED IN PORTAL INTERFACE ---
-st.title("🛡️ STRATA Financial Intelligence Portal")
-st.caption("Enterprise Workspace Security Engine & Scenario Access Control Gateway")
-st.markdown("---")
-
-st.subheader("👋 Welcome back, Marketcatalyst")
-st.write("Select an active project workspace below. The platform will dynamically hydrate your calculation modules, local tax shapes, and loan structures.")
-
-selected_project_name = st.selectbox(
-    "Available Corporate Environments Registries:",
-    options=list(available_projects.keys()),
-    key="portal_environment_selector"
-)
-
-st.markdown(" ")
-if st.button(f"🚀 Hydrate Workspace & Launch [{selected_project_name}]", use_container_width=True):
-    # Deep-copy properties into active session memory context safely
-    st.session_state["baseline_inputs"] = available_projects[selected_project_name].copy()
-    st.toast(f"Operational variables for {selected_project_name} successfully cached in RAM!", icon="🔥")
-    st.success("✔️ Workspace Hydrated. The sidebar options are unlocked.")
-
-# --- 7. EXECUTE NATIVE ROUTING RUNTIME ---
-# This required execution call forces the sidebar tree to render cleanly in the UI window DOM
-pg.run()
+# --- 4. SECURE PROGRAMMATIC ROUTING GRAPH ---
+try:
+    page_launcher = st.Page("pages/0_🛡️_launcher.py", title="Secure Portal Launcher", icon="🛡️", default=True)
+    page_ingestion = st.Page("pages/1_🔌_ingestion.py", title="Data Ingestion Suite", icon="🔌")
+    page_forecast = st.Page("pages/3_📊_forecast.py", title="Financial Forecast", icon="📊")
+    
+    pg = st.navigation([page_launcher, page_ingestion, page_forecast], position="sidebar")
+    pg.run()
+except Exception as e:
+    st.error(f"Routing Fault: Streamlit engine could not compile paths. Details: {str(e)}")
