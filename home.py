@@ -30,7 +30,6 @@ if not st.session_state["authenticated"]:
     st.stop()
 
 # --- 3. MASTER SCENARIO REGISTRY DATA MATRIX ---
-# Caching this matrix directly into session state ensures pages can read it securely
 st.session_state["available_projects"] = {
     "Greenfield Project Alpha (Scenario 1)": {
         "opening_cash_balance": 150000.00,
@@ -67,13 +66,22 @@ st.session_state["available_projects"] = {
     }
 }
 
-# --- 4. SECURE PROGRAMMATIC ROUTING GRAPH ---
+# --- 4. FULLY EXPANDED PROGRAMMATIC ROUTING GRAPH ---
+# Here we declare and bind all active dashboard components across the platform
 try:
     page_launcher = st.Page("pages/0_🛡️_launcher.py", title="Secure Portal Launcher", icon="🛡️", default=True)
     page_ingestion = st.Page("pages/1_🔌_ingestion.py", title="Data Ingestion Suite", icon="🔌")
-    page_forecast = st.Page("pages/3_📊_forecast.py", title="Financial Forecast", icon="📊")
     
-    pg = st.navigation([page_launcher, page_ingestion, page_forecast], position="sidebar")
+    # Restored Page Assets
+    page_sandbox = st.Page("pages/2_🔮_sandbox.py", title="Stewardship Sandbox", icon="🔮")
+    page_forecast = st.Page("pages/3_📊_forecast.py", title="Financial Forecast", icon="📊")
+    page_compliance = st.Page("pages/4_⚖️_compliance.py", title="Compliance & Tax Portal", icon="⚖️")
+    
+    # Mount the complete multi-page architecture tree to the sidebar
+    pg = st.navigation(
+        [page_launcher, page_ingestion, page_sandbox, page_forecast, page_compliance], 
+        position="sidebar"
+    )
     pg.run()
 except Exception as e:
     st.error(f"Routing Fault: Streamlit engine could not compile paths. Details: {str(e)}")
