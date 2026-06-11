@@ -2,7 +2,7 @@ import sys
 from pathlib import Path
 
 # --- 1. CRITICAL PATH RESOLUTION ---
-root_dir = Path(__file__).resolve().parent.parent.parent
+root_dir = Path(__file__).resolve().parent.parent
 if str(root_dir) not in sys.path:
     sys.path.append(str(root_dir))
 
@@ -27,33 +27,28 @@ st.title("🔌 Corporate Data Ingestion & Mapping Suite")
 st.caption("Synchronize Trial Balances, Map Account Architectures, and Configure Location Tax Schedules")
 st.markdown("---")
 
-# --- 3. BULLETPROOF SESSION MEMORY SEEDING LAYER ---
+# --- 3. BULLETPROOF SESSION MEMORY SEEDING LAYER (PURGED TO CLEAN SLATE) ---
 if "baseline_inputs" not in st.session_state:
     st.session_state["baseline_inputs"] = {}
 
 inputs_ref = st.session_state["baseline_inputs"]
 
-if "opening_cash_balance" not in inputs_ref: inputs_ref["opening_cash_balance"] = 69488.00
-if "opening_fixed_assets_nbv" not in inputs_ref: inputs_ref["opening_fixed_assets_nbv"] = 531385.00
-if "admin_overheads_monthly" not in inputs_ref: inputs_ref["admin_overheads_monthly"] = 18575.00
-if "base_monthly_gross_wages" not in inputs_ref: inputs_ref["base_monthly_gross_wages"] = 12000.00
-if "directors_salaries_monthly" not in inputs_ref: inputs_ref["directors_salaries_monthly"] = 5150.00
-if "pension_opt_out" not in inputs_ref: inputs_ref["pension_opt_out"] = False
-if "y1_monthly_revenue_curve" not in inputs_ref: 
-    inputs_ref["y1_monthly_revenue_curve"] = [249310.0, 356310.0, 385200.0, 404460.0, 447260.0, 470800.0, 508785.0, 707525.0, 763067.0, 750127.0, 750025.0, 736017.0]
+if "opening_cash_balance" not in inputs_ref: inputs_ref["opening_cash_balance"] = 0.00
+if "opening_fixed_assets_nbv" not in inputs_ref: inputs_ref["opening_fixed_assets_nbv"] = 0.00
+if "admin_overheads_monthly" not in inputs_ref: inputs_ref["admin_overheads_monthly"] = 0.00
+if "base_monthly_gross_wages" not in inputs_ref: inputs_ref["base_monthly_gross_wages"] = 0.00
+if "directors_salaries_monthly" not in inputs_ref: inputs_ref["directors_salaries_monthly"] = 0.00
+if "pension_opt_out" not in inputs_ref: inputs_ref["pension_opt_out"] = True
+if "y1_monthly_revenue_curve" not in inputs_ref: inputs_ref["y1_monthly_revenue_curve"] = [0.0] * 12
 
 if "debt_facilities" not in inputs_ref:
     inputs_ref["debt_facilities"] = [
-        {"Facility Name Description": "DBW Tranche 1", "Opening Principal Balance (£)": 50000.0, "Annual Interest Rate (%)": 7.5, "Contractual Amortization Term (Months)": 60},
-        {"Facility Name Description": "Funding Circle Line", "Opening Principal Balance (£)": 45000.0, "Annual Interest Rate (%)": 9.2, "Contractual Amortization Term (Months)": 48},
-        {"Facility Name Description": "IWOCA Short-Term", "Opening Principal Balance (£)": 35176.0, "Annual Interest Rate (%)": 12.0, "Contractual Amortization Term (Months)": 24}
+        {"Facility Name Description": "New Facility Entry", "Opening Principal Balance (£)": 0.00, "Annual Interest Rate (%)": 0.00, "Contractual Amortization Term (Months)": 12}
     ]
 
 if "sales_locations" not in inputs_ref:
     inputs_ref["sales_locations"] = [
-        {"Trading Location Name": "Bridgend Hub", "Corporate Revenue Share (%)": 40.0, "Zero-Rated / Exempt Mix (%)": 65.0},
-        {"Trading Location Name": "Cardiff Bay Center", "Corporate Revenue Share (%)": 35.0, "Zero-Rated / Exempt Mix (%)": 0.0},
-        {"Trading Location Name": "Penarth Acquisition", "Corporate Revenue Share (%)": 25.0, "Zero-Rated / Exempt Mix (%)": 100.0}
+        {"Trading Location Name": "Primary Site", "Corporate Revenue Share (%)": 100.0, "Zero-Rated / Exempt Mix (%)": 0.0}
     ]
 
 # --- 4. STRUCTURAL OCR SCHEMA ENFORCEMENT LAYER ---
