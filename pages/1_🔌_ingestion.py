@@ -1,4 +1,3 @@
-# ui_skin/pages/1_🔌_ingestion.py
 import sys
 from pathlib import Path
 
@@ -9,6 +8,10 @@ if str(root_dir) not in sys.path:
 
 import streamlit as st
 import pandas as pd
+from google import genai
+from google.genai import types
+from pydantic import BaseModel, Field
+from typing import List, Optional
 
 st.set_page_config(layout="wide", page_title="STRATA Ingestion Engine")
 
@@ -53,34 +56,136 @@ if "sales_locations" not in inputs_ref:
         {"Trading Location Name": "Penarth Acquisition", "Corporate Revenue Share (%)": 25.0, "Zero-Rated / Exempt Mix (%)": 100.0}
     ]
 
-# --- 4. STEP 1: TRIAL BALANCE AND REVENUE VERIFICATION ---
-st.markdown("### **Step 1: Core Operations Run-Rates**")
+# --- 4. STRUCTURAL OCR SCHEMA ENFORCEMENT LAYER ---
+class IngestedInvoiceItem(BaseModel):
+    vendor_name: str = Field(description="Name of the corporate vendor issuing the transaction document.")
+    document_date: Optional[str] = Field(description="The formal transaction or invoice date detected (YYYY-MM-DD format if possible).")
+    net_amount: float = Field(description="Total operational balance excluding VAT / taxes.")
+    vat_amount: float = Field(description="Total aggregated tax allocation value recorded.")
+    gross_amount: float = Field(description="Total final transaction processing amount.")
+    suggested_ledger_category: str = Field(description="Classification string, e.g., Admin Overheads, Staff Cost, Capital Asset, Debt Repayment.")
+
+# --- 5. STEP 1: MULTIMODAL DATA & LEDGER INGESTION (OCR PIPELINE ACTIVE) ---
+st.markdown("### **Step 1: Multimodal Ledger, Invoice, & Receipt Ingestion**")
+st.caption("Upload structured tabular manifests (CSV/XLSX) or scan raw document layouts (PDF/JPEG/PNG) via the pipeline engine.")
+
+uploaded_document = st.file_uploader(
+    label="Drop Corporate Document Payload (CSV, XLSX, PDF, JPEG, PNG)",
+    type=["csv", "xlsx", "pdf", "jpeg", "jpg", "png"],
+    accept_multiple_files=False,
+    key="strata_multimodal_uploader"
+)
+
+if uploaded_document is not None:
+    file_ext = uploaded_document.name.split(".")[-1].lower()
+    
+    # Pathway A: Structured Tabular Parsers
+    if file_ext in ["csv", "xlsx"]:
+        try:
+            if file_ext == "csv":
+                parsed_df = pd.read_csv(uploaded_document)
+            else:
+                parsed_df = pd.read_excel(uploaded_document)
+            
+            st.success(f"✔️ **Tabular Parsing Successful:** '{uploaded_document.name}' mapped into staging memory space.")
+            with st.expander("🔍 Preview Ingested Schema Structure"):
+                st.dataframe(parsed_df.head(5), use_container_width=True)
+            inputs_ref["raw_ingested_ledger_df"] = parsed_df
+        except Exception as e:
+            st.error(f"❌ **Data Ingestion Error:** Failed to map incoming ledger rows. Details: {str(e)}")
+            
+    # Pathway B: Multimodal GenAI OCR Pipeline Engine
+    elif file_ext in ["pdf", "jpeg", "jpg", "png"]:
+        # Verify API Environment Anchor Safely
+        if "GENAI_API_KEY" not in st.secrets and not sys.environ.get("GEMINI_API_KEY"):
+            st.error("⚠️ **OCR Credentials Fault:** No valid API keys found in runtime secrets configuration matrix.")
+        else:
+            with st.spinner("🧠 Initializing Multimodal OCR Analysis Engine..."):
+                try:
+                    # Instantiate client utilizing the modern SDK pattern
+                    client = genai.Client()
+                    file_bytes = uploaded_document.read()
+                    
+                    # Convert file extension to mime-type signatures
+                    mime_map = {"pdf": "application/pdf", "jpeg": "image/jpeg", "jpg": "image/jpeg", "png": "image/png"}
+                    mime_type = mime_map[file_ext]
+                    
+                    # Build Part objects for processing
+                    document_part = types.Part.from_bytes(
+                        data=file_bytes,
+                        mime_type=mime_type,
+                    )
+                    
+                    prompt = """
+                    You are a premium corporate audit assistant. 
+                    Examine this unstructured transactional document closely. Extract the core fiscal elements 
+                    and categorize them precisely based on the requested structural output format parameters.
+                    """
+                    
+                    # Call modern flagship engine forcing target strict structural constraints
+                    response = client.models.generate_content(
+                        model='gemini-2.5-flash',
+                        contents=[document_part, prompt],
+                        config=types.GenerateContentConfig(
+                            response_mime_type="application/json",
+                            response_schema=IngestedInvoiceItem,
+                            temperature=0.1
+                        ),
+                    )
+                    
+                    # Parse validated response schema directly into data matrix
+                    validated_output = IngestedInvoiceItem.model_validate_json(response.text)
+                    
+                    st.success(f"🔥 **OCR Extraction Complete:** Extracted unstructured artifacts with high confidence verification mapping.")
+                    
+                    # Display extracted variables as metrics fields
+                    m_col1, m_col2, m_col3 = st.columns(3)
+                    with m_col1:
+                        st.metric(label="Vendor Identity", value=validated_output.vendor_name)
+                        st.metric(label="Extracted Net Amount", value=f"£{validated_output.net_amount:,.2f}")
+                    with m_col2:
+                        st.metric(label="Transaction Date", value=str(validated_output.document_date))
+                        st.metric(label="Extracted VAT Amount", value=f"£{validated_output.vat_amount:,.2f}")
+                    with m_col3:
+                        st.metric(label="Suggested Allocation", value=validated_output.suggested_ledger_category)
+                        st.metric(label="Gross Amount", value=f"£{validated_output.gross_amount:,.2f}")
+                    
+                    # Cache structured data for system-wide accessibility loops
+                    inputs_ref["last_ocr_extraction"] = validated_output.model_dump()
+                    
+                except Exception as e:
+                    st.error(f"❌ **OCR Pipeline Execution Error:** Structural normalization failure. Details: {str(e)}")
+
+st.markdown("---")
+
+# --- 6. STEP 2: CORE OPERATIONS RUN-RATES ---
+st.markdown("### **Step 2: Core Operations Run-Rates**")
 col1, col2, col3 = st.columns(3)
 with col1:
-    admin_input = st.number_input("Monthly Admin Overheads (£):", value=float(inputs_ref["admin_overheads_monthly"]), step=500.0)
+    admin_input = st.number_input("Monthly Admin Overheads (£):", value=float(inputs_ref["admin_overheads_monthly"]), step=500.0, format="%.2f")
 with col2:
-    wages_input = st.number_input("Monthly Gross Staff Wages (£):", value=float(inputs_ref["base_monthly_gross_wages"]), step=500.0)
+    wages_input = st.number_input("Monthly Gross Staff Wages (£):", value=float(inputs_ref["base_monthly_gross_wages"]), step=500.0, format="%.2f")
 with col3:
     pension_toggle = st.checkbox("Statutory Auto-Enrolment Opt-Out", value=inputs_ref["pension_opt_out"])
 
-# --- 5. STEP 2: DYNAMIC DEBT LIABILITIES CONFIGURATOR ---
+# --- 7. STEP 3: DYNAMIC DEBT LIABILITIES CONFIGURATOR ---
 st.markdown("---")
-st.markdown("### **Step 2: Corporate Debt Liabilities Amortization Grid**")
+st.markdown("### **Step 3: Corporate Debt Liabilities Amortization Grid**")
 current_debt_df = pd.DataFrame(inputs_ref["debt_facilities"])
 
 edited_debt_df = st.data_editor(
     current_debt_df, num_rows="dynamic", use_container_width=True, key="debt_editor_v3",
     column_config={
         "Facility Name Description": st.column_config.TextColumn("Facility Name Description", required=True),
-        "Opening Principal Balance (£)": st.column_config.NumberColumn("Opening Principal Balance (£)", format="£%,.0f", min_value=0.0, required=True),
+        "Opening Principal Balance (£)": st.column_config.NumberColumn("Opening Principal Balance (£)", format="£%,.2f", min_value=0.0, required=True),
         "Annual Interest Rate (%)": st.column_config.NumberColumn("Annual Interest Rate (%)", format="%.2f%%", min_value=0.0, required=True),
         "Contractual Amortization Term (Months)": st.column_config.NumberColumn("Contractual Amortization Term (Months)", format="%d", min_value=1, required=True),
     }
 )
 
-# --- 6. STEP 3: DYNAMIC MULTI-SHOP SALES TRACKER ---
+# --- 8. STEP 4: DYNAMIC MULTI-SHOP SALES TRACKER ---
 st.markdown("---")
-st.markdown("### **Step 3: Multi-Shop Revenue & VAT Profile Allocation**")
+st.markdown("### **Step 4: Multi-Shop Revenue & VAT Profile Allocation**")
 st.caption("Allocate corporate revenue share weights and local tax attributes. Total Corporate Revenue Share MUST sum to 100%.")
 
 current_locations_df = pd.DataFrame(inputs_ref["sales_locations"])
@@ -97,7 +202,7 @@ total_share_entered = edited_locations_df["Corporate Revenue Share (%)"].sum() i
 if abs(total_share_entered - 100.0) > 0.01:
     st.warning(f"⚠️ **Total Revenue Share Warning:** Your current location shares total **{total_share_entered:.1f}%**. Please adjust rows so they sum up to exactly 100.0%.")
 
-# --- 7. SAVE AND EMIT INPUTS PIPELINE ---
+# --- 9. SAVE AND EMIT INPUTS PIPELINE ---
 st.markdown("---")
 if st.button("💾 Lock and Synchronize System Attributes", use_container_width=True):
     # Process Debt Rows Defensively
