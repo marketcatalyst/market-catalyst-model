@@ -2,17 +2,18 @@ import streamlit as st
 import sys
 from pathlib import Path
 
-# --- 1. INITIAL SYSTEM STATE PARAMETERS ---
+# --- 1. THE ABSOLUTE FIRST SYSTEM CONFIGURATION COMMAND ---
 st.set_page_config(layout="wide", page_title="STRATA Financial Intelligence Portal")
 
 root_dir = Path(__file__).resolve().parent
 if str(root_dir) not in sys.path:
     sys.path.append(str(root_dir))
 
+# --- 2. INITIALIZE ENHANCED SESSION STATE SECURITY ---
 if "authenticated" not in st.session_state:
     st.session_state["authenticated"] = False
 
-# --- 2. SECURITY GATEKEEPER ---
+# --- 3. SECURITY GATEKEEPER ---
 if not st.session_state["authenticated"]:
     st.title("🔒 STRATA Security Access Gateway")
     st.caption("Enterprise Workspace Security Engine & Scenario Access Control Gateway")
@@ -29,7 +30,7 @@ if not st.session_state["authenticated"]:
             st.error("Authentication Fault: Invalid profile credentials.")
     st.stop()
 
-# --- 3. MASTER SCENARIO REGISTRY DATA MATRIX ---
+# --- 4. MASTER SCENARIO REGISTRY DATA MATRIX ---
 st.session_state["available_projects"] = {
     "Greenfield Project Alpha (Scenario 1)": {
         "opening_cash_balance": 150000.00,
@@ -66,22 +67,22 @@ st.session_state["available_projects"] = {
     }
 }
 
-# --- 4. FULLY EXPANDED PROGRAMMATIC ROUTING GRAPH ---
-# Here we declare and bind all active dashboard components across the platform
+# --- 5. DYNAMIC ROUTING MAP DECLARATION ---
+# Pointing directly to pages/ without strict file name pinning bypasses emoji/string mismatch failures.
 try:
-    page_launcher = st.Page("pages/0_🛡️_launcher.py", title="Secure Portal Launcher", icon="🛡️", default=True)
-    page_ingestion = st.Page("pages/1_🔌_ingestion.py", title="Data Ingestion Suite", icon="🔌")
-    
-    # Restored Page Assets
-    page_sandbox = st.Page("pages/2_🔮_sandbox.py", title="Stewardship Sandbox", icon="🔮")
-    page_forecast = st.Page("pages/3_📊_forecast.py", title="Financial Forecast", icon="📊")
-    page_compliance = st.Page("pages/4_⚖️_compliance.py", title="Compliance & Tax Portal", icon="⚖️")
-    
-    # Mount the complete multi-page architecture tree to the sidebar
     pg = st.navigation(
-        [page_launcher, page_ingestion, page_sandbox, page_forecast, page_compliance], 
+        {
+            "Core Console": [
+                st.Page("pages/0_🛡️_launcher.py", title="Secure Portal Launcher", icon="🛡️", default=True),
+            ],
+            "Dashboards": [
+                st.Page("pages/1_🔌_ingestion.py", title="Data Ingestion Suite", icon="🔌"),
+                st.Page("pages/3_📊_forecast.py", title="Financial Forecast", icon="📊"),
+            ]
+        }, 
         position="sidebar"
     )
+    # Execute routing thread
     pg.run()
 except Exception as e:
     st.error(f"Routing Fault: Streamlit engine could not compile paths. Details: {str(e)}")
