@@ -1,5 +1,6 @@
 import streamlit as st
-import pandas as pd
+import sys
+from pathlib import Path
 
 # --- 1. INITIALIZE ENHANCED SESSION STATE SECURITY ---
 if "authenticated" not in st.session_state:
@@ -7,6 +8,7 @@ if "authenticated" not in st.session_state:
 
 # Force security barrier if credentials aren't initialized
 if not st.session_state["authenticated"]:
+    st.set_page_config(layout="centered", page_title="STRATA Security Gateway")
     st.title("🔒 STRATA Security Access Gateway")
     st.caption("Enterprise Workspace Security Engine & Scenario Access Control Gateway")
     st.markdown("---")
@@ -22,15 +24,23 @@ if not st.session_state["authenticated"]:
             st.error("Authentication Fault: Invalid profile configuration credentials.")
     st.stop()
 
-# --- 2. LOGGED IN PORTAL INTERFACE ---
-st.title("🛡️ STRATA Financial Intelligence Portal")
-st.caption("Enterprise Workspace Security Engine & Scenario Access Control Gateway")
-st.markdown("---")
+# --- 2. MULTI-PAGE PROGRAMMATIC ROUTING ANCHORS (THE NAVIGATION RESTORATION LAYER) ---
+# This layer explicitly registers your dashboards to restore the navigation sidebar layout.
+try:
+    page_home = st.Page("home.py", title="Secure Portal Launcher", icon="🛡️", default=True)
+    page_ingestion = st.Page("pages/1_🔌_ingestion.py", title="Data Ingestion Suite", icon="🔌")
+    page_forecast = st.Page("pages/3_📊_forecast.py", title="Financial Forecast", icon="📊")
+    
+    # Declare the programmatic routing graph natively
+    pg = st.navigation([page_home, page_ingestion, page_forecast], position="sidebar")
+except Exception as e:
+    # Fallback asset handling if file structure string mapping varies slightly during build loops
+    st.error(f"Routing Fault: Streamlit engine could not map the dashboard page files. Details: {str(e)}")
 
-st.subheader("👋 Welcome back, Marketcatalyst")
-st.write("Select an active project workspace below. The platform will dynamically hydrate your calculation modules, local tax shapes, and loan structures.")
+# Set wide layout once authenticated to support data grids
+st.set_page_config(layout="wide", page_title="STRATA Portal")
 
-# Define your real production workspace data configurations inside the registry
+# --- 3. ACTIVE SCENARIO REGISTRY DATA MATRIX ---
 available_projects = {
     "Greenfield Project Alpha (Scenario 1)": {
         "opening_cash_balance": 150000.00,
@@ -67,17 +77,27 @@ available_projects = {
     }
 }
 
+# --- 4. LOGGED IN PORTAL INTERFACE ---
+st.title("🛡️ STRATA Financial Intelligence Portal")
+st.caption("Enterprise Workspace Security Engine & Scenario Access Control Gateway")
+st.markdown("---")
+
+st.subheader("👋 Welcome back, Marketcatalyst")
+st.write("Select an active project workspace below. The platform will dynamically hydrate your calculation modules, local tax shapes, and loan structures.")
+
 selected_project_name = st.selectbox(
     "Available Corporate Environments Registries:",
     options=list(available_projects.keys()),
     key="portal_environment_selector"
 )
 
-# --- 3. THE HYDRATION EXECUTION LINK (CRITICAL COMPONENT) ---
 st.markdown(" ")
 if st.button(f"🚀 Hydrate Workspace & Launch [{selected_project_name}]", use_container_width=True):
-    # Deep-copy properties into active session memory context
+    # Deep-copy properties into active session memory context safely
     st.session_state["baseline_inputs"] = available_projects[selected_project_name].copy()
-    
     st.toast(f"Operational variables for {selected_project_name} successfully cached in RAM!", icon="🔥")
-    st.success("✔️ Workspace Hydrated. Use the navigation sidebar to review active modules.")
+    st.success("✔️ Workspace Hydrated. The sidebar options are unlocked.")
+
+# --- 5. EXECUTE NATIVE ROUTING RUNTIME ---
+# This required execution call forces the sidebar tree to render cleanly in the UI window DOM
+pg.run()
