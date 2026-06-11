@@ -1,19 +1,19 @@
 import streamlit as st
 import sys
 from pathlib import Path
+import os
 
-# --- 1. THE ABSOLUTE FIRST SYSTEM CONFIGURATION COMMAND ---
+# --- 1. INITIAL SYSTEM STATE PARAMETERS ---
 st.set_page_config(layout="wide", page_title="STRATA Financial Intelligence Portal")
 
 root_dir = Path(__file__).resolve().parent
 if str(root_dir) not in sys.path:
     sys.path.append(str(root_dir))
 
-# --- 2. INITIALIZE ENHANCED SESSION STATE SECURITY ---
 if "authenticated" not in st.session_state:
     st.session_state["authenticated"] = False
 
-# --- 3. SECURITY GATEKEEPER ---
+# --- 2. SECURITY GATEKEEPER ---
 if not st.session_state["authenticated"]:
     st.title("🔒 STRATA Security Access Gateway")
     st.caption("Enterprise Workspace Security Engine & Scenario Access Control Gateway")
@@ -30,7 +30,7 @@ if not st.session_state["authenticated"]:
             st.error("Authentication Fault: Invalid profile credentials.")
     st.stop()
 
-# --- 4. MASTER SCENARIO REGISTRY DATA MATRIX ---
+# --- 3. MASTER SCENARIO REGISTRY DATA MATRIX ---
 st.session_state["available_projects"] = {
     "Greenfield Project Alpha (Scenario 1)": {
         "opening_cash_balance": 150000.00,
@@ -67,22 +67,40 @@ st.session_state["available_projects"] = {
     }
 }
 
-# --- 5. DYNAMIC ROUTING MAP DECLARATION ---
-# Pointing directly to pages/ without strict file name pinning bypasses emoji/string mismatch failures.
+# --- 4. DYNAMIC PATH DISCOVERY RESOLUTION ---
+# This layer scans your physical directory to match file roots regardless of emojis.
+pages_dir = Path("pages")
+all_discovered_files = os.listdir(pages_dir) if pages_dir.exists() else []
+
+def locate_target_page(file_prefix: str, fallback_path: str) -> str:
+    for f_name in all_discovered_files:
+        if f_name.startswith(file_prefix) and f_name.endswith(".py"):
+            return f"pages/{f_name}"
+    return fallback_path
+
+# Resolve exact relative references dynamically from disk
+path_launcher = locate_target_page("0_", "pages/0_🛡️_launcher.py")
+path_ingestion = locate_target_page("1_", "pages/1_🔌_ingestion.py")
+path_sandbox = locate_target_page("2_", "pages/2_🔮_sandbox.py")
+path_forecast = locate_target_page("3_", "pages/3_📊_forecast.py")
+path_compliance = locate_target_page("4_", "pages/4_⚖️_compliance.py")
+
+# --- 5. COMPILING THE EXPANDED SIDEBAR GRAPH ---
 try:
     pg = st.navigation(
         {
             "Core Console": [
-                st.Page("pages/0_🛡️_launcher.py", title="Secure Portal Launcher", icon="🛡️", default=True),
+                st.Page(path_launcher, title="Secure Portal Launcher", icon="🛡️", default=True),
             ],
             "Dashboards": [
-                st.Page("pages/1_🔌_ingestion.py", title="Data Ingestion Suite", icon="🔌"),
-                st.Page("pages/3_📊_forecast.py", title="Financial Forecast", icon="📊"),
+                st.Page(path_ingestion, title="Data Ingestion Suite", icon="🔌"),
+                st.Page(path_sandbox, title="Stewardship Sandbox", icon="🔮"),
+                st.Page(path_forecast, title="Financial Forecast", icon="📊"),
+                st.Page(path_compliance, title="Compliance & Tax Portal", icon="⚖️"),
             ]
         }, 
         position="sidebar"
     )
-    # Execute routing thread
     pg.run()
 except Exception as e:
-    st.error(f"Routing Fault: Streamlit engine could not compile paths. Details: {str(e)}")
+    st.error(f"Routing Fault: Streamlit engine could not map the dashboard page files. Details: {str(e)}")
