@@ -1,49 +1,48 @@
-# STRATA PROJECT HANDOVER BRIEFING & DISASTER RECOVERY ANCHOR
-**System Target Release:** STRATA Enterprise v1.4 (Cloud Migration Pipeline)
-**Current Date Baseline:** June 2026
-**Verification Status:** 100% Mathematically Audited and Validated Against WinForecast 5-Year Outputs
-**Data Model State:** Attribute-Driven Parallel Processing Object Architecture
+# STRATA Project Handover Baseline & Engineering Blueprint
+**System Status:** Core Computational Core Verified 
+**Target Platform:** Python 3.11+ | Streamlit | Neon PostgreSQL (v17)
+**Current Date:** June 12, 2026
 
 ---
 
-## SECTION 1: OBJECTIVE & BUSINESS MISSION
-The primary objective of the STRATA platform is the complete, non-destructive migration of complex corporate financial forecasting out of legacy, unsupported WinForecast desktop environments and into an agile, modern, web-delivered application layer. 
-
-Unlike off-the-shelf SaaS forecasting systems that force financial data into rigid, pre-aggregated "buckets," STRATA preserves the individual granular integrity of the underlying Trial Balance. Every account code exists as an independent object carrying its own operational vectors, credit aging curves, and tax compliance traits. 
-
-The baseline model currently configured within this application represents a highly geared, multi-facility infrastructure that has been completely reconciled. The 60-month integrated projections (Profit & Loss, Statement of Financial Position, and Indirect Cash Flow Bridge) perfectly match your original, verified WinForecast output models down to the exact penny.
+## 🧭 Executive Architecture & System Intent
+STRATA is a pure Python, object-oriented financial forecasting and 3-way integration engine designed to completely mirror the legacy relational rulesets of WinForecast. It bypasses flat, monolithic cell logic by utilizing isolated, decoupled domain objects that generate strict 60-month array vectors. These vectors are aggregated into a single centralized accounting ledger to build mathematically balanced Profit & Loss, Cash Flow, and Balance Sheet matrices.
 
 ---
 
-## SECTION 2: ARCHITECTURAL COMPONENT BLUEPRINT
-The application is deployed across a decoupled four-tier structure. Any future engineering team or AI assistant must maintain this exact code layout to prevent file resolution pathing errors:
+## 📈 Completed Engineering Milestones
 
-1. **The Core UI Skin Layer (`ui_skin/pages/`)**
-   * **`1_🔌_ingestion.py`**: The primary data intake grid and onboarding terminal. This module handles manual row manipulation, Trial Balance CSV imports, and sets the initial computational attributes for the entire engine.
-   * **`2_🔮_sandbox.py`**: The tactical variable workshop where users execute short-term sensitivity adjustments and adjust structural operational boundaries.
-   * **`3_📊_forecast.py`**: The AI Strategic Appraisal Room. This page houses the twin-grained reporting matrices, the open-memory spreadsheet generators, and the automated narrative synthesis modules.
-   * **`4_🛡️_compliance.py`**: The statutory tax engine that maps accumulated balance sheet tax obligations out against real-world payment timelines.
+### 1. Core Computational Layer (`engine/`)
+* **`assets.py` (Fixed Asset Engine):** Handles capitalized acquisition items, monitoring depreciation curves and Net Book Value (NBV) balances.
+* **`finance.py` (Debt Suite Modules):**
+    * `HirePurchaseObject`: A dual-engine hybrid that pairs background asset capitalisation/depreciation arrays with reducing-balance debt loops.
+    * `LoanObject`: Manages standard long-term corporate tranches, handling upfront gross liquidity injections and principal/interest reduction paths.
+* **`income.py` (Revenue Matrix Module):** Maps flat net revenue paths into multi-tier structures. Features dynamic client cash-realization delay profiles (Trade Debtors aging matrices) and native output VAT allocations.
+* **`expenditure.py` (Operational OpEx Module):** Maps overhead costs against custom creditor supplier payment terms (Trade Creditors aging matrices) and independent input VAT metrics.
+* **`ledger.py` (Centralised Accounting Controller):** The unified master integration brain. Integrates all sub-stream vectors, handles line-by-line Invoice Discounting (Factoring) cash acceleration triggers, and executes continuous rolling UK VAT netting loops with an ironclad 40-day statutory HMRC Direct Debit delay channel.
 
-2. **The Database Engine Layer**
-   * Powered by a serverless Neon PostgreSQL cloud instance. This layer holds the immutable account configurations and baseline structural packages.
+### 2. Persistence Layer Core (`database/`)
+* **`connection.py` (Cloud Infrastructural Gateway):** Manages secure SSL communication handshakes directly with the Neon Cloud database cluster. Implements a thread-safe `ThreadedConnectionPool` (configured for min 1, max 10 concurrent active pipelines) to ensure high-velocity database access without connection degradation or thread locking.
 
-3. **The Intelligence Processing Layer**
-   * Powered by the Google Gemini Pro API via the `gemini-1.5-flash` model structure. It intercepts active runtime data arrays to construct contextual management commentaries.
-
-4. **The Analytical Export Compilers**
-   * Built on `xlsxwriter` and `fpdf2` to stream raw, active computer memory arrays out into structured physical file formats without slowing down the application frontend.
+### 3. Automated Validation Framework (`tests/`)
+A dedicated unit testing folder structure has been established at the root level to run validation checks directly against core financial calculations, shielding the system from logical corruption during downstream upgrades:
+* `tests/test_finance.py` — Validates synchronized HP tracking and bank loan amortization.
+* `tests/test_income.py` — Verifies multi-month debtor payment profiles and cash recovery.
+* `tests/test_expenditure.py` — Verifies creditor supplier delays and cash outflow timing.
+* `tests/test_ledger.py` — Audits the 40-day VAT timeline, verifying that the Balance Sheet accurately reflects 4 months of accumulated tax in Month 4, followed by a crisp quarterly settlement clearance in Month 5.
+* `tests/test_database.py` — Verifies secure remote connection handshakes with Neon PostgreSQL 17.
 
 ---
 
-## SECTION 3: SYSTEM ENVIRONMENT & SECRETS SECURING
-Streamlit utilizes a strict TOML parser to read hidden configurations from the `.streamlit/secrets.toml` folder. If a grouped database bracket header is placed at the top of the file, the parser will misinterpret top-level text strings as database parameters and throw a fatal `StreamlitSecretNotFoundError`. 
+## 🏁 Live Compilation Audit Records (Pass State)
 
-To maintain environment stability, the configuration file must look exactly like this:
+```text
+--- ⚖️ HMRC 40-DAY VAT DIRECT DEBIT TIMING VERIFICATION ---
+✔️ Month 2 Cumulative VAT Liability:       £4,800.00
+✔️ Month 3 Quarter Ends (Liability Held):  £7,200.00
+✔️ Month 4 Preparing Return (Cash Intact): £9,600.00
+✔️ Month 5 Direct Debit Clears (Settled):  £4,800.00
 
-```toml
-# ABSOLUTE TOP OF FILE: Global Un-grouped Key Assignments
-GEMINI_API_KEY = "AIzaSy..." 
-
-# SUB-LEVEL BLOCK: Database Connection Configurations
-[postgres]
-CONNECTION_STRING = "postgresql://neondb_owner:npg_...aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+--- ☁️ NEON POSTGRESQL CONNECTION HANDSHAKE VERIFICATION ---
+INFO:STRATA_DATABASE:Neon PostgreSQL connection pool active and provisioned.
+🚀 Live Handshake Successful! Connected to: PostgreSQL 17.10
