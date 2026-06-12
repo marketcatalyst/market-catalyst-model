@@ -177,17 +177,14 @@ else:
         m_idx = item["month"] - 1 # Zero-indexed adjustment alignment
         param = item["parameter"]
         
+        # FIXED: Core backend method signatures explicitly matched to engine endpoints
         if t_type == "Fixed Asset Purchase":
-            # Pass to assets calculation module (param represents annual depreciation percentage)
-            ledger.add_asset_addition(AssetObject(item["name"], val, depreciation_rate_annual=param/100.0, acquisition_month=m_idx))
+            ledger.add_asset(AssetObject(item["name"], val, depreciation_rate_annual=param/100.0, acquisition_month=m_idx))
         elif t_type == "Hire Purchase (HP) Agreement":
-            # Map HP dual-engine matrices (assuming a baseline 8% annual cost-of-capital rate)
-            ledger.add_hp_facility(HirePurchaseObject(item["name"], asset_cost=val, deposit_paid=0.0, term_months=int(param), annual_interest_rate=0.08, agreement_month=m_idx))
+            ledger.add_hp(HirePurchaseObject(item["name"], asset_cost=val, deposit_paid=0.0, term_months=int(param), annual_interest_rate=0.08, agreement_month=m_idx))
         elif t_type == "New Bank Loan Injection":
-            # Inject long-term corporate credit financing (assuming standard 7.5% annual amortization)
-            ledger.add_loan_facility(LoanObject(item["name"], principal_advance=val, term_months=int(param), annual_interest_rate=0.075, advance_month=m_idx))
+            ledger.add_loan(LoanObject(item["name"], principal_advance=val, term_months=int(param), annual_interest_rate=0.075, advance_month=m_idx))
         elif t_type == "Director / Equity Inflow":
-            # Direct raw reserve injection bypass matrix vector trigger
             ledger.inject_direct_capital_reserve(amount=val, target_month=m_idx)
 
     matrix = ledger.compile_forecast_matrix()
@@ -232,6 +229,6 @@ else:
                 st.sidebar.error("❌ Database session context lost.")
             else:
                 serialize_matrix_to_db(scenario_name, scenario_desc, matrix)
-                st.sidebar.success(f"✔️ Run successfully archived to Neon!")
+                st.sidebar.success(f"✔️ Run successfully serialized to Neon!")
         except Exception as e:
             st.sidebar.error(f"❌ Cloud push failure: {str(e)}")
