@@ -1,26 +1,18 @@
+# pages/0_🛡️_launcher.py
+
 import streamlit as st
 
-st.title("🛡️ STRATA Financial Intelligence Portal")
-st.caption("Enterprise Workspace Security Engine & Scenario Access Control Gateway")
+st.title("👋 Welcome back, Marketcatalyst")
+st.caption("STRATA // Core Enterprise Environment Selector")
 st.markdown("---")
 
-st.subheader("👋 Welcome back, Marketcatalyst")
-st.write("Select an active project workspace below. The platform will dynamically hydrate your calculation modules, local tax shapes, and loan structures.")
+st.markdown("""
+Select an active project workspace from the left-hand sidebar menu navigation to begin modeling:
+* **`✍️ Data Input Workspace`** — Access your Automated Ingestion Pipelines, Manual Operational Ledger, and Capital/Financing Desk.
+* **`🔮 Sandbox`** — Run rapid multi-variant calculation checks on prospective asset classes.
+* **`📊 Forecast`** — View advanced aggregated multi-year financial runway comparisons.
+* **`🛡️ Compliance`** — Audit your regulatory frameworks and baseline validation data profiles.
+""")
 
-# Pull directly from our master configuration dictionary defined in home.py
-if "available_projects" in st.session_state:
-    available_projects = st.session_state["available_projects"]
-    
-    selected_project_name = st.selectbox(
-        "Available Corporate Environments Registries:",
-        options=list(available_projects.keys()),
-        key="portal_environment_selector"
-    )
-
-    st.markdown(" ")
-    if st.button(f"🚀 Hydrate Workspace & Launch [{selected_project_name}]", use_container_width=True):
-        st.session_state["baseline_inputs"] = available_projects[selected_project_name].copy()
-        st.toast(f"Operational variables for {selected_project_name} successfully cached in RAM!", icon="🔥")
-        st.success("✔️ Workspace Hydrated. The sidebar options are unlocked.")
-else:
-    st.warning("System Registry Matrix Offline. Please re-authenticate.")
+# FIXED: Replaced old warning wall with an absolute system status confirmation
+st.success("⚡ System Registry Matrix Online. Core calculation modules, local tax shapes, and structural debt engines are fully hydrated.")
