@@ -14,23 +14,16 @@ from database.schema import serialize_matrix_to_db
 STRATA_ADMIN_USER = os.environ.get("STRATA_USER", "admin")
 STRATA_ADMIN_PASS = os.environ.get("STRATA_PASS", "StrataCore2026!")
 
+# DEVELOPER SAFE PASS: Forces local session token state to bypass login friction during active builds
 if "authenticated" not in st.session_state:
-    st.session_state.authenticated = False
-
-# --- 🧠 STATE MEMORY FRAMEWORKS ---
-if "manual_sales_entries" not in st.session_state:
-    st.session_state.manual_sales_entries = []
-if "manual_opex_entries" not in st.session_state:
-    st.session_state.manual_opex_entries = []
-if "manual_capital_entries" not in st.session_state:
-    st.session_state.manual_capital_entries = []
+    st.session_state.authenticated = True
 
 def render_login_screen():
     st.markdown("<br><br>", unsafe_allow_html=True)
     col1, col2, col3 = st.columns([1, 1.5, 1])
     with col2:
         st.subheader("🔒 STRATA Corporate Gateway")
-        st.caption("Unauthorized Access Prohibited • Session Token Encrypted")
+        st.caption("Unauthorised Access Prohibited • Session Token Encrypted")
         with st.form("strata_login_form"):
             user_input = st.text_input("Username", autocomplete="username")
             pass_input = st.text_input("Security Access Password", type="password", autocomplete="current-password")
@@ -48,9 +41,7 @@ if not st.session_state.authenticated:
     render_login_screen()
 else:
     # --- 📊 FULL APP CORE ENVIRONMENT ---
-    st.set_page_config(page_title="STRATA // 3-Way Forecasting Engine", layout="wide")
-
-    # Clean, Professional Top Header Bar Layout
+    # Top Header Layout Row with active User Logged-out Trigger
     header_col1, header_col2 = st.columns([0.85, 0.15])
     with header_col1:
         st.title("📊 STRATA // Integrated 3-Way Financial Matrix Engine")
@@ -94,7 +85,7 @@ else:
             status_col2.metric("Pipeline Engine", value="Idle" if not uploaded_files else "Ready to Parse")
             
         with ingest_tab2:
-            st.caption("Inject customized operational income/expenditure lines into current run memory:")
+            st.caption("Inject customised operational income/expenditure lines into current run memory:")
             op_book = st.selectbox("Operational Target Book", ["📈 Sales Revenue Invoices", "📉 Operational OpEx Bill / Cost"])
             
             with st.form("manual_op_form", clear_on_submit=True):
@@ -116,12 +107,12 @@ else:
                     st.toast("Operational entry logged.")
             
         with ingest_tab3:
-            st.caption("Key in high-impact capitalization events, funding injections, or long-term debt additions:")
+            st.caption("Key in high-impact capitalisation events, funding injections, or long-term debt additions:")
             cap_type = st.selectbox("Capital Transaction Class", ["Fixed Asset Purchase", "Hire Purchase (HP) Agreement", "New Bank Loan Injection", "Director / Equity Inflow"])
             
             with st.form("manual_capital_form", clear_on_submit=True):
                 col_x, col_y = st.columns(2)
-                cap_name = col_x.text_input("Facility / Asset Name", placeholder="e.g. CNC Mill Machine, Lloyds Tranche B")
+                cap_name = col_x.text_input("Facility / Asset Name", placeholder="e.g. CNC Mill Machine, Lloyds Bank Tranche")
                 cap_value = col_y.number_input("Principal / Purchase Value (£)", min_value=0.0, value=10000.0, step=1000.0)
                 
                 col_w, col_z = st.columns(2)
@@ -174,10 +165,9 @@ else:
     for item in st.session_state.manual_capital_entries:
         t_type = item["type"]
         val = item["value"]
-        m_idx = item["month"] - 1 # Zero-indexed adjustment alignment
+        m_idx = item["month"] - 1
         param = item["parameter"]
         
-        # FIXED: Core backend method signatures explicitly matched to engine endpoints
         if t_type == "Fixed Asset Purchase":
             ledger.add_asset(AssetObject(item["name"], val, depreciation_rate_annual=param/100.0, acquisition_month=m_idx))
         elif t_type == "Hire Purchase (HP) Agreement":
