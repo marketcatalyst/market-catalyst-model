@@ -17,8 +17,7 @@ from engine.assets import AssetObject
 from engine.finance import LoanObject, HirePurchaseObject
 from engine.ledger import MasterLedger
 
-# --- 🛡️ SECURITY BYPASS TIER (FIXED) ---
-# Explicitly force session parameters inside the file context to eliminate multi-page deadlocks
+# --- 🛡️ SECURITY BYPASS TIER ---
 st.session_state["authenticated"] = True
 st.session_state["username"] = "Market Catalyst"
 
@@ -52,48 +51,33 @@ with st.spinner("Compiling sandbox variant projections..."):
     try:
         ledger = MasterLedger(total_timeline_months=12)
         
-        # Pull live values from Data Input Workspace, or use system baselines if empty
-        has_live_inputs = (
-            st.session_state.manual_sales_entries or 
-            st.session_state.manual_opex_entries or 
-            st.session_state.manual_capital_entries
-        )
-        
-        if not has_live_inputs:
-            # Baseline constants
-            base_sales = IncomeObject("Baseline Revenue Stream", 20000.0, vat_rate=0.20, cash_delay_profile={1: 1.0})
-            base_opex = ExpenditureObject("Baseline OpEx Overheads", 8000.0, vat_rate=0.20, creditor_payment_profile={0: 1.0})
-            ledger.add_income(base_sales, invoice_finance_eligible=True, invoice_finance_advance_rate=0.85)
-            ledger.add_expenditure(base_opex)
-        else:
-            # Map items from active memory queue
-            for item in st.session_state.manual_sales_entries:
-                # Apply the sandbox volume delta slider directly to revenues
-                adjusted_amount = item["amount"] * (1.0 + st.session_state["sandbox_volume_delta"])
-                obj = IncomeObject(item["name"], adjusted_amount, vat_rate=item["vat"], cash_delay_profile={item["lag"]: 1.0})
-                ledger.add_income(obj, invoice_finance_eligible=True, invoice_finance_advance_rate=0.85)
+        # FIXED: Removed the hardcoded £20k / £8k baseline buffers completely.
+        # The engine will map custom data lines or evaluate naturally as clean zeros.
+        for item in st.session_state.manual_sales_entries:
+            adjusted_amount = item["amount"] * (1.0 + st.session_state["sandbox_volume_delta"])
+            obj = IncomeObject(item["name"], adjusted_amount, vat_rate=item["vat"], cash_delay_profile={item["lag"]: 1.0})
+            ledger.add_income(obj, invoice_finance_eligible=True, invoice_finance_advance_rate=0.85)
+            
+        for item in st.session_state.manual_opex_entries:
+            adjusted_cost = item["amount"] * (1.0 + st.session_state["sandbox_opex_delta"])
+            obj = ExpenditureObject(item["name"], adjusted_cost, vat_rate=item["vat"], creditor_payment_profile={item["lag"]: 1.0})
+            ledger.add_expenditure(obj)
+            
+        for item in st.session_state.manual_capital_entries:
+            t_type = item["type"]
+            val = item["value"]
+            m_idx = item["month"] - 1
+            param = item["parameter"]
+            
+            if t_type == "Fixed Asset Purchase":
+                ledger.add_asset(AssetObject(item["name"], val, depreciation_rate_annual=param/100.0, acquisition_month=m_idx))
+            elif t_type == "Hire Purchase (HP) Agreement":
+                ledger.add_hp(HirePurchaseObject(item["name"], asset_cost=val, deposit_paid=0.0, term_months=int(param), annual_interest_rate=0.08, agreement_month=m_idx))
+            elif t_type == "New Bank Loan Injection":
+                ledger.add_loan(LoanObject(item["name"], principal_advance=val, term_months=int(param), annual_interest_rate=0.075, advance_month=m_idx))
+            elif t_type == "Director / Equity Inflow":
+                ledger.inject_direct_capital_reserve(amount=val, target_month=m_idx)
                 
-            for item in st.session_state.manual_opex_entries:
-                # Apply the sandbox opex delta slider directly to costs
-                adjusted_cost = item["amount"] * (1.0 + st.session_state["sandbox_opex_delta"])
-                obj = ExpenditureObject(item["name"], adjusted_cost, vat_rate=item["vat"], creditor_payment_profile={item["lag"]: 1.0})
-                ledger.add_expenditure(obj)
-                
-            for item in st.session_state.manual_capital_entries:
-                t_type = item["type"]
-                val = item["value"]
-                m_idx = item["month"] - 1
-                param = item["parameter"]
-                
-                if t_type == "Fixed Asset Purchase":
-                    ledger.add_asset(AssetObject(item["name"], val, depreciation_rate_annual=param/100.0, acquisition_month=m_idx))
-                elif t_type == "Hire Purchase (HP) Agreement":
-                    ledger.add_hp(HirePurchaseObject(item["name"], asset_cost=val, deposit_paid=0.0, term_months=int(param), annual_interest_rate=0.08, agreement_month=m_idx))
-                elif t_type == "New Bank Loan Injection":
-                    ledger.add_loan(LoanObject(item["name"], principal_advance=val, term_months=int(param), annual_interest_rate=0.075, advance_month=m_idx))
-                elif t_type == "Director / Equity Inflow":
-                    ledger.inject_direct_capital_reserve(amount=val, target_month=m_idx)
-                    
         matrix = ledger.compile_forecast_matrix()
         
         # Format the arrays cleanly into a display dataframe
@@ -106,7 +90,7 @@ with st.spinner("Compiling sandbox variant projections..."):
         }, index=months_index).T
         
         st.subheader("📊 Visualized Run-Rate Impact Matrix")
-        st.dataframe(df_sandbox.style.format("{:,.2f}"), width='stretch')
+        st.dataframe(df_sandbox.style.format("{:,.2f}"), use_container_width=True)
         
     except Exception as e:
         st.error(f"Sandbox Engine compilation error: {str(e)}")
