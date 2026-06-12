@@ -10,6 +10,15 @@ from engine.finance import LoanObject, HirePurchaseObject
 from engine.ledger import MasterLedger
 from database.schema import serialize_matrix_to_db
 
+# --- 🧠 GLOBAL STATE MEMORY INITIALISATION ---
+# Placed at the absolute peak of the file context to guarantee execution parameters exist
+if "manual_sales_entries" not in st.session_state:
+    st.session_state.manual_sales_entries = []
+if "manual_opex_entries" not in st.session_state:
+    st.session_state.manual_opex_entries = []
+if "manual_capital_entries" not in st.session_state:
+    st.session_state.manual_capital_entries = []
+
 # --- 🔒 SECURITY TIER: CREDENTIAL CONFIGURATION ---
 STRATA_ADMIN_USER = os.environ.get("STRATA_USER", "admin")
 STRATA_ADMIN_PASS = os.environ.get("STRATA_PASS", "StrataCore2026!")
