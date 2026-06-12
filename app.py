@@ -18,6 +18,7 @@ if "project_portfolio" not in st.session_state:
     st.session_state["project_portfolio"] = []
 
 # --- 🛠️ DYNAMIC STREAMLIT MULTI-PAGE NAVIGATION ROUTER ---
+# FIXED: Removed the old launcher_page definition completely to resolve the file routing fault
 login_page = st.Page("app.py", title="Security Gateway", icon="🔑")
 data_input_page = st.Page("pages/1_✍️_Data_Input_Workspace.py", title="Data Input Workspace", icon="✍️")
 sandbox_page = st.Page("pages/2_🔮_sandbox.py", title="Scenario Sandbox", icon="🔮")
@@ -27,6 +28,7 @@ compliance_page = st.Page("pages/4_🛡️_compliance.py", title="Compliance Gat
 if not st.session_state["authenticated"]:
     nav = st.navigation([login_page], position="sidebar")
 else:
+    # FIXED: Cleaned up mapping groups so that only actual existing script paths are compiled
     nav = st.navigation({
         "Core Portal": [login_page],
         "Modeling Workspaces": [data_input_page, sandbox_page],
@@ -69,7 +71,6 @@ else:
         
         with proj_box_col1:
             if not st.session_state["project_portfolio"]:
-                # Friendly state handling if no items are created yet
                 options_list = ["No Active Models Found — Please Create a New Workspace Below"]
                 disabled_select = True
             else:
@@ -84,7 +85,7 @@ else:
             )
             
         with proj_box_col2:
-            st.markdown("<br>", unsafe_allow_html=True) # Structural alignment spacer
+            st.markdown("<br>", unsafe_allow_html=True)
             if st.button("⚡ Activate Project Context", disabled=disabled_select, use_container_width=True):
                 st.session_state["selected_project"] = chosen_proj
                 st.success(f"📂 Workspace Context updated to: **{chosen_proj}**.")
@@ -106,7 +107,6 @@ else:
                 if clean_name and clean_name not in st.session_state["project_portfolio"]:
                     st.session_state["project_portfolio"].append(clean_name)
                     st.session_state["selected_project"] = clean_name
-                    # Reset internal workspace tables for a perfectly clean slate
                     st.session_state.manual_sales_entries = []
                     st.session_state.manual_opex_entries = []
                     st.session_state.manual_capital_entries = []
@@ -121,7 +121,6 @@ else:
         st.markdown(f"**Current Mounted Context:** `{st.session_state['selected_project']}`")
         st.info("Navigate through the sub-modules using the sidebar links to run scenario overrides, compile multi-year rolling forecasts, or audit regulatory frameworks.")
         
-        # Explicit session termination button
         if st.sidebar.button("🔒 Terminate Secure Session"):
             st.session_state["authenticated"] = False
             st.session_state["username"] = None
