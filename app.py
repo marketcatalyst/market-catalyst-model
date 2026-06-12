@@ -1,3 +1,26 @@
+# ==============================================================================
+# STRATA CORE RUNTIME ENVIRONMENT INITIALISATION PATCH
+# ==============================================================================
+import sys
+import subprocess
+
+# Explicitly force-inject jinja2 into the active Linux container environment
+try:
+    import jinja2
+except ImportError:
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "jinja2>=3.1.4"])
+    import jinja2
+
+# Ensure pandas explicitly registers the newly available engine templates
+import pandas as pd
+try:
+    pd.options.styler.render.engine = 'jinja2'
+except Exception:
+    pass
+# ==============================================================================
+
+import streamlit as st
+# ... YOUR EXISTING APP.PY CODE CONTINUES UNCHANGED FROM HERE DOWN ...
 # app.py
 
 import streamlit as st
