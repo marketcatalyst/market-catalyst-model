@@ -37,7 +37,7 @@ if not gemini_key:
 
 user_narrative = st.text_area(
     "Paste Commercial Project Notes / Engineering Manifests Here", 
-    height=150,
+    height=120,
     placeholder="Example: We are launching our AVAWT turbine trial next month. Raw structural components will cost £45,000 upfront. We have a contractual engineering overhead run-rate of £3,500 per month. We expect our first commercial lease contract to sign in Month 3 bringing in £18,000 monthly, but the client negotiated a 60-day cash payment lag...",
     key="narrative_input"
 )
@@ -48,13 +48,8 @@ if st.button("🔮 Analyze & Distill Narrative with Gemini", disabled=not gemini
     else:
         with st.spinner("Gemini is mapping systemic ripple effects and formatting data frames..."):
             try:
-                # Force configuration to point cleanly to production API channels
                 genai.configure(api_key=gemini_key)
-                
-                # Target correct stable model name architecture
-                model = genai.GenerativeModel(
-                    model_name="models/gemini-2.5-flash"
-                )
+                model = genai.GenerativeModel(model_name="models/gemini-2.5-flash")
                 
                 system_prompt = f"""
                 You are the financial modeling data extractor for STRATA, an enterprise 3-way cash-flow forecasting platform.
@@ -87,7 +82,6 @@ if st.button("🔮 Analyze & Distill Narrative with Gemini", disabled=not gemini
                 response = model.generate_content(system_prompt)
                 raw_json = response.text.strip()
                 
-                # Dynamic sanitation loops
                 if raw_json.startswith("```"):
                     raw_json = raw_json.split("\n", 1)[1].rsplit("\n", 1)[0].strip()
                 if raw_json.startswith("json"):
@@ -203,6 +197,58 @@ with st.expander("🏗️ Direct Capital, Asset Funding & Corporate Finance Desk
             })
             st.success(f"Added capital element: {c_name} [{c_type}]")
             st.rerun()
+
+st.markdown("---")
+
+# =========================================================================
+# 📁 METHOD C: BULK LEDGER FILE UPLOADER (RESTORED)
+# =========================================================================
+st.subheader("📁 Method C: Bulk Ledger Document Ingestion")
+st.markdown("Upload structural data maps via CSV or Excel sheets. Files must contain headers matching: `name`, `amount`, `vat`, `lag`.")
+
+uploaded_file = st.file_uploader("Upload Structural Ledger Matrix Logs", type=["csv", "xlsx"])
+
+if uploaded_file is not None:
+    try:
+        # Determine format extension types smoothly
+        if uploaded_file.name.endswith(".csv"):
+            df_upload = pd.read_csv(uploaded_file)
+        else:
+            df_upload = pd.read_excel(uploaded_file)
+            
+        st.markdown("**📄 Preview Ingested Bulk Dataset:**")
+        st.dataframe(df_upload.head(5), use_container_width=True)
+        
+        target_queue = st.selectbox("Select Target Registry Destination Queue", options=[
+            "Revenue Stream Queue (Sales)", 
+            "Operational Expenditure Queue (OpEx)"
+        ])
+        
+        if st.button("🚀 Process & Hydrate Bulk Matrix Records", use_container_width=True):
+            success_count = 0
+            # Clean dataframe column references to lowercase to avoid user syntax crashes
+            df_upload.columns = [c.lower().strip() for c in df_upload.columns]
+            
+            for _, row in df_upload.iterrows():
+                # Extract variables safely with default fallbacks if headers map roughly
+                r_name = str(row.get("name", "Bulk Ingested Entry"))
+                r_amount = float(row.get("amount", 0.0))
+                r_vat = float(row.get("vat", 0.20))
+                r_lag = int(row.get("lag", 0))
+                
+                if r_amount > 0:
+                    payload = {"name": r_name, "amount": r_amount, "vat": r_vat, "lag": r_lag}
+                    if "Sales" in target_queue:
+                        st.session_state.manual_sales_entries.append(payload)
+                    else:
+                        st.session_state.manual_opex_entries.append(payload)
+                    success_count += 1
+                    
+            st.success(f"⚡ Bulk ingestion pipeline complete! Successfully processed and mapped {success_count} rows into the live model workspace registry.")
+            st.rerun()
+            
+    except Exception as upload_err:
+        st.error(f"Failed to compile uploaded structural document: {str(upload_err)}")
 
 st.markdown("---")
 
