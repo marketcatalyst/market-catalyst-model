@@ -13,28 +13,20 @@ if "username" not in st.session_state:
 if "selected_project" not in st.session_state:
     st.session_state["selected_project"] = "None Activated"
 
-# Define your corporate project portfolio directory
-PROJECT_PORTFOLIO = [
-    "Ammanford 72-Home Development (Dragonboard DIPs)",
-    "AEGIS Vacuum Insulated Composite Panel R&D",
-    "Augmented Vertical Axis Wind Turbine (AVAWT) Joint Venture",
-    "Swalek Ltd High-Voltage Energy Management Framework"
-]
+# Dynamic portfolio initialization: Starts clean and empty if not yet tracking
+if "project_portfolio" not in st.session_state:
+    st.session_state["project_portfolio"] = []
 
 # --- 🛠️ DYNAMIC STREAMLIT MULTI-PAGE NAVIGATION ROUTER ---
-# Define sub-pages explicitly using the modern st.Page constructor
 login_page = st.Page("app.py", title="Security Gateway", icon="🔑")
 data_input_page = st.Page("pages/1_✍️_Data_Input_Workspace.py", title="Data Input Workspace", icon="✍️")
 sandbox_page = st.Page("pages/2_🔮_sandbox.py", title="Scenario Sandbox", icon="🔮")
 forecast_page = st.Page("pages/3_📊_forecast.py", title="Forecast Ledger", icon="📊")
 compliance_page = st.Page("pages/4_🛡️_compliance.py", title="Compliance Gateway", icon="🛡️")
 
-# Build the sidebar navigation mapping based on active authentication state
 if not st.session_state["authenticated"]:
-    # If locked, only expose the root login page
     nav = st.navigation([login_page], position="sidebar")
 else:
-    # If verified, expose the full enterprise modeling suite grouped into structural categories
     nav = st.navigation({
         "Core Portal": [login_page],
         "Modeling Workspaces": [data_input_page, sandbox_page],
@@ -64,30 +56,67 @@ if not st.session_state["authenticated"]:
         else:
             st.error("❌ Invalid passphrase. Access denied to secure endpoints.")
 else:
-    # RUNTIME ROUTER: If verified, let st.navigation execute the active sidebar tab selection
-    # If the user is on the home portal tab, render the main dashboard with the Project Selector
     if nav == login_page:
         st.title("🛡️ STRATA // Financial Intelligence Portal")
         st.caption(f"Active Environment: {st.session_state['username']} Management Matrix")
         st.markdown("---")
         
         st.subheader(f"👋 Welcome back, {st.session_state['username']}")
-        st.markdown("Your secure runtime session is fully verified. Select an active project from the enterprise portfolio matrix below to mount its operational variables:")
+        st.markdown("Select an existing active project modeling workspace below, or mount a brand-new scenario matrix environment:")
         
-        # --- PROJECT SELECTION PLATFORM PANEL ---
+        # --- PHASE 1: DYNAMIC WORKSPACE SELECTOR ---
         proj_box_col1, proj_box_col2 = st.columns([2, 1])
+        
         with proj_box_col1:
+            if not st.session_state["project_portfolio"]:
+                # Friendly state handling if no items are created yet
+                options_list = ["No Active Models Found — Please Create a New Workspace Below"]
+                disabled_select = True
+            else:
+                options_list = st.session_state["project_portfolio"]
+                disabled_select = False
+                
             chosen_proj = st.selectbox(
                 "Select Active Project Environment", 
-                options=PROJECT_PORTFOLIO,
-                index=0 if st.session_state["selected_project"] == "None Activated" else PROJECT_PORTFOLIO.index(st.session_state["selected_project"])
+                options=options_list,
+                disabled=disabled_select,
+                index=0 if st.session_state["selected_project"] == "None Activated" or disabled_select else st.session_state["project_portfolio"].index(st.session_state["selected_project"])
             )
             
-        if st.button("⚡ Activate Project Workspace Parameters", use_container_width=True):
-            st.session_state["selected_project"] = chosen_proj
-            st.success(f"📂 Workspace Context updated to: **{chosen_proj}**. Calculation models hydrated.")
-            st.rerun()
-            
+        with proj_box_col2:
+            st.markdown("<br>", unsafe_allow_html=True) # Structural alignment spacer
+            if st.button("⚡ Activate Project Context", disabled=disabled_select, use_container_width=True):
+                st.session_state["selected_project"] = chosen_proj
+                st.success(f"📂 Workspace Context updated to: **{chosen_proj}**.")
+                st.rerun()
+                
+        st.markdown("---")
+        
+        # --- PHASE 2: NEW MODEL ARCHITECTURE WORKSPACE FORGE ---
+        st.subheader("🏗️ Forge New Model Environment")
+        st.markdown("Type the name of your new asset or operational structure below to instantly provision a dedicated zero-based ledger:")
+        
+        forge_col1, forge_col2 = st.columns([2, 1])
+        with forge_col1:
+            new_project_name = st.text_input("New Project Description Name", placeholder="e.g., Ammanford Phase 1 Development or AVAWT Test Bed", label_visibility="collapsed")
+        
+        with forge_col2:
+            if st.button("🔨 Forge New Workspace", use_container_width=True):
+                clean_name = new_project_name.strip()
+                if clean_name and clean_name not in st.session_state["project_portfolio"]:
+                    st.session_state["project_portfolio"].append(clean_name)
+                    st.session_state["selected_project"] = clean_name
+                    # Reset internal workspace tables for a perfectly clean slate
+                    st.session_state.manual_sales_entries = []
+                    st.session_state.manual_opex_entries = []
+                    st.session_state.manual_capital_entries = []
+                    st.success(f"⚡ Success! Provisioned new environment: **{clean_name}**. Baseline matrices zeroed.")
+                    st.rerun()
+                elif clean_name in st.session_state["project_portfolio"]:
+                    st.warning("⚠️ This project name already exists in your active portfolio matrix.")
+                else:
+                    st.error("❌ Project name description cannot be left blank.")
+                    
         st.markdown("---")
         st.markdown(f"**Current Mounted Context:** `{st.session_state['selected_project']}`")
         st.info("Navigate through the sub-modules using the sidebar links to run scenario overrides, compile multi-year rolling forecasts, or audit regulatory frameworks.")
@@ -99,7 +128,6 @@ else:
             st.session_state["selected_project"] = "None Activated"
             st.rerun()
     else:
-        # If any other page is selected in the sidebar, let it run natively inside this router frame
         try:
             nav.run()
         except Exception as e:
