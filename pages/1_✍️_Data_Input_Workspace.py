@@ -1,10 +1,19 @@
 # pages/1_✍️_Data_Input_Workspace.py
 
 import os
+import sys
 import json
+import subprocess
 import streamlit as st
 import pandas as pd
 import google.generativeai as genai
+
+# Force-verify and register pypdf in the runtime container namespace
+try:
+    from pypdf import PdfReader
+except ImportError:
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "pypdf"])
+    from pypdf import PdfReader
 
 # Enforce secure page rendering guards
 if not st.session_state.get("authenticated", False):
@@ -201,52 +210,72 @@ with st.expander("🏗️ Direct Capital, Asset Funding & Corporate Finance Desk
 st.markdown("---")
 
 # =========================================================================
-# 📁 METHOD C: BULK LEDGER FILE UPLOADER (RESTORED)
+# 📁 METHOD C: BULK DOCUMENT INGESTION (RESTRUCTURED FOR PDF & MATRICES)
 # =========================================================================
-st.subheader("📁 Method C: Bulk Ledger Document Ingestion")
-st.markdown("Upload structural data maps via CSV or Excel sheets. Files must contain headers matching: `name`, `amount`, `vat`, `lag`.")
+st.subheader("📁 Method C: Bulk Document Ingestion Desk")
+st.markdown("Upload structured data maps via CSV or Excel sheets, or drop a text-based **PDF Document** to read raw operational briefs.")
 
-uploaded_file = st.file_uploader("Upload Structural Ledger Matrix Logs", type=["csv", "xlsx"])
+uploaded_file = st.file_uploader("Upload Structural Ledger Matrix Logs or PDF Briefs", type=["csv", "xlsx", "pdf"])
 
 if uploaded_file is not None:
     try:
-        # Determine format extension types smoothly
-        if uploaded_file.name.endswith(".csv"):
-            df_upload = pd.read_csv(uploaded_file)
-        else:
-            df_upload = pd.read_excel(uploaded_file)
-            
-        st.markdown("**📄 Preview Ingested Bulk Dataset:**")
-        st.dataframe(df_upload.head(5), use_container_width=True)
-        
-        target_queue = st.selectbox("Select Target Registry Destination Queue", options=[
-            "Revenue Stream Queue (Sales)", 
-            "Operational Expenditure Queue (OpEx)"
-        ])
-        
-        if st.button("🚀 Process & Hydrate Bulk Matrix Records", use_container_width=True):
-            success_count = 0
-            # Clean dataframe column references to lowercase to avoid user syntax crashes
-            df_upload.columns = [c.lower().strip() for c in df_upload.columns]
-            
-            for _, row in df_upload.iterrows():
-                # Extract variables safely with default fallbacks if headers map roughly
-                r_name = str(row.get("name", "Bulk Ingested Entry"))
-                r_amount = float(row.get("amount", 0.0))
-                r_vat = float(row.get("vat", 0.20))
-                r_lag = int(row.get("lag", 0))
+        # Check if the uploaded file is a PDF layout document
+        if uploaded_file.name.lower().endswith(".pdf"):
+            with st.spinner("Extracting structural document text layers..."):
+                reader = PdfReader(uploaded_file)
+                extracted_text = ""
                 
-                if r_amount > 0:
-                    payload = {"name": r_name, "amount": r_amount, "vat": r_vat, "lag": r_lag}
-                    if "Sales" in target_queue:
-                        st.session_state.manual_sales_entries.append(payload)
-                    else:
-                        st.session_state.manual_opex_entries.append(payload)
-                    success_count += 1
+                for page_num, page in enumerate(reader.pages):
+                    page_text = page.extract_text()
+                    if page_text:
+                        extracted_text += f"\n--- Page {page_num + 1} ---\n{page_text}"
+                
+                if extracted_text.strip():
+                    st.success(f"Successfully processed {len(reader.pages)} PDF page(s)!")
                     
-            st.success(f"⚡ Bulk ingestion pipeline complete! Successfully processed and mapped {success_count} rows into the live model workspace registry.")
-            st.rerun()
+                    # Output the data cleanly on screen and allow immediate redirect to Method A
+                    with st.expander("🔍 Preview Extracted Text Content", expanded=True):
+                        st.text_area("Scraped PDF Text Array", value=extracted_text, height=250, disabled=True)
+                        st.info("💡 **Next Step:** You can copy this data directly into the **Method A Narrative Ingestion** workspace above to let Gemini structure the data entries automatically.")
+                else:
+                    st.error("PDF parsed, but no text layers could be detected. Is this a scanned image layout?")
+
+        # Handle standard spreadsheet files safely
+        else:
+            if uploaded_file.name.endswith(".csv"):
+                df_upload = pd.read_csv(uploaded_file)
+            else:
+                df_upload = pd.read_excel(uploaded_file)
+                
+            st.markdown("**📄 Preview Ingested Bulk Dataset:**")
+            st.dataframe(df_upload.head(5), use_container_width=True)
             
+            target_queue = st.selectbox("Select Target Registry Destination Queue", options=[
+                "Revenue Stream Queue (Sales)", 
+                "Operational Expenditure Queue (OpEx)"
+            ])
+            
+            if st.button("🚀 Process & Hydrate Bulk Matrix Records", use_container_width=True):
+                success_count = 0
+                df_upload.columns = [c.lower().strip() for c in df_upload.columns]
+                
+                for _, row in df_upload.iterrows():
+                    r_name = str(row.get("name", "Bulk Ingested Entry"))
+                    r_amount = float(row.get("amount", 0.0))
+                    r_vat = float(row.get("vat", 0.20))
+                    r_lag = int(row.get("lag", 0))
+                    
+                    if r_amount > 0:
+                        payload = {"name": r_name, "amount": r_amount, "vat": r_vat, "lag": r_lag}
+                        if "Sales" in target_queue:
+                            st.session_state.manual_sales_entries.append(payload)
+                        else:
+                            st.session_state.manual_opex_entries.append(payload)
+                        success_count += 1
+                        
+                st.success(f"⚡ Bulk ingestion pipeline complete! Successfully processed and mapped {success_count} rows into the live model workspace registry.")
+                st.rerun()
+                
     except Exception as upload_err:
         st.error(f"Failed to compile uploaded structural document: {str(upload_err)}")
 
