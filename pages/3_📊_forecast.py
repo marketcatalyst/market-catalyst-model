@@ -20,187 +20,111 @@ from ui_skin.core_engine.master_model import generate_integrated_3way_forecast
 from ui_skin.core_engine.report_generator import export_forecast_to_excel
 from ui_skin.core_engine.pdf_generator import generate_pdf_executive_summary
 
-# Ensure state lists are initialized in global runtime memory
-if "manual_sales_entries" not in st.session_state:
-    st.session_state.manual_sales_entries = []
-if "manual_opex_entries" not in st.session_state:
-    st.session_state.manual_opex_entries = []
-if "manual_capital_entries" not in st.session_state:
-    st.session_state.manual_capital_entries = []
+# Secure Session Route Verification Guardrail
+if not st.session_state.get("authenticated", False):
+    st.error("🔒 Access Denied: Unauthorized Endpoints Locked")
+    st.info("This environment is shielded by an enterprise security framework. You must log in via the main portal to open this workspace.")
+    st.stop()
 
 st.title("📊 Integrated Financial Forecast Ledger")
-st.caption(f"Active Environment: {st.session_state.get('username', 'Standard Admin').capitalize()} Management Matrix")
+st.caption(f"Active Environment: {st.session_state.get('username', 'Standard Admin')} Management Matrix")
 st.markdown("---")
 
-# --- 🛰️ SYSTEMS-THINKING TRANSLATION ADAPTER TIER ---
-# Check if the user has active manual data entries running in memory
-has_live_inputs = (
-    st.session_state.manual_sales_entries or 
-    st.session_state.manual_opex_entries or 
-    st.session_state.manual_capital_entries
-)
+# Read active operational entries from the Data Input Workspace
+manual_sales = st.session_state.get("manual_sales_entries", [])
+manual_opex = st.session_state.get("manual_opex_entries", [])
+manual_capital = st.session_state.get("manual_capital_entries", [])
 
-# FIXED: Fallback mode integrated directly. If no entries are keyed in yet, we supply baseline system constants
 with st.spinner("Compiling live 3-way matrix models..."):
     try:
+        # Initialize a clean ledger timeline
         ledger = MasterLedger(total_timeline_months=12)
         
-        if not has_live_inputs:
-            # HYDRATION STEP: Build default system configurations so the ledger never opens empty
-            default_sales = IncomeObject("Baseline Revenue Stream", 20000.0, vat_rate=0.20, cash_delay_profile={1: 1.0})
-            default_opex = ExpenditureObject("Baseline OpEx Overheads", 8000.0, vat_rate=0.20, creditor_payment_profile={0: 1.0})
-            ledger.add_income(default_sales, invoice_finance_eligible=True, invoice_finance_advance_rate=0.85)
-            ledger.add_expenditure(default_opex)
-        else:
-            # Map active Sales contracts from the input desk queue
-            for item in st.session_state.manual_sales_entries:
-                obj = IncomeObject(item["name"], item["amount"], vat_rate=item["vat"], cash_delay_profile={item["lag"]: 1.0})
-                ledger.add_income(obj, invoice_finance_eligible=True, invoice_finance_advance_rate=0.85)
-                
-            # Map active Operational Expenses from the input desk queue
-            for item in st.session_state.manual_opex_entries:
-                obj = ExpenditureObject(item["name"], item["amount"], vat_rate=item["vat"], creditor_payment_profile={item["lag"]: 1.0})
-                ledger.add_expenditure(obj)
-                
-            # Map active Capital structures from the input desk queue
-            for item in st.session_state.manual_capital_entries:
-                t_type = item["type"]
-                val = item["value"]
-                m_idx = item["month"] - 1
-                param = item["parameter"]
-                
-                if t_type == "Fixed Asset Purchase":
-                    ledger.add_asset(AssetObject(item["name"], val, depreciation_rate_annual=param/100.0, acquisition_month=m_idx))
-                elif t_type == "Hire Purchase (HP) Agreement":
-                    ledger.add_hp(HirePurchaseObject(item["name"], asset_cost=val, deposit_paid=0.0, term_months=int(param), annual_interest_rate=0.08, agreement_month=m_idx))
-                elif t_type == "New Bank Loan Injection":
-                    ledger.add_loan(LoanObject(item["name"], principal_advance=val, term_months=int(param), annual_interest_rate=0.075, advance_month=m_idx))
-                elif t_type == "Director / Equity Inflow":
-                    ledger.inject_direct_capital_reserve(amount=val, target_month=m_idx)
+        # Map active Sales contracts if they exist
+        for item in manual_sales:
+            obj = IncomeObject(item["name"], item["amount"], vat_rate=item["vat"], cash_delay_profile={item["lag"]: 1.0})
+            ledger.add_income(obj, invoice_finance_eligible=True, invoice_finance_advance_rate=0.85)
+            
+        # Map active Operational Expenses if they exist
+        for item in manual_opex:
+            obj = ExpenditureObject(item["name"], item["amount"], vat_rate=item["vat"], creditor_payment_profile={item["lag"]: 1.0})
+            ledger.add_expenditure(obj)
+            
+        # Map active Capital structures if they exist
+        for item in manual_capital:
+            t_type = item["type"]
+            val = item["value"]
+            m_idx = item["month"] - 1
+            param = item["parameter"]
+            
+            if t_type == "Fixed Asset Purchase":
+                ledger.add_asset(AssetObject(item["name"], val, depreciation_rate_annual=param/100.0, acquisition_month=m_idx))
+            elif t_type == "Hire Purchase (HP) Agreement":
+                ledger.add_hp(HirePurchaseObject(item["name"], asset_cost=val, deposit_paid=0.0, term_months=int(param), annual_interest_rate=0.08, agreement_month=m_idx))
+            elif t_type == "New Bank Loan Injection":
+                ledger.add_loan(LoanObject(item["name"], principal_advance=val, term_months=int(param), annual_interest_rate=0.075, advance_month=m_idx))
+            elif t_type == "Director / Equity Inflow":
+                ledger.inject_direct_capital_reserve(amount=val, target_month=m_idx)
         
-        # Compile matrix and map internal ledger data arrays to your visual reporting layout
+        # Compile the calculations (will naturally compile as zeros if no entries exist)
         matrix = ledger.compile_forecast_matrix()
+        months_index = [f"Month {i+1}" for i in range(12)]
         
-        forecast_df = pd.DataFrame({
-            "Revenue (£)": matrix["pl_revenue"],
-            "COGS (£)": [0.0] * 12,  
-            "Opex (£)": matrix["pl_expenses"],
-            "EBIT (£)": [r - e - i - d for r, e, i, d in zip(matrix["pl_revenue"], matrix["pl_expenses"], matrix["pl_interest"], matrix["pl_depreciation"])],
-            "Debt Service Cash Outflow (£)": [i + p for i, p in zip(matrix["pl_interest"], matrix["pl_depreciation"])], 
-            "VAT Cash Outflow (£)": matrix["cf_outflows"], 
-            "Cash Reserves (£)": matrix["cf_inflows"],    
-            "VAT Liability BS (£)": matrix["bs_hmrc_vat_balance"],
-            "Tax Liability BS (£)": [0.0] * 12,
-            "Outstanding Debt Balance (£)": [l + h for l, h in zip(matrix["bs_loan_liability"], matrix["bs_hp_liability"])]
-        }, index=[f"Month {i+1}" for i in range(12)])
+        # Build Structured Reporting DataFrames
+        df_pl = pd.DataFrame({
+            "Gross Revenue (£)": matrix["pl_revenue"],
+            "Operating Expenses (£)": matrix["pl_expenses"],
+            "Finance Interests (£)": matrix["pl_interest"],
+            "Asset Depreciations (£)": matrix["pl_depreciation"],
+            "Net Operational Profit (£)": [r - e - i - d for r, e, i, d in zip(matrix["pl_revenue"], matrix["pl_expenses"], matrix["pl_interest"], matrix["pl_depreciation"])]
+        }, index=months_index).T
+
+        df_cf = pd.DataFrame({
+            "Total Cash Receipts (£)": matrix["cf_inflows"],
+            "Total Cash Disbursals (£)": matrix["cf_outflows"],
+            "Net Monthly Cash Delta (£)": [i - o for i, o in zip(matrix["cf_inflows"], matrix["cf_outflows"])]
+        }, index=months_index).T
+
+        df_bs = pd.DataFrame({
+            "Current Assets: Trade Debtors (£)": matrix["bs_debtors"],
+            "Current Assets: Cash Reserves (£)": matrix["cf_inflows"],  
+            "Current Liabilities: Trade Creditors (£)": matrix["bs_creditors"],
+            "Current Liabilities: HMRC VAT Account (£)": matrix["bs_hmrc_vat_balance"],
+            "Term Liabilities: Loan Debt Principal (£)": matrix["bs_loan_liability"],
+            "Term Liabilities: HP Lease Obligations (£)": matrix["bs_hp_liability"],
+            "Fixed Assets: Net Book Value (NBV) (£)": matrix["bs_asset_nbv"]
+        }, index=months_index).T
         
         inputs = {"sales_locations": [{"Trading Location Name": "Live Dynamic Group"}]}
         overrides = {"volume_delta": 0.0, "opex_delta": 0.0}
         
     except Exception as e:
-        st.error(f"Failed to compile dynamic metrics array layout: {str(e)}")
+        st.error(f"Failed to compile dynamic reporting matrix: {str(e)}")
         st.stop()
 
-# --- 🎨 PRESENTATION TIER: POLISHED ENTERPRISE MARKUP ---
-def render_polished_html_table(df_slice, headers_map):
-    html_markup = """
-    <style>
-        .corporate-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-family: 'Source Sans Pro', sans-serif;
-            margin: 10px 0 25px 0;
-        }
-        .corporate-table th {
-            background-color: #f0f2f6;
-            color: #31333f;
-            text-align: center !important;
-            font-weight: 600;
-            padding: 10px;
-            border: 1px solid #dcdcdc;
-        }
-        .corporate-table td {
-            padding: 10px;
-            border: 1px solid #edf0f5;
-            text-align: right;
-        }
-        .corporate-table td.timeline-cell {
-            text-align: left;
-            font-weight: bold;
-            background-color: #fafafa;
-            width: 12%;
-        }
-        .corporate-table tr:nth-child(even) {
-            background-color: #f9fbfd;
-        }
-    </style>
-    <table class="corporate-table">
-        <thead>
-            <tr>
-                <th style="text-align: left !important;">Timeline</th>
-    """
-    
-    for original_col, clean_name in headers_map.items():
-        html_markup += f"<th>{clean_name}</th>"
-    html_markup += "</tr></thead><tbody>"
-    
-    for index, row in df_slice.iterrows():
-        html_markup += f"<tr><td class='timeline-cell'>{index}</td>"
-        for original_col in headers_map.keys():
-            val = row[original_col]
-            html_markup += f"<td>£ {val:,.0f}</td>"
-        html_markup += "</tr>"
-        
-    html_markup += "</tbody></table>"
-    st.markdown(html_markup, unsafe_allow_html=True)
-
-# Display interactive reporting tabs
-tab1, tab2, tab3 = st.tabs(["📈 Profit & Loss", "💰 Cash Flow Runway", "🏛️ HMRC Tax & Debt Accruals"])
+# --- Elegant Data Presentation Tabs ---
+tab1, tab2, tab3 = st.tabs(["📈 Profit & Loss", "💰 Cash Flow Runway", "⚖️ Balance Sheet Position"])
 
 with tab1:
     st.subheader("Operating Income Statement (Ex VAT)")
-    st.markdown("Tracks operational revenues, direct costs of goods sold, overhead run-rates, and calculated operating profit margins.")
-    render_polished_html_table(
-        forecast_df, 
-        {"Revenue (£)": "Revenue", "COGS (£)": "COGS", "Opex (£)": "Opex", "EBIT (£)": "EBIT"}
-    )
+    st.markdown("Tracks operational revenues, corporate run-rates, overheads, and calculated profit margins.")
+    st.dataframe(df_pl.style.format("{:,.2f}"), use_container_width=True)
 
 with tab2:
-    st.subheader("Liquidity Profile & Bank Account Balances")
-    st.markdown("Monitors real cash movements reflecting physical outlays, debt servicing burdens, and staggered statutory direct debits.")
-    render_polished_html_table(
-        forecast_df, 
-        {
-            "EBIT (£)": "EBIT", 
-            "Debt Service Cash Outflow (£)": "Debt Service Outflow", 
-            "VAT Cash Outflow (£)": "VAT Outflow", 
-            "Cash Reserves (£)": "Cash Reserves"
-        }
-    )
+    st.subheader("Liquidity Profile & Cash Movement")
+    st.markdown("Monitors real cash movements reflecting bank inflows, physical disbursals, and net treasury changes.")
+    st.dataframe(df_cf.style.format("{:,.2f}"), use_container_width=True)
 
 with tab3:
-    st.subheader("Statutory Balance Sheet Liabilities Tracking")
-    st.markdown("Accumulates non-cash operational provisions, unpaid quarterly VAT blocks, and remaining contractual credit principals.")
-    render_polished_html_table(
-        forecast_df, 
-        {
-            "VAT Liability BS (£)": "VAT Liability", 
-            "Tax Liability BS (£)": "Tax Liability", 
-            "Outstanding Debt Balance (£)": "Outstanding Debt"
-        }
-    )
+    st.subheader("Statutory Balance Sheet Position")
+    st.markdown("Accumulates non-cash asset book values, outstanding credit principals, and rolling HMRC VAT exposure.")
+    st.dataframe(df_bs.style.format("{:,.2f}"), use_container_width=True)
 
 st.markdown("---")
 st.subheader("💾 Export Financial Intelligence Report")
-st.markdown("Compile and download active scenario configurations as formatted corporate-ready outputs.")
 
 trading_name = "Group"
-if "sales_locations" in inputs and inputs["sales_locations"]:
-    trading_name = inputs["sales_locations"][0].get("Trading Location Name", "Group")
-elif "sales_locations_clean" in inputs and inputs["sales_locations_clean"]:
-    trading_name = inputs["sales_locations_clean"][0].get("site_name", "Group")
 safe_trading_string = trading_name.replace(' ', '_')
-
 btn_col1, btn_col2 = st.columns(2)
 
 with btn_col1:
@@ -214,7 +138,7 @@ with btn_col1:
             use_container_width=True
         )
     except Exception as e:
-        st.caption("Excel compilation ready for default baseline datasets.")
+        st.caption("Excel compilation ready for master baseline datasets.")
 
 with btn_col2:
     try:
@@ -227,4 +151,4 @@ with btn_col2:
             use_container_width=True
         )
     except Exception as e:
-        st.caption("PDF compilation ready for default baseline datasets.")
+        st.caption("PDF compilation ready for master baseline datasets.")
