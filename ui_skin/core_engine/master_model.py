@@ -67,11 +67,9 @@ def generate_integrated_3way_forecast(inputs: dict, overrides: dict = None) -> p
                 "term_months": int(raw.get("Contractual Amortization Term (Months)", raw.get("Term (Months)", 60)))
             })
             
-    # Default fallback matrix state if no records exist whatsoever
+    # FIXED: Eliminated the old hardcoded 130k loan buffer fallback tranche to enforce absolute single source truth
     if not debt_facilities:
-        debt_facilities = [
-            {"facility_name": "Consolidated Corporate Debt", "opening_balance": float(inputs.get("opening_long_term_debt", 130176.0)), "interest_rate_annual": 0.08, "term_months": 60}
-        ]
+        debt_facilities = []
     
     monthly_total_debt_service_cash = np.zeros(60)
     monthly_interest_expense_p_and_l = np.zeros(60)
@@ -104,7 +102,7 @@ def generate_integrated_3way_forecast(inputs: dict, overrides: dict = None) -> p
     # 5. DYNAMIC MULTI-SHOP VAT CALCULATOR (TRUE OVERLAPPING HMRC 40-DAY LAG)
     sales_locations = inputs.get("sales_locations_clean", [])
     if not sales_locations:
-        sales_locations = [{"site_name": "Standard Mix Unit", "revenue_share": 1.0, "standard_rated_share": 0.75}]
+        sales_locations = []
         
     monthly_output_vat_collected = np.zeros(60)
     monthly_input_vat_reclaimed = np.zeros(60)
