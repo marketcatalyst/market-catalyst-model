@@ -2,8 +2,5 @@
 
 [server]
 headless = true
-enableCORS = false
-
-# .streamlit/config.toml
-[ui]
-sidebarNavVisibility = "visible"
+enableCORS = true
+enableXsrfProtection = true
