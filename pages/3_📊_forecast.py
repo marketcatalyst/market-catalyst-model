@@ -40,23 +40,29 @@ has_live_inputs = (
     st.session_state.manual_capital_entries
 )
 
-if has_live_inputs:
-    with st.spinner("Compiling live 3-way matrix from Data Input Workspace..."):
-        try:
-            # Reconstruct the Master Ledger state dynamically from your live data inputs
-            ledger = MasterLedger(total_timeline_months=12)
-            
-            # Map active Sales contracts
+# FIXED: Fallback mode integrated directly. If no entries are keyed in yet, we supply baseline system constants
+with st.spinner("Compiling live 3-way matrix models..."):
+    try:
+        ledger = MasterLedger(total_timeline_months=12)
+        
+        if not has_live_inputs:
+            # HYDRATION STEP: Build default system configurations so the ledger never opens empty
+            default_sales = IncomeObject("Baseline Revenue Stream", 20000.0, vat_rate=0.20, cash_delay_profile={1: 1.0})
+            default_opex = ExpenditureObject("Baseline OpEx Overheads", 8000.0, vat_rate=0.20, creditor_payment_profile={0: 1.0})
+            ledger.add_income(default_sales, invoice_finance_eligible=True, invoice_finance_advance_rate=0.85)
+            ledger.add_expenditure(default_opex)
+        else:
+            # Map active Sales contracts from the input desk queue
             for item in st.session_state.manual_sales_entries:
                 obj = IncomeObject(item["name"], item["amount"], vat_rate=item["vat"], cash_delay_profile={item["lag"]: 1.0})
                 ledger.add_income(obj, invoice_finance_eligible=True, invoice_finance_advance_rate=0.85)
                 
-            # Map active Operational Expenses
+            # Map active Operational Expenses from the input desk queue
             for item in st.session_state.manual_opex_entries:
                 obj = ExpenditureObject(item["name"], item["amount"], vat_rate=item["vat"], creditor_payment_profile={item["lag"]: 1.0})
                 ledger.add_expenditure(obj)
                 
-            # Map active Capital structures
+            # Map active Capital structures from the input desk queue
             for item in st.session_state.manual_capital_entries:
                 t_type = item["type"]
                 val = item["value"]
@@ -71,47 +77,29 @@ if has_live_inputs:
                     ledger.add_loan(LoanObject(item["name"], principal_advance=val, term_months=int(param), annual_interest_rate=0.075, advance_month=m_idx))
                 elif t_type == "Director / Equity Inflow":
                     ledger.inject_direct_capital_reserve(amount=val, target_month=m_idx)
-            
-            # Compile matrix and map internal keys cleanly to the reporting grid names
-            matrix = ledger.compile_forecast_matrix()
-            
-            forecast_df = pd.DataFrame({
-                "Revenue (£)": matrix["pl_revenue"],
-                "COGS (£)": [0.0] * 12,  # Populated via sub-ledger extensions
-                "Opex (£)": matrix["pl_expenses"],
-                "EBIT (£)": [r - e - i - d for r, e, i, d in zip(matrix["pl_revenue"], matrix["pl_expenses"], matrix["pl_interest"], matrix["pl_depreciation"])],
-                "Debt Service Cash Outflow (£)": [i + p for i, p in zip(matrix["pl_interest"], matrix["pl_depreciation"])], # Debt amortization proxy
-                "VAT Cash Outflow (£)": matrix["cf_outflows"], # Combined gross movement view
-                "Cash Reserves (£)": matrix["cf_inflows"],    # Liquidity tracker asset view
-                "VAT Liability BS (£)": matrix["bs_hmrc_vat_balance"],
-                "Tax Liability BS (£)": [0.0] * 12,
-                "Outstanding Debt Balance (£)": [l + h for l, h in zip(matrix["bs_loan_liability"], matrix["bs_hp_liability"])]
-            }, index=[f"Month {i+1}" for i in range(12)])
-            
-            inputs = {"sales_locations": [{"Trading Location Name": "Live Dynamic Group"}]}
-            overrides = {"volume_delta": 0.0, "opex_delta": 0.0}
-            
-        except Exception as e:
-            st.error(f"Failed to map dynamic data streams: {str(e)}")
-            st.stop()
-else:
-    # --- 🛡️ LEGACY FALLBACK GATEKEEPER TIER ---
-    if "baseline_inputs" not in st.session_state:
-        st.info("💡 Data Input Workspace is currently utilizing default system configurations. Add manual entries or upload a transaction log to view extended multi-page forecasting matrices.")
-        st.stop()
         
-    inputs = st.session_state["baseline_inputs"]
-    overrides = {
-        "volume_delta": st.session_state.get("sandbox_volume_delta", 0.0),
-        "opex_delta": st.session_state.get("sandbox_opex_delta", 0.0)
-    }
-    
-    with st.spinner("Compiling multi-shop three-way projections..."):
-        try:
-            forecast_df = generate_integrated_3way_forecast(inputs, overrides)
-        except Exception as calc_error:
-            st.error(f"Engine Calculation Error: {str(calc_error)}")
-            st.stop()
+        # Compile matrix and map internal ledger data arrays to your visual reporting layout
+        matrix = ledger.compile_forecast_matrix()
+        
+        forecast_df = pd.DataFrame({
+            "Revenue (£)": matrix["pl_revenue"],
+            "COGS (£)": [0.0] * 12,  
+            "Opex (£)": matrix["pl_expenses"],
+            "EBIT (£)": [r - e - i - d for r, e, i, d in zip(matrix["pl_revenue"], matrix["pl_expenses"], matrix["pl_interest"], matrix["pl_depreciation"])],
+            "Debt Service Cash Outflow (£)": [i + p for i, p in zip(matrix["pl_interest"], matrix["pl_depreciation"])], 
+            "VAT Cash Outflow (£)": matrix["cf_outflows"], 
+            "Cash Reserves (£)": matrix["cf_inflows"],    
+            "VAT Liability BS (£)": matrix["bs_hmrc_vat_balance"],
+            "Tax Liability BS (£)": [0.0] * 12,
+            "Outstanding Debt Balance (£)": [l + h for l, h in zip(matrix["bs_loan_liability"], matrix["bs_hp_liability"])]
+        }, index=[f"Month {i+1}" for i in range(12)])
+        
+        inputs = {"sales_locations": [{"Trading Location Name": "Live Dynamic Group"}]}
+        overrides = {"volume_delta": 0.0, "opex_delta": 0.0}
+        
+    except Exception as e:
+        st.error(f"Failed to compile dynamic metrics array layout: {str(e)}")
+        st.stop()
 
 # --- 🎨 PRESENTATION TIER: POLISHED ENTERPRISE MARKUP ---
 def render_polished_html_table(df_slice, headers_map):
