@@ -48,8 +48,13 @@ if st.button("🔮 Analyze & Distill Narrative with Gemini", disabled=not gemini
     else:
         with st.spinner("Gemini is mapping systemic ripple effects and formatting data frames..."):
             try:
+                # Force configuration to point cleanly to production API channels
                 genai.configure(api_key=gemini_key)
-                model = genai.GenerativeModel("gemini-1.5-flash")
+                
+                # Target correct stable model name architecture
+                model = genai.GenerativeModel(
+                    model_name="models/gemini-2.5-flash"
+                )
                 
                 system_prompt = f"""
                 You are the financial modeling data extractor for STRATA, an enterprise 3-way cash-flow forecasting platform.
@@ -82,6 +87,7 @@ if st.button("🔮 Analyze & Distill Narrative with Gemini", disabled=not gemini
                 response = model.generate_content(system_prompt)
                 raw_json = response.text.strip()
                 
+                # Dynamic sanitation loops
                 if raw_json.startswith("```"):
                     raw_json = raw_json.split("\n", 1)[1].rsplit("\n", 1)[0].strip()
                 if raw_json.startswith("json"):
@@ -112,12 +118,11 @@ if st.button("🔮 Analyze & Distill Narrative with Gemini", disabled=not gemini
 st.markdown("---")
 
 # =========================================================================
-# ✍️ METHOD B: DIRECT MANUAL DATA OVERRIDES (RESTORED)
+# ✍️ METHOD B: DIRECT MANUAL DATA OVERRIDES
 # =========================================================================
 st.subheader("✍️ Method B: Manual Structural Entry Desks")
 st.markdown("Use these dedicated forms to directly add individual line items, run adjustments, or input specific transaction profiles manually.")
 
-exp_sales, exp_opex, exp_cap = st.expandors = [st.sidebar, st.sidebar, st.sidebar] # Creating layout breaks
 with st.expander("📈 Direct Sales / Contract Revenue Ingestion Form"):
     s_col1, s_col2, s_col3, s_col4 = st.columns(4)
     with s_col1:
@@ -176,16 +181,12 @@ with st.expander("🏗️ Direct Capital, Asset Funding & Corporate Finance Desk
     with c_col4:
         c_month = st.number_input("Target Model Milestone Month", min_value=1, max_value=12, step=1, value=1)
         
-    # Context-dependent dynamic parameters
     if c_type == "Fixed Asset Purchase":
         c_param = st.slider("Target Annual Straight-Line Depreciation Rate (%)", min_value=0, max_value=100, value=20, step=5)
-        help_txt = "Amortization Rate"
     elif c_type in ["New Bank Loan Injection", "Hire Purchase (HP) Agreement"]:
         c_param = st.number_input("Contractual Financing Repayment Term (Months)", min_value=1, max_value=60, value=36, step=1)
-        help_txt = "Amortization Term"
     else:
         c_param = 0.0
-        help_txt = "None"
 
     if st.button("➕ Inject Manual Capital Component", use_container_width=True):
         if not c_name.strip():
