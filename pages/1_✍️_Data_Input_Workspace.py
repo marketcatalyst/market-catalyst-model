@@ -1,16 +1,18 @@
 # pages/1_✍️_Data_Input_Workspace.py
 
 import os
+import json
 import streamlit as st
 import pandas as pd
-from engine.income import IncomeObject
-from engine.expenditure import ExpenditureObject
-from engine.assets import AssetObject
-from engine.finance import LoanObject, HirePurchaseObject
-from engine.ledger import MasterLedger
-from database.schema import serialize_matrix_to_db
+import google.generativeai as genai
 
-# Ensure state lists are initialized in global runtime memory
+# Enforce secure page rendering guards
+if not st.session_state.get("authenticated", False):
+    st.error("🔒 Access Denied: Unauthorized Endpoints Locked")
+    st.info("This environment is shielded by an enterprise security framework. You must log in via the main portal to open this workspace.")
+    st.stop()
+
+# Initialize empty ledger queues in session memory if not already present
 if "manual_sales_entries" not in st.session_state:
     st.session_state.manual_sales_entries = []
 if "manual_opex_entries" not in st.session_state:
@@ -18,167 +20,139 @@ if "manual_opex_entries" not in st.session_state:
 if "manual_capital_entries" not in st.session_state:
     st.session_state.manual_capital_entries = []
 
-st.title("✍️ Data Input Workspace")
-st.caption("Systems-Thinking Input Streams • Transactional Entry & Ledger Modeling Desk")
+st.title("✍️ Data Input Workspace & AI Ingestion Desk")
+st.caption(f"Active Context: `{st.session_state.get('selected_project', 'None Activated')}`")
 st.markdown("---")
 
-# --- 📁 SIDEBAR: LOCAL SCENARIO RUN PARAMS ---
-st.sidebar.header("📁 Active Scenario Runway")
-scenario_name = st.sidebar.text_input("Scenario Reference Name", value="Base Case Forecast Run")
-scenario_desc = st.sidebar.text_area("Scenario Notes / Description", value="Standard operational model with manual data entry inputs.")
+# =========================================================================
+# 🔮 STEP 1: GEMINI AI SYSTEMIC INGESTION DESK
+# =========================================================================
+st.subheader("🔮 Gemini AI Cognitive Data Parser")
+st.markdown("""
+Paste raw project summaries, commercial negotiation briefs, or engineering rollout notes below. 
+Gemini will interpret the unstructured prose through a **REST** framework and distill it into precise financial parameters.
+""")
 
-st.sidebar.markdown("---")
-st.sidebar.subheader("🛡️ Factoring / Invoice Finance")
-if_enabled = st.sidebar.checkbox("Engage Invoice Finance (ID Facility)", value=True)
-if_advance_rate = st.sidebar.slider("Factor Advance Rate (%)", min_value=50, max_value=95, value=85, step=5) / 100.0
+# Fetch the local environment key safely
+gemini_key = os.environ.get("GEMINI_API_KEY") or st.secrets.get("GEMINI_API_KEY", "")
 
-# --- 🏗️ CENTRAL TRANSACTIONS SPACE PANEL GRID ---
-panel_col1, panel_col2 = st.columns([0.55, 0.45])
+if not gemini_key:
+    st.warning("⚠️ `GEMINI_API_KEY` environment variable not detected. The AI engine is currently offline. Please export your key to your terminal session.")
 
-with panel_col1:
-    st.subheader("📥 Step 1: Ingestion & Transaction Desks")
-    ingest_tab1, ingest_tab2, ingest_tab3 = st.tabs([
-        "📂 Automated Payload Ingestion", 
-        "✍️ Manual Operational Entries",
-        "🏦 Capital & Financing Desk"
-    ])
-    
-    with ingest_tab1:
-        uploaded_files = st.file_uploader("Drop Corporate Document Payload", accept_multiple_files=True, label_visibility="collapsed")
-        status_col1, status_col2 = st.columns(2)
-        status_col1.metric("Ingested Items", value=len(uploaded_files) if uploaded_files else 0)
-        status_col2.metric("Pipeline Engine", value="Idle" if not uploaded_files else "Ready to Parse")
-        
-    with ingest_tab2:
-        st.caption("Inject customised operational income/expenditure lines into current run memory:")
-        op_book = st.selectbox("Operational Target Book", ["📈 Sales Revenue Invoices", "📉 Operational OpEx Bill / Cost"])
-        
-        with st.form("manual_op_form", clear_on_submit=True):
-            col_a, col_b = st.columns(2)
-            op_name = col_a.text_input("Item Description", placeholder="e.g. Project Phase A Delivery")
-            op_amount = col_b.number_input("Monthly Net Amount (£)", min_value=0.0, value=1000.0, step=500.0)
-            
-            col_c, col_d = st.columns(2)
-            op_lag = col_c.slider("Credit Timing Delay (Months)", min_value=0, max_value=3, value=0)
-            op_vat = col_d.selectbox("VAT Setting", ["Standard Rate (20%)", "Zero Rated (0%)"])
-            
-            if st.form_submit_button("➕ Commit Operational Line to Memory", width='stretch'):
-                vat_computed = 0.20 if "20%" in op_vat else 0.00
-                new_op = {"name": op_name if op_name else "Manual Op Line", "amount": op_amount, "lag": op_lag, "vat": vat_computed}
-                if "Sales" in op_book: st.session_state.manual_sales_entries.append(new_op)
-                else: st.session_state.manual_opex_entries.append(new_op)
-                st.toast("Operational entry logged.")
-                st.rerun()
-        
-    with ingest_tab3:
-        st.caption("Key in high-impact capitalisation events, funding injections, or long-term debt additions:")
-        cap_type = st.selectbox("Capital Transaction Class", ["Fixed Asset Purchase", "Hire Purchase (HP) Agreement", "New Bank Loan Injection", "Director / Equity Inflow"])
-        
-        with st.form("manual_capital_form", clear_on_submit=True):
-            col_x, col_y = st.columns(2)
-            cap_name = col_x.text_input("Facility / Asset Name", placeholder="e.g. CNC Mill Machine, Lloyds Bank Tranche")
-            cap_value = col_y.number_input("Principal / Purchase Value (£)", min_value=0.0, value=10000.0, step=1000.0)
-            
-            col_w, col_z = st.columns(2)
-            cap_month = col_w.number_input("Execution Event Month (1-12)", min_value=1, max_value=12, value=1)
-            cap_param = col_z.number_input("Term (Months) / Depreciation Rate (%)", min_value=0.0, value=12.0, step=1.0)
-            
-            if st.form_submit_button("🏛️ Inject Structural Event to Ledger", width='stretch'):
-                new_cap = {"type": cap_type, "name": cap_name if cap_name else f"Manual {cap_type}", "value": cap_value, "month": int(cap_month), "parameter": cap_param}
-                st.session_state.manual_capital_entries.append(new_cap)
-                st.toast("Capital adjustments captured successfully.")
-                st.rerun()
-        
-        if st.button("🗑️ Reset All Local Custom Memory Entries", width='content'):
+user_narrative = st.text_area(
+    "Paste Commercial Project Notes / Engineering Manifests Here", 
+    height=220,
+    placeholder="Example: We are launching our AVAWT turbine trial next month. Raw structural components will cost £45,000 upfront. We have a contractual engineering overhead run-rate of £3,500 per month. We expect our first commercial lease contract to sign in Month 3 bringing in £18,000 monthly, but the client negotiated a 60-day cash payment lag..."
+)
+
+if st.button("🔮 Analyze & Distill Narrative with Gemini", disabled=not gemini_key, use_container_width=True):
+    if not user_narrative.strip():
+        st.error("Please provide a descriptive text narrative to interpret.")
+    else:
+        with st.spinner("Gemini is mapping systemic ripple effects and formatting data frames..."):
+            try:
+                # Configure the Gemini Engine Model
+                genai.configure(api_key=gemini_key)
+                model = genai.GenerativeModel("gemini-1.5-flash")
+                
+                # Rigid prompt boundary enforcing JSON schema extraction
+                system_prompt = f"""
+                You are the financial modeling data extractor for STRATA, an enterprise 3-way cash-flow forecasting platform.
+                Your task is to read the user's raw business narrative, analyze it using Ripple Effect Systems Thinking (REST), and extract any financial data lines.
+                
+                You MUST return your response as a valid JSON object matching this exact structural schema, and absolutely nothing else. Do not wrap the JSON in markdown code blocks like ```json.
+                
+                {{
+                    "sales": [
+                        {{"name": "Clear descriptive name", "amount": 15000.0, "vat": 0.20, "lag": 1}}
+                    ],
+                    "opex": [
+                        {{"name": "Clear descriptive name", "amount": 3500.0, "vat": 0.20, "lag": 0}}
+                    ],
+                    "capital": [
+                        {{"name": "Clear descriptive name", "type": "Fixed Asset Purchase", "value": 45000.0, "month": 2, "parameter": 10.0}}
+                    ]
+                }}
+                
+                Rules for schema mapping:
+                1. "vat" must be a float (e.g., 0.20 for 20% standard rate, or 0.0 for zero-rated).
+                2. "lag" profile means customer payment delays in months (0 for immediate cash, 1 for 30-day delay, 2 for 60-day delay).
+                3. Capital "type" options must be exactly one of these: "Fixed Asset Purchase", "Hire Purchase (HP) Agreement", "New Bank Loan Injection", or "Director / Equity Inflow".
+                4. Capital "parameter" is the sub-metric: annual depreciation rate % for assets, agreement term in months for loans or HP links.
+                
+                Analyze this text narrative carefully:
+                "{user_narrative}"
+                """
+                
+                # Request synthesis from Gemini
+                response = model.generate_content(system_prompt)
+                raw_json = response.text.strip()
+                
+                # Sanitize response strings if markdown boundaries leaked out
+                if raw_json.startswith("```"):
+                    raw_json = raw_json.split("\n", 1)[1].rsplit("\n", 1)[0].strip()
+                if raw_json.startswith("json"):
+                    raw_json = raw_json.split("\n", 1)[1].strip()
+                    
+                parsed_payload = json.loads(raw_json)
+                
+                # Hydrate variables straight into active session state
+                injected_sales = 0
+                injected_opex = 0
+                injected_cap = 0
+                
+                for s in parsed_payload.get("sales", []):
+                    st.session_state.manual_sales_entries.append(s)
+                    injected_sales += 1
+                for o in parsed_payload.get("opex", []):
+                    st.session_state.manual_opex_entries.append(o)
+                    injected_opex += 1
+                for c in parsed_payload.get("capital", []):
+                    st.session_state.manual_capital_entries.append(c)
+                    injected_cap += 1
+                    
+                st.success(f"🔮 Gemini Translation Complete: Hydrated {injected_sales} Sales lines, {injected_opex} OpEx variables, and {injected_cap} Capital vectors directly into your data queue!")
+                
+            except Exception as ai_err:
+                st.error(f"AI Parsing Matrix Failure: {str(ai_err)}")
+                st.info("Ensure your response data string matches strict JSON compliance thresholds.")
+
+st.markdown("---")
+
+# =========================================================================
+# 📊 STEP 2: ACTIVE REPOSITORIES & DATA TABLES VIEW
+# =========================================================================
+st.subheader("📂 Active Workspace Data Repositories")
+st.markdown("Review the lines currently queued to feed your active Sandbox and Forecast calculation modules:")
+
+tab1, tab2, tab3 = st.tabs(["📊 Queued Revenues", "💸 Queued Expenses", "🏗️ Queued Capital Structures"])
+
+with tab1:
+    if st.session_state.manual_sales_entries:
+        df_s = pd.DataFrame(st.session_state.manual_sales_entries)
+        st.dataframe(df_s, use_container_width=True)
+        if st.button("🗑️ Clear Revenue Queue", key="clear_s"):
             st.session_state.manual_sales_entries = []
+            st.rerun()
+    else:
+        st.caption("No dynamic sales lines currently tracking in this environment context.")
+
+with tab2:
+    if st.session_state.manual_opex_entries:
+        df_o = pd.DataFrame(st.session_state.manual_opex_entries)
+        st.dataframe(df_o, use_container_width=True)
+        if st.button("🗑️ Clear Expense Queue", key="clear_o"):
             st.session_state.manual_opex_entries = []
+            st.rerun()
+    else:
+        st.caption("No dynamic operating expense lines currently tracking in this environment context.")
+
+with tab3:
+    if st.session_state.manual_capital_entries:
+        df_c = pd.DataFrame(st.session_state.manual_capital_entries)
+        st.dataframe(df_c, use_container_width=True)
+        if st.button("🗑️ Clear Capital Queue", key="clear_c"):
             st.session_state.manual_capital_entries = []
             st.rerun()
-
-with panel_col2:
-    st.subheader("⚙️ Step 2: Global Adjustments & Queue Balance")
-    with st.container(border=True):
-        monthly_wages = st.number_input("Monthly Gross Staff Wages (£)", min_value=0.0, value=0.0, step=500.0)
-        auto_enrol_opt_out = st.checkbox("Statutory Auto-Enrolment Opt-Out", value=True)
-    
-    st.markdown("<br>", unsafe_allow_html=True)
-    st.caption("📋 Active Pipeline Queue Diagnostic Inventory:")
-    st.text(f"• Sales Invoices in Queue: {len(st.session_state.manual_sales_entries)}")
-    st.text(f"• OpEx Expenditures in Queue: {len(st.session_state.manual_opex_entries)}")
-    st.text(f"• Financing & Asset Structures in Queue: {len(st.session_state.manual_capital_entries)}")
-
-st.markdown("---")
-
-# --- ⚙️ MASTER MODEL CALCULATION MATRIX COMPILER ---
-ledger = MasterLedger(total_timeline_months=12)
-
-if not st.session_state.manual_sales_entries:
-    ledger.add_income(IncomeObject("Baseline Revenue Stream", 20000.0, vat_rate=0.20, cash_delay_profile={1: 1.0}), invoice_finance_eligible=if_enabled, invoice_finance_advance_rate=if_advance_rate)
-else:
-    for item in st.session_state.manual_sales_entries:
-        ledger.add_income(IncomeObject(item["name"], item["amount"], vat_rate=item["vat"], cash_delay_profile={item["lag"]: 1.0}), invoice_finance_eligible=if_enabled, invoice_finance_advance_rate=if_advance_rate)
-
-if not st.session_state.manual_opex_entries:
-    ledger.add_expenditure(ExpenditureObject("Baseline OpEx Overheads", 8000.0, vat_rate=0.20, creditor_payment_profile={0: 1.0}))
-else:
-    for item in st.session_state.manual_opex_entries:
-        ledger.add_expenditure(ExpenditureObject(item["name"], item["amount"], vat_rate=item["vat"], creditor_payment_profile={item["lag"]: 1.0}))
-
-for item in st.session_state.manual_capital_entries:
-    t_type = item["type"]
-    val = item["value"]
-    m_idx = item["month"] - 1
-    param = item["parameter"]
-    
-    if t_type == "Fixed Asset Purchase":
-        ledger.add_asset(AssetObject(item["name"], val, depreciation_rate_annual=param/100.0, acquisition_month=m_idx))
-    elif t_type == "Hire Purchase (HP) Agreement":
-        ledger.add_hp(HirePurchaseObject(item["name"], asset_cost=val, deposit_paid=0.0, term_months=int(param), annual_interest_rate=0.08, agreement_month=m_idx))
-    elif t_type == "New Bank Loan Injection":
-        ledger.add_loan(LoanObject(item["name"], principal_advance=val, term_months=int(param), annual_interest_rate=0.075, advance_month=m_idx))
-    elif t_type == "Director / Equity Inflow":
-        ledger.inject_direct_capital_reserve(amount=val, target_month=m_idx)
-
-matrix = ledger.compile_forecast_matrix()
-
-# --- 📊 PRESENTATION TIER: 3-WAY FINANCIAL STATEMENTS ---
-st.subheader("📊 Compiled 3-Way Integrated Financial Runway")
-months_index = [f"Month {i+1}" for i in range(12)]
-
-df_pl = pd.DataFrame({
-    "Gross Revenue (£)": matrix["pl_revenue"],
-    "Operating Expenses (£)": matrix["pl_expenses"],
-    "Finance Interests (£)": matrix["pl_interest"],
-    "Asset Depreciations (£)": matrix["pl_depreciation"],
-    "Net Operational Profit (£)": [r - e - i - d for r, e, i, d in zip(matrix["pl_revenue"], matrix["pl_expenses"], matrix["pl_interest"], matrix["pl_depreciation"])]
-}, index=months_index).T
-
-df_cf = pd.DataFrame({
-    "Total Cash Receipts / Inflows (£)": matrix["cf_inflows"],
-    "Total Cash Disbursals / Outflows (£)": matrix["cf_outflows"],
-    "Net Monthly Cash Delta (£)": [i - o for i, o in zip(matrix["cf_inflows"], matrix["cf_outflows"])]
-}, index=months_index).T
-
-df_bs = pd.DataFrame({
-    "Current Assets: Trade Debtors (£)": matrix["bs_debtors"],
-    "Current Liabilities: Trade Creditors (£)": matrix["bs_creditors"],
-    "Current Liabilities: HMRC VAT Account (£)": matrix["bs_hmrc_vat_balance"],
-    "Term Liabilities: Loan Amortization (£)": matrix["bs_loan_liability"],
-    "Term Liabilities: HP Obligations (£)": matrix["bs_hp_liability"],
-    "Fixed Assets: Net Book Value Asset NBV (£)": matrix["bs_asset_nbv"]
-}, index=months_index).T
-
-tab1, tab2, tab3 = st.tabs(["📉 Profit & Loss Statement", "💸 Cash Flow Statement", "⚖️ Balance Sheet Position"])
-with tab1: st.dataframe(df_pl.style.format("{:,.2f}"), width='stretch')
-with tab2: st.dataframe(df_cf.style.format("{:,.2f}"), width='stretch')
-with tab3: st.dataframe(df_bs.style.format("{:,.2f}"), width='stretch')
-
-# Secure Cloud Serialization Trigger Row
-st.markdown("<br>", unsafe_allow_html=True)
-if st.sidebar.button("💾 Archive Scenario Run to Neon Cloud", width='stretch'):
-    try:
-        if not os.environ.get("DATABASE_URL"): st.sidebar.error("❌ Database session context lost.")
-        else:
-            serialize_matrix_to_db(scenario_name, scenario_desc, matrix)
-            st.sidebar.success(f"✔️ Run successfully serialized to Neon!")
-    except Exception as e: st.sidebar.error(f"❌ Cloud push failure: {str(e)}")
+    else:
+        st.caption("No dynamic capital structural lines currently tracking in this environment context.")
