@@ -1,156 +1,137 @@
-# ==============================================================================
-# STRATA CORE RUNTIME ENVIRONMENT INITIALISATION PATCH
-# ==============================================================================
-import sys
-import subprocess
-
-# Explicitly force-inject jinja2 into the active Linux container environment
-try:
-    import jinja2
-except ImportError:
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "jinja2>=3.1.4"])
-    import jinja2
-
-# Ensure pandas explicitly registers the newly available engine templates
-import pandas as pd
-try:
-    pd.options.styler.render.engine = 'jinja2'
-except Exception:
-    pass
-# ==============================================================================
-
-import streamlit as st
-# ... YOUR EXISTING APP.PY CODE CONTINUES UNCHANGED FROM HERE DOWN ...
 # app.py
 
 import streamlit as st
+import sys
+from pathlib import Path
+import os
 
-# 1. Enforce global wide-screen layout configurations across the portal session
-st.set_page_config(page_title="STRATA // Corporate Portal", page_icon="🛡️", layout="wide")
+# --- 1. THE ABSOLUTE FIRST SYSTEM CONFIGURATION COMMAND ---
+st.set_page_config(layout="wide", page_title="STRATA Financial Intelligence Portal")
 
-# 2. Initialize global session states in runtime memory
+root_dir = Path(__file__).resolve().parent
+if str(root_dir) not in sys.path:
+    sys.path.append(str(root_dir))
+
+# Ensure nested subfolders are visible to the internal system interpreter
+ui_skin_dir = root_dir / "ui_skin"
+if ui_skin_dir.exists() and str(ui_skin_dir) not in sys.path:
+    sys.path.append(str(ui_skin_dir))
+
+# --- 2. DEFENSIVE SESSION STATE INITIALIZATION MATRIX ---
+# All core tracking registers are explicitly instantiated here to safeguard
+# dropdown elements and prevent structural key-value race conditions.
 if "authenticated" not in st.session_state:
     st.session_state["authenticated"] = False
-if "username" not in st.session_state:
-    st.session_state["username"] = None
+
 if "selected_project" not in st.session_state:
-    st.session_state["selected_project"] = "None Activated"
+    st.session_state["selected_project"] = ""
 
-# Dynamic portfolio initialization: Starts clean and empty if not yet tracking
-if "project_portfolio" not in st.session_state:
-    st.session_state["project_portfolio"] = []
+if "active_project_name" not in st.session_state:
+    st.session_state["active_project_name"] = ""
 
-# --- 🛠️ DYNAMIC STREAMLIT MULTI-PAGE NAVIGATION ROUTER ---
-# FIXED: Removed the old launcher_page definition completely to resolve the file routing fault
-login_page = st.Page("app.py", title="Security Gateway", icon="🔑")
-data_input_page = st.Page("pages/1_✍️_Data_Input_Workspace.py", title="Data Input Workspace", icon="✍️")
-sandbox_page = st.Page("pages/2_🔮_sandbox.py", title="Scenario Sandbox", icon="🔮")
-forecast_page = st.Page("pages/3_📊_forecast.py", title="Forecast Ledger", icon="📊")
-compliance_page = st.Page("pages/4_🛡️_compliance.py", title="Compliance Gateway", icon="🛡️")
+if "manual_sales_entries" not in st.session_state:
+    st.session_state.manual_sales_entries = []
 
+if "manual_opex_entries" not in st.session_state:
+    st.session_state.manual_opex_entries = []
+
+if "manual_capital_entries" not in st.session_state:
+    st.session_state.manual_capital_entries = []
+
+# --- 3. SECURITY GATEKEEPER ---
 if not st.session_state["authenticated"]:
-    nav = st.navigation([login_page], position="sidebar")
-else:
-    # FIXED: Cleaned up mapping groups so that only actual existing script paths are compiled
-    nav = st.navigation({
-        "Core Portal": [login_page],
-        "Modeling Workspaces": [data_input_page, sandbox_page],
-        "Ledgers & Audits": [forecast_page, compliance_page]
-    }, position="sidebar")
-
-# --- 🔓 SECURE PORTAL RENDERING LAYER ---
-if not st.session_state["authenticated"]:
-    st.title("🛡️ STRATA // Financial Intelligence Portal")
+    st.title("🔒 STRATA Security Access Gateway")
     st.caption("Enterprise Workspace Security Engine & Scenario Access Control Gateway")
     st.markdown("---")
     
-    st.subheader("🔑 Security Authentication Required")
-    st.markdown("Please provide your authorized environment passphrase to hydrate calculation modules and unlock multi-page project workspaces.")
+    username = st.text_input("Corporate Username:")
+    password = st.text_input("Security Access Key:", type="password")
     
-    login_col1, login_col2 = st.columns([1, 2])
-    with login_col1:
-        user_passphrase = st.text_input("Environment Passphrase", type="password", help="Enter your secure corporate access code.")
-        submit_btn = st.button("Authorize Session", use_container_width=True)
-        
-    if submit_btn:
-        if user_passphrase == "strata-catalyst-2026":
+    if st.button("Authenticate Corporate Identity", use_container_width=True):
+        if username.lower() in ["admin", "marketcatalyst", "user2"] and password == "strata2026":
             st.session_state["authenticated"] = True
-            st.session_state["username"] = "Market Catalyst"
-            st.success("🔒 Session authorized. Synchronizing registry matrix...")
             st.rerun()
         else:
-            st.error("❌ Invalid passphrase. Access denied to secure endpoints.")
+            st.error("Authentication Fault: Invalid profile credentials.")
+    st.stop()
+
+# --- 4. WELCOME EXECUTIVE BANNER ---
+st.title("🛡️ STRATA // Financial Intelligence Portal")
+st.caption("Active Environment: Market Catalyst Management Matrix")
+st.markdown("---")
+
+st.markdown("### 👋 Welcome back, Market Catalyst")
+st.markdown("Select an existing active project modeling workspace below, or mount a brand-new scenario matrix environment:")
+
+# --- 5. SYSTEM REGISTRY DATA LOOKUPS ---
+PROJECTS_DIR = "saved_projects"
+if not os.path.exists(PROJECTS_DIR):
+    os.makedirs(PROJECTS_DIR)
+
+# Dynamically discover saved projects on disk
+saved_files = [f.replace(".json", "") for f in os.listdir(PROJECTS_DIR) if f.endswith(".json") and not f.startswith("SANDBOX_VARIANT_")]
+
+# --- 6. SAFE BOUNDS DROPDOWN MANAGEMENT (PREVENTS LINE 107 VALUEERROR) ---
+# Check standing value rules to safely select the correct option index
+disabled_select = len(saved_files) == 0
+current_selection = st.session_state["selected_project"]
+
+if disabled_select:
+    dropdown_options = ["No Projects Found on Disk"]
+    target_index = 0
 else:
-    if nav == login_page:
-        st.title("🛡️ STRATA // Financial Intelligence Portal")
-        st.caption(f"Active Environment: {st.session_state['username']} Management Matrix")
-        st.markdown("---")
-        
-        st.subheader(f"👋 Welcome back, {st.session_state['username']}")
-        st.markdown("Select an existing active project modeling workspace below, or mount a brand-new scenario matrix environment:")
-        
-        # --- PHASE 1: DYNAMIC WORKSPACE SELECTOR ---
-        proj_box_col1, proj_box_col2 = st.columns([2, 1])
-        
-        with proj_box_col1:
-            if not st.session_state["project_portfolio"]:
-                options_list = ["No Active Models Found — Please Create a New Workspace Below"]
-                disabled_select = True
-            else:
-                options_list = st.session_state["project_portfolio"]
-                disabled_select = False
-                
-            chosen_proj = st.selectbox(
-                "Select Active Project Environment", 
-                options=options_list,
-                disabled=disabled_select,
-                index=0 if st.session_state["selected_project"] == "None Activated" or disabled_select else st.session_state["project_portfolio"].index(st.session_state["selected_project"])
-            )
-            
-        with proj_box_col2:
-            st.markdown("<br>", unsafe_allow_html=True)
-            if st.button("⚡ Activate Project Context", disabled=disabled_select, use_container_width=True):
-                st.session_state["selected_project"] = chosen_proj
-                st.success(f"📂 Workspace Context updated to: **{chosen_proj}**.")
-                st.rerun()
-                
-        st.markdown("---")
-        
-        # --- PHASE 2: NEW MODEL ARCHITECTURE WORKSPACE FORGE ---
-        st.subheader("🏗️ Forge New Model Environment")
-        st.markdown("Type the name of your new asset or operational structure below to instantly provision a dedicated zero-based ledger:")
-        
-        forge_col1, forge_col2 = st.columns([2, 1])
-        with forge_col1:
-            new_project_name = st.text_input("New Project Description Name", placeholder="e.g., Ammanford Phase 1 Development or AVAWT Test Bed", label_visibility="collapsed")
-        
-        with forge_col2:
-            if st.button("🔨 Forge New Workspace", use_container_width=True):
-                clean_name = new_project_name.strip()
-                if clean_name and clean_name not in st.session_state["project_portfolio"]:
-                    st.session_state["project_portfolio"].append(clean_name)
-                    st.session_state["selected_project"] = clean_name
-                    st.session_state.manual_sales_entries = []
-                    st.session_state.manual_opex_entries = []
-                    st.session_state.manual_capital_entries = []
-                    st.success(f"⚡ Success! Provisioned new environment: **{clean_name}**. Baseline matrices zeroed.")
-                    st.rerun()
-                elif clean_name in st.session_state["project_portfolio"]:
-                    st.warning("⚠️ This project name already exists in your active portfolio matrix.")
-                else:
-                    st.error("❌ Project name description cannot be left blank.")
-                    
-        st.markdown("---")
-        st.markdown(f"**Current Mounted Context:** `{st.session_state['selected_project']}`")
-        st.info("Navigate through the sub-modules using the sidebar links to run scenario overrides, compile multi-year rolling forecasts, or audit regulatory frameworks.")
-        
-        if st.sidebar.button("🔒 Terminate Secure Session"):
-            st.session_state["authenticated"] = False
-            st.session_state["username"] = None
-            st.session_state["selected_project"] = "None Activated"
-            st.rerun()
+    dropdown_options = ["-- None Active --"] + saved_files
+    if current_selection in dropdown_options:
+        target_index = dropdown_options.index(current_selection)
     else:
-        try:
-            nav.run()
-        except Exception as e:
-            st.error(f"Navigation router execution error: {str(e)}")
+        target_index = 0
+
+selected_box = st.selectbox(
+    "Active Scenario Workspace Context Selector",
+    options=dropdown_options,
+    index=target_index,
+    disabled=disabled_select
+)
+
+# Commit project binding rules cleanly back to state variables upon change
+if selected_box != "-- None Active --" and not disabled_select:
+    if st.session_state["selected_project"] != selected_box:
+        st.session_state["selected_project"] = selected_box
+        st.session_state["active_project_name"] = selected_box
+        st.success(f"Context mapped to workspace: `{selected_box}`. Navigating to layout arrays...")
+        st.rerun()
+
+st.markdown("---")
+st.info("💡 Use the sidebar navigation drawer to hop across into the Data Ingestion Suite, Scenario Sandbox, or Financial Forecast sheets seamlessly.")
+
+# --- 7. DYNAMIC PATH DISCOVERY RESOLUTION ---
+pages_dir = Path("pages")
+all_discovered_files = os.listdir(pages_dir) if pages_dir.exists() else []
+
+def locate_target_page(file_prefix: str, fallback_path: str) -> str:
+    for f_name in all_discovered_files:
+        if f_name.startswith(file_prefix) and f_name.endswith(".py"):
+            return f"pages/{f_name}"
+    return fallback_path
+
+path_ingestion = locate_target_page("1_", "pages/1_🔌_ingestion.py")
+path_sandbox = locate_target_page("2_", "pages/2_🔮_sandbox.py")
+path_forecast = locate_target_page("3_", "pages/3_📊_forecast.py")
+path_compliance = locate_target_page("4_", "pages/4_⚖️_compliance.py")
+
+# --- 8. COMPILING THE REFINED SIDEBAR GRAPH ---
+try:
+    pg = st.navigation(
+        {
+            "Dashboards": [
+                st.Page(path_ingestion, title="Data Ingestion Suite", icon="🔌"),
+                st.Page(path_sandbox, title="Stewardship Sandbox", icon="🔮"),
+                st.Page(path_forecast, title="Financial Forecast", icon="📊"),
+                st.Page(path_compliance, title="Compliance & Tax Portal", icon="⚖️"),
+            ]
+        }, 
+        position="sidebar"
+    )
+    pg.run()
+except Exception as e:
+    st.error(f"Routing Fault: Streamlit engine could not map the dashboard page files. Details: {str(e)}")
