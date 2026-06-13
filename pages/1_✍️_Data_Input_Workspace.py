@@ -8,6 +8,9 @@ import streamlit as st
 import pandas as pd
 import google.generativeai as genai
 
+# =========================================================================
+# 🛠️ DEPENDENCY INITIALISATION & CONTAINER REGISTRATION
+# =========================================================================
 # Force-verify and register pypdf in the runtime container namespace
 try:
     from pypdf import PdfReader
@@ -15,7 +18,15 @@ except ImportError:
     subprocess.check_call([sys.executable, "-m", "pip", "install", "pypdf"])
     from pypdf import PdfReader
 
-# Enforce secure page rendering guards
+# Force-verify and register tabulate for spreadsheet markdown parsing
+try:
+    import tabulate
+except ImportError:
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "tabulate"])
+
+# =========================================================================
+# 🔒 ENDPOINT SECURITY GUARDS
+# =========================================================================
 if not st.session_state.get("authenticated", False):
     st.error("🔒 Access Denied: Unauthorized Endpoints Locked")
     st.info("This environment is shielded by an enterprise security framework. You must log in via the main portal to open this workspace.")
@@ -100,10 +111,18 @@ if st.button("🚀 Execute Intelligent System Ingestion", disabled=not gemini_ke
         elif file_name.endswith(".csv") or file_name.endswith(".xlsx"):
             with st.spinner("Parsing raw data matrix values..."):
                 try:
-                    df_raw = pd.read_csv(uploaded_file) if file_name.endswith(".csv") else pd.read_excel(uploaded_file)
-                    # Convert dataframe rows into a markdown string table representation for context injection
-                    df_as_text = df_raw.to_markdown(index=False)
-                    text_to_analyze += f"\n[System Processed Data Spreadsheet Matrix from File '{uploaded_file.name}']:\n{df_as_text}\n"
+                    # If multi-tab excel spreadsheet, compile all tabs systematically into the markdown stream
+                    if file_name.endswith(".xlsx"):
+                        xls = pd.ExcelFile(uploaded_file)
+                        for sheet in xls.sheet_names:
+                            df_sheet = pd.read_excel(uploaded_file, sheet_name=sheet)
+                            if not df_sheet.empty:
+                                df_as_text = df_sheet.to_markdown(index=False)
+                                text_to_analyze += f"\n[System Processed Data Spreadsheet Tab '{sheet}' from File '{uploaded_file.name}']:\n{df_as_text}\n"
+                    else:
+                        df_raw = pd.read_csv(uploaded_file)
+                        df_as_text = df_raw.to_markdown(index=False)
+                        text_to_analyze += f"\n[System Processed Data Spreadsheet Matrix from File '{uploaded_file.name}']:\n{df_as_text}\n"
                 except Exception as e:
                     st.error(f"Failed parsing spreadsheet data: {str(e)}")
                     st.stop()
@@ -118,8 +137,8 @@ if st.button("🚀 Execute Intelligent System Ingestion", disabled=not gemini_ke
                 model = genai.GenerativeModel(model_name="models/gemini-2.5-flash")
                 
                 system_prompt = f"""
-                You are the financial modeling data extractor for STRATA, an enterprise 3-way cash-flow forecasting platform.
-                Your task is to read the compiled data input text payload, analyze it using Ripple Effect Systems Thinking (REST), and extract any financial data lines.
+                You are the financial modelling data extractor for STRATA, an enterprise 3-way cash-flow forecasting platform.
+                Your task is to read the compiled data input text payload, analyse it using Ripple Effect Systems Thinking (REST), and extract any financial data lines.
                 
                 You MUST return your response as a valid JSON object matching this exact structural schema, and absolutely nothing else. Do not wrap the JSON in markdown code blocks.
                 
@@ -141,7 +160,7 @@ if st.button("🚀 Execute Intelligent System Ingestion", disabled=not gemini_ke
                 3. Capital "type" options must be exactly one of these: "Fixed Asset Purchase", "Hire Purchase (HP) Agreement", "New Bank Loan Injection", or "Director / Equity Inflow".
                 4. Capital "parameter" is the sub-metric: annual depreciation rate % for assets, agreement term in months for loans or HP links.
                 
-                Carefully distill all parameters from this combined workspace data block:
+                Carefully distil all parameters from this combined workspace data block:
                 \"\"\"{text_to_analyze}\"\"\"
                 """
                 
