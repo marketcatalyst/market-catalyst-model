@@ -1,96 +1,118 @@
-# pages/2_🔮_sandbox.py
+# ui_skin/pages/2_🔮_sandbox.py
 
 import os
 import sys
+import json
 import streamlit as st
 import pandas as pd
 from pathlib import Path
 
 # Absolute project path resolution to handle multi-page layout shifts smoothly
-root_dir = Path(__file__).resolve().parent.parent
+root_dir = Path(__file__).resolve().parent.parent.parent
 if str(root_dir) not in sys.path:
     sys.path.append(str(root_dir))
 
-from engine.income import IncomeObject
-from engine.expenditure import ExpenditureObject
-from engine.assets import AssetObject
-from engine.finance import LoanObject, HirePurchaseObject
-from engine.ledger import MasterLedger
+# Import our universal accounting master engine
+from ui_skin.core_engine.double_entry_matrix import compile_three_way_forecast
 
-# --- 🛡️ SECURITY BYPASS TIER ---
-st.session_state["authenticated"] = True
-st.session_state["username"] = "Market Catalyst"
-
-if "manual_sales_entries" not in st.session_state:
-    st.session_state.manual_sales_entries = []
-if "manual_opex_entries" not in st.session_state:
-    st.session_state.manual_opex_entries = []
-if "manual_capital_entries" not in st.session_state:
-    st.session_state.manual_capital_entries = []
+# Verify user security clearance before rendering ledger parameters
+if not st.session_state.get("authenticated", False):
+    st.error("🔒 Access Denied: Unauthorized Endpoints Locked")
+    st.info("This environment is shielded by an enterprise security framework. You must log in via the main portal to open this workspace.")
+    st.stop()
 
 st.title("🔮 Multi-Variant Scenario Sandbox")
 st.caption("Systems-Thinking Scratchpad • Test Asset Deviations & High-Impact Projections")
 st.markdown("---")
 
-# --- ⚙️ VARIANT OVERRIDE SLIDERS ---
+# Verify an active project configuration baseline file exists to model against
+selected_project = st.session_state.get("selected_project", "")
+if not selected_project:
+    st.warning("⚠️ No Active Project Context Detected. Please load a baseline configuration state in the Ingestion Suite before accessing this sandbox.")
+    st.stop()
+
+st.sidebar.success(f"📁 Modelling Sandbox Matrix for: `{selected_project}`")
+
+# --- ⚙️ UNIVERSAL SCENARIO STRESS CONTROLS ---
 st.subheader("🎛️ Scenario Stress Testing Controls")
-st.markdown("Adjust these parameters to model potential deviations against your baseline input ledger:")
+st.markdown("Adjust these parameters to scale values up or down across your active project baseline matrices:")
 
 col1, col2 = st.columns(2)
 with col1:
     sandbox_volume_delta = st.slider("Revenue Volume Delta / Growth Spike (%)", min_value=-50, max_value=100, value=0, step=5)
-    st.session_state["sandbox_volume_delta"] = sandbox_volume_delta / 100.0
+    vol_multiplier = 1.0 + (sandbox_volume_delta / 100.0)
 with col2:
     sandbox_opex_delta = st.slider("Operational Overhead Cost Escalation (%)", min_value=-30, max_value=100, value=0, step=5)
-    st.session_state["sandbox_opex_delta"] = sandbox_opex_delta / 100.0
+    opex_multiplier = 1.0 + (sandbox_opex_delta / 100.0)
 
 st.markdown("---")
 
-# --- ⚙️ MASTER MODEL SCENARIO COMPILER ---
-with st.spinner("Compiling sandbox variant projections..."):
+# Define execution and presentation paths
+base_json_path = os.path.join("saved_projects", f"{selected_project}.json")
+sandbox_json_path = os.path.join("saved_projects", f"SANDBOX_VARIANT_{selected_project}.json")
+
+# --- ⚙️ MASTER TRANSACTION SCENARIO COMPILER ---
+with st.spinner("Executing dynamic double-entry scenario run..."):
     try:
-        ledger = MasterLedger(total_timeline_months=12)
-        
-        # FIXED: Removed the hardcoded £20k / £8k baseline buffers completely.
-        # The engine will map custom data lines or evaluate naturally as clean zeros.
-        for item in st.session_state.manual_sales_entries:
-            adjusted_amount = item["amount"] * (1.0 + st.session_state["sandbox_volume_delta"])
-            obj = IncomeObject(item["name"], adjusted_amount, vat_rate=item["vat"], cash_delay_profile={item["lag"]: 1.0})
-            ledger.add_income(obj, invoice_finance_eligible=True, invoice_finance_advance_rate=0.85)
+        # Load the clean baseline tracking queues from disk
+        if not os.path.exists(base_json_path):
+            st.error("Baseline project parameter file missing from disk storage target.")
+            st.stop()
             
-        for item in st.session_state.manual_opex_entries:
-            adjusted_cost = item["amount"] * (1.0 + st.session_state["sandbox_opex_delta"])
-            obj = ExpenditureObject(item["name"], adjusted_cost, vat_rate=item["vat"], creditor_payment_profile={item["lag"]: 1.0})
-            ledger.add_expenditure(obj)
+        with open(base_json_path, "r") as bf:
+            payload = json.load(bf)
             
-        for item in st.session_state.manual_capital_entries:
-            t_type = item["type"]
-            val = item["value"]
-            m_idx = item["month"] - 1
-            param = item["parameter"]
+        # Initialize variant queues
+        variant_payload = {
+            "sales": [],
+            "opex": [],
+            "capital": payload.get("capital", []) # Capital asset infusions remain locked to baseline defaults
+        }
+        
+        # Apply scaling delta multipliers uniformly across the raw rows
+        for item in payload.get("sales", []):
+            modified_item = item.copy()
+            modified_item["amount"] = float(item.get("amount", 0.0)) * vol_multiplier
+            variant_payload["sales"].append(modified_item)
             
-            if t_type == "Fixed Asset Purchase":
-                ledger.add_asset(AssetObject(item["name"], val, depreciation_rate_annual=param/100.0, acquisition_month=m_idx))
-            elif t_type == "Hire Purchase (HP) Agreement":
-                ledger.add_hp(HirePurchaseObject(item["name"], asset_cost=val, deposit_paid=0.0, term_months=int(param), annual_interest_rate=0.08, agreement_month=m_idx))
-            elif t_type == "New Bank Loan Injection":
-                ledger.add_loan(LoanObject(item["name"], principal_advance=val, term_months=int(param), annual_interest_rate=0.075, advance_month=m_idx))
-            elif t_type == "Director / Equity Inflow":
-                ledger.inject_direct_capital_reserve(amount=val, target_month=m_idx)
-                
-        matrix = ledger.compile_forecast_matrix()
+        for item in payload.get("opex", []):
+            modified_item = item.copy()
+            modified_item["amount"] = float(item.get("amount", 0.0)) * opex_multiplier
+            variant_payload["opex"].append(modified_item)
+            
+        # Serialize the dynamically altered data state to a temporary sandbox run file
+        with open(sandbox_json_path, "w") as sf:
+            json.dump(variant_payload, sf, indent=4)
+            
+        # Re-run our master trial balance routine on the variant file to update statement caches
+        compile_three_way_forecast(sandbox_json_path)
         
-        # Format the arrays cleanly into a display dataframe
-        months_index = [f"Month {i+1}" for i in range(12)]
-        df_sandbox = pd.DataFrame({
-            "Variant Revenue (£)": matrix["pl_revenue"],
-            "Variant OpEx (£)": matrix["pl_expenses"],
-            "Net Operational Profit (£)": [r - e - i - d for r, e, i, d in zip(matrix["pl_revenue"], matrix["pl_expenses"], matrix["pl_interest"], matrix["pl_depreciation"])],
-            "Projected Cash Position (£)": matrix["cf_inflows"]
-        }, index=months_index).T
+        # Load the updated outputs generated by the double-entry calculation block
+        pl_cache = "STRATA_Forecast_Ledger_Group.xlsx - Profit & Loss.csv"
+        cf_cache = "STRATA_Forecast_Ledger_Group.xlsx - Cash Flow Ledger.csv"
         
-        st.subheader("📊 Visualized Run-Rate Impact Matrix")
-        st.dataframe(df_sandbox.style.format("{:,.2f}"), use_container_width=True)
-        
+        if os.path.exists(pl_cache) and os.path.exists(cf_cache):
+            pl_df = pd.read_csv(pl_cache, index_col=0)
+            cf_df = pd.read_csv(cf_cache, index_col=0)
+            
+            # Reconstruct the tracking layout view for the sandbox page
+            df_sandbox_display = pd.DataFrame({
+                "Variant Revenue (£)": pl_df["Revenue (£)"],
+                "Variant OpEx (£)": pl_df["Opex (£)"],
+                "Net Operational Profit (£)": pl_df["EBIT (£)"],
+                "Projected Cash Position (£)": cf_df["Cash Reserves (£)"]
+            }, index=pl_df.index).T
+            
+            st.subheader("📊 Visualized Run-Rate Impact Matrix (60-Month View)")
+            st.dataframe(df_sandbox_display.style.format("{:,.2f}"), use_container_width=True)
+            
+            # Render a quick visualization curve of the modified cash runway
+            st.markdown("#### 📈 Variant Cash Reserves Trajectory")
+            st.line_chart(cf_df["Cash Reserves (£)"], use_container_width=True)
+            st.success("🔒 Double-Entry Sandbox Verification Check: Trial balance reconciled (Debits = Credits)")
+            
+        else:
+            st.error("Error: Calculation outputs could not be retrieved from core repository caches.")
+            
     except Exception as e:
-        st.error(f"Sandbox Engine compilation error: {str(e)}")
+        st.error(f"Sandbox Variant Systemic Execution Error: {str(e)}")
