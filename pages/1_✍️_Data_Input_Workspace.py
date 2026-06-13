@@ -3,26 +3,11 @@
 import os
 import sys
 import json
-import subprocess
 import streamlit as st
 import pandas as pd
 import google.generativeai as genai
-
-# =========================================================================
-# 🛠️ DEPENDENCY INITIALISATION & CONTAINER REGISTRATION
-# =========================================================================
-# Force-verify and register pypdf in the runtime container namespace
-try:
-    from pypdf import PdfReader
-except ImportError:
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "pypdf"])
-    from pypdf import PdfReader
-
-# Force-verify and register tabulate for spreadsheet markdown parsing
-try:
-    import tabulate
-except ImportError:
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "tabulate"])
+from pypdf import PdfReader
+import tabulate
 
 # =========================================================================
 # 🔒 ENDPOINT SECURITY GUARDS
@@ -286,7 +271,7 @@ with st.expander("🏗️ Direct Capital, Asset Funding & Corporate Finance Desk
 st.markdown("---")
 
 # =========================================================================
-# 📂 step 3: ACTIVE REPOSITORIES & DATA TABLES VIEW
+# 📂 STEP 3: ACTIVE REPOSITORIES & DATA TABLES VIEW
 # =========================================================================
 st.subheader("📂 Active Workspace Data Repositories")
 st.markdown("Review the lines currently queued to feed your active Sandbox and Forecast calculation modules:")
