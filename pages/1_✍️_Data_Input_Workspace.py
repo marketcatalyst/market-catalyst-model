@@ -43,7 +43,7 @@ st.markdown("Save your active data state or pull a historical forecasting projec
 proj_col1, proj_col2 = st.columns([1, 1])
 
 with proj_col1:
-    saved_files = [f.replace(".json", "") for f in os.listdir(PROJECTS_DIR) if f.endswith(".json")]
+    saved_files = [f.replace(".json", "") for f in os.listdir(PROJECTS_DIR) if f.endswith(".json") and not f.startswith("SANDBOX_VARIANT_")]
     
     if saved_files:
         selected_to_load = st.selectbox("Select a Saved Project to Load", options=["-- Select --"] + saved_files)
@@ -94,7 +94,7 @@ with proj_col2:
 st.markdown("---")
 
 # =========================================================================
-# 🚀 UNIFIED COGNITIVE INGESTION GATEWAY (GENERIC SCHEMATIC)
+# 🚀 UNIFIED COGNITIVE INGESTION GATEWAY (COGNITIVE ACCOUNTING SCHEMATIC)
 # =========================================================================
 st.subheader("🔮 Universal AI Data Ingestion Desk")
 st.markdown("Feed the STRATA forecasting engine by pasting narrative briefs **OR** dropping project files directly into the system.")
@@ -165,15 +165,23 @@ if st.button("🚀 Execute Intelligent System Ingestion", disabled=not gemini_ke
     if not text_to_analyze.strip():
         st.error("Processing failed: Please paste a narrative or attach an operational document first.")
     else:
-        with st.spinner("Gemini is extracting financial variables into generic vectors..."):
+        with st.spinner("Gemini is extracting financial variables into structured accounting vectors..."):
             try:
                 genai.configure(api_key=gemini_key)
                 model = genai.GenerativeModel(model_name="models/gemini-2.5-flash")
                 
                 system_prompt = f"""
-                You are the financial data extractor for STRATA. Analyze the text and extract financial rows without project constraints.
-                Return your response as a valid JSON object matching this schema:
-                
+                You are the advanced STRATA cognitive financial extraction engine. 
+                Analyze the provided text or data matrix and decompose the values into abstract, balanced accounting categories.
+
+                CRITICAL CLASSIFICATION ARCHETYPES:
+                1. "sales": Recurring operational inflows generated from core business activities during active trading.
+                2. "opex": Recurring operational overhead expenditures required to maintain daily business run-rates.
+                3. "capital": Non-recurring, fundamental balance sheet structural shifts. You MUST categorize items here if they match:
+                   - Upfront capital cushions, director investments, equity injections, or loan additions (You MUST tag these exactly as "type": "Director / Equity Inflow" or "New Bank Loan Injection").
+                   - Non-recurring infrastructure outlays, property acquisitions, building renovations, setups, or fixed equipment purchases (You MUST tag these exactly as "type": "Fixed Asset Purchase").
+
+                Return a valid JSON object matching this schema precisely:
                 {{
                     "sales": [
                         {{"name": "Description name", "amount": 10000.0, "vat": 0.20, "lag": 0}}
@@ -182,9 +190,10 @@ if st.button("🚀 Execute Intelligent System Ingestion", disabled=not gemini_ke
                         {{"name": "Description name", "amount": 2500.0, "vat": 0.20, "lag": 0}}
                     ],
                     "capital": [
-                        {{"name": "Description name", "type": "Fixed Asset Purchase", "value": 5000.0, "month": 1, "parameter": 20.0}}
+                        {{"name": "Description name", "type": "Fixed Asset Purchase", "value": 5000.0, "month": 1, "parameter": 10.0}}
                     ]
                 }}
+
                 Analyse the parameters from this text block:
                 \"\"\"{text_to_analyze}\"\"\"
                 """
