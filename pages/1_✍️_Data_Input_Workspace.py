@@ -29,55 +29,97 @@ if "manual_opex_entries" not in st.session_state:
 if "manual_capital_entries" not in st.session_state:
     st.session_state.manual_capital_entries = []
 
-# Initialize automated routing states if not present
-if "routed_pdf_text" not in st.session_state:
-    st.session_state.routed_pdf_text = ""
-
-st.title("✍️ Data Input Workspace & AI Ingestion Desk")
+st.title("✍️ Intelligent Data Input Workspace")
 st.caption(f"Active Context: `{st.session_state.get('selected_project', 'None Activated')}`")
 st.markdown("---")
 
 # =========================================================================
-# 🔮 METHOD A: GEMINI AI COGNITIVE DATA PARSER
+# 🚀 UNIFIED COGNITIVE INGESTION GATEWAY
 # =========================================================================
-st.subheader("🔮 Method A: Gemini AI Narrative Ingestion")
-st.markdown("Paste raw project notes, commercial agreements, or engineering briefs to dynamically extract parameters through a REST lens.")
+st.subheader("🔮 Universal AI Data Ingestion Desk")
+st.markdown("Feed the STRATA forecasting engine by pasting narrative briefs **OR** dropping project files (PDF, CSV, Excel) directly into the system.")
 
 gemini_key = os.environ.get("GEMINI_API_KEY") or st.secrets.get("GEMINI_API_KEY", "")
 
 if not gemini_key:
     st.warning("⚠️ `GEMINI_API_KEY` environment variable not detected. The AI engine is currently offline. Please export your key to your terminal session.")
 
-# Check if text was routed automatically from Method C, otherwise use default empty string
-default_narrative = st.session_state.get("routed_pdf_text", "")
+# Layout splits input mechanics into two clean, side-by-side column bays
+input_col1, input_col2 = st.columns([1, 1])
 
-user_narrative = st.text_area(
-    "Paste Commercial Project Notes / Engineering Manifests Here", 
-    height=150,
-    value=default_narrative,
-    placeholder="Example: We are launching our AVAWT turbine trial next month. Raw structural components will cost £45,000 upfront...",
-    key="narrative_input"
-)
+with input_col1:
+    user_narrative = st.text_area(
+        "Option 1: Paste Commercial / Engineering Notes", 
+        height=180,
+        placeholder="Example: We are launching our AVAWT turbine trial next month. Raw structural components will cost £45,000 upfront. We have an engineering overhead run-rate of £3,500 per month...",
+        key="narrative_input"
+    )
 
-# Clear routed banner notification if data is present
-if st.session_state.routed_pdf_text:
-    st.info("⚡ **System Automation:** Operational data successfully mapped from Method C document uploader below. Review the narrative data structure and trigger analysis.")
-    if st.button("🔄 Clear Routed Memory Slot"):
-        st.session_state.routed_pdf_text = ""
-        st.rerun()
+with input_col2:
+    uploaded_file = st.file_uploader(
+        "Option 2: Drop Project File (PDF Projections, CSV or Excel Logs)", 
+        type=["pdf", "csv", "xlsx"]
+    )
+    if uploaded_file is not None:
+        st.success(f"📎 Attached file: {uploaded_file.name}")
 
-if st.button("🔮 Analyze & Distill Narrative with Gemini", disabled=not gemini_key, use_container_width=True):
-    if not user_narrative.strip():
-        st.error("Please provide a descriptive text narrative to interpret.")
+# Single Processing Action Trigger
+if st.button("🚀 Execute Intelligent System Ingestion", disabled=not gemini_key, use_container_width=True):
+    
+    # Track text payload across processing pathways
+    text_to_analyze = ""
+    
+    # PATHWAY A: User provided manual narrative text
+    if user_narrative.strip():
+        text_to_analyze += f"\n[User Provided Narrative Brief]:\n{user_narrative}\n"
+        
+    # PATHWAY B: User uploaded a file binary
+    if uploaded_file is not None:
+        file_name = uploaded_file.name.lower()
+        
+        # Condition 1: Handle text-based PDF compilation
+        if file_name.endswith(".pdf"):
+            with st.spinner("Extracting structural document text layers behind the scenes..."):
+                try:
+                    reader = PdfReader(uploaded_file)
+                    pdf_text = ""
+                    for page_num, page in enumerate(reader.pages):
+                        page_char = page.extract_text()
+                        if page_char:
+                            pdf_text += f"\n{page_char}\n"
+                    if pdf_text.strip():
+                        text_to_analyze += f"\n[System Extracted Document Content from PDF File '{uploaded_file.name}']:\n{pdf_text}\n"
+                    else:
+                        st.error("Uploaded PDF contained no detectable text layers. Is it an un-scanned photo image?")
+                        st.stop()
+                except Exception as e:
+                    st.error(f"Failed parsing PDF attachment: {str(e)}")
+                    st.stop()
+                    
+        # Condition 2: Handle straight grid spreadsheets (Convert to text layout for Gemini consumption)
+        elif file_name.endswith(".csv") or file_name.endswith(".xlsx"):
+            with st.spinner("Parsing raw data matrix values..."):
+                try:
+                    df_raw = pd.read_csv(uploaded_file) if file_name.endswith(".csv") else pd.read_excel(uploaded_file)
+                    # Convert dataframe rows into a markdown string table representation for context injection
+                    df_as_text = df_raw.to_markdown(index=False)
+                    text_to_analyze += f"\n[System Processed Data Spreadsheet Matrix from File '{uploaded_file.name}']:\n{df_as_text}\n"
+                except Exception as e:
+                    st.error(f"Failed parsing spreadsheet data: {str(e)}")
+                    st.stop()
+
+    # CORE EXECUTION LAYER: Send compiled data payload directly to Gemini REST Matrix
+    if not text_to_analyze.strip():
+        st.error("Processing failed: Please paste a text narrative or attach an operational file document first.")
     else:
-        with st.spinner("Gemini is mapping systemic ripple effects and formatting data frames..."):
+        with st.spinner("Gemini is interpreting variables and mapping cash-flow ripple effects..."):
             try:
                 genai.configure(api_key=gemini_key)
                 model = genai.GenerativeModel(model_name="models/gemini-2.5-flash")
                 
                 system_prompt = f"""
                 You are the financial modeling data extractor for STRATA, an enterprise 3-way cash-flow forecasting platform.
-                Your task is to read the user's raw business narrative, analyze it using Ripple Effect Systems Thinking (REST), and extract any financial data lines.
+                Your task is to read the compiled data input text payload, analyze it using Ripple Effect Systems Thinking (REST), and extract any financial data lines.
                 
                 You MUST return your response as a valid JSON object matching this exact structural schema, and absolutely nothing else. Do not wrap the JSON in markdown code blocks.
                 
@@ -99,8 +141,8 @@ if st.button("🔮 Analyze & Distill Narrative with Gemini", disabled=not gemini
                 3. Capital "type" options must be exactly one of these: "Fixed Asset Purchase", "Hire Purchase (HP) Agreement", "New Bank Loan Injection", or "Director / Equity Inflow".
                 4. Capital "parameter" is the sub-metric: annual depreciation rate % for assets, agreement term in months for loans or HP links.
                 
-                Analyze this text narrative carefully:
-                "{user_narrative}"
+                Carefully distill all parameters from this combined workspace data block:
+                \"\"\"{text_to_analyze}\"\"\"
                 """
                 
                 response = model.generate_content(system_prompt)
@@ -126,22 +168,20 @@ if st.button("🔮 Analyze & Distill Narrative with Gemini", disabled=not gemini
                 for c in parsed_payload.get("capital", []):
                     st.session_state.manual_capital_entries.append(c)
                     injected_cap += 1
-                
-                # Clear routed memory slot upon successful translation run
-                st.session_state.routed_pdf_text = ""
-                st.success(f"🔮 Gemini Translation Complete: Hydrated {injected_sales} Sales lines, {injected_opex} OpEx variables, and {injected_cap} Capital vectors directly into your data queue!")
+                    
+                st.success(f"🔮 Automated Ingestion Success: Hydrated {injected_sales} Sales lines, {injected_opex} OpEx variables, and {injected_cap} Capital vectors straight into your data registers!")
                 st.rerun()
                 
             except Exception as ai_err:
-                st.error(f"AI Parsing Matrix Failure: {str(ai_err)}")
+                st.error(f"AI Core Matrix Ingestion Fault: {str(ai_err)}")
 
 st.markdown("---")
 
 # =========================================================================
-# ✍️ METHOD B: DIRECT MANUAL DATA OVERRIDES
+# ✍️ MANUAL STRUCTURAL ENTRY DESKS (RETAINED AS BACKUP OVERRIDES)
 # =========================================================================
-st.subheader("✍️ Method B: Manual Structural Entry Desks")
-st.markdown("Use these dedicated forms to directly add individual line items, run adjustments, or input specific transaction profiles manually.")
+st.subheader("✍️ Manual Structural Entry Desks")
+st.markdown("Use these dedicated forms to make individual line tweaks, adjustments, or input custom profiles manually.")
 
 with st.expander("📈 Direct Sales / Contract Revenue Ingestion Form"):
     s_col1, s_col2, s_col3, s_col4 = st.columns(4)
@@ -167,7 +207,7 @@ with st.expander("📈 Direct Sales / Contract Revenue Ingestion Form"):
 with st.expander("💸 Direct Operating Expenditure (OpEx) Overhead Form"):
     o_col1, o_col2, o_col3, o_col4 = st.columns(4)
     with o_col1:
-        o_name = st.text_input("Overhead / Expense Account Description", placeholder="e.g., Melamine Composite Insulation Logistics")
+        o_name = st.text_input("Overhead / Expense Account Description", placeholder="e.g., Composite Logistics")
     with o_col2:
         o_amount = st.number_input("Monthly Expense Outlay (£ Ex VAT)", min_value=0.0, step=100.0, value=0.0)
     with o_col3:
@@ -188,7 +228,7 @@ with st.expander("💸 Direct Operating Expenditure (OpEx) Overhead Form"):
 with st.expander("🏗️ Direct Capital, Asset Funding & Corporate Finance Desk"):
     c_col1, c_col2, c_col3, c_col4 = st.columns(4)
     with c_col1:
-        c_name = st.text_input("Facility / Asset Line Identification", placeholder="e.g., UKIPO Green Channel AEGIS Patent")
+        c_name = st.text_input("Facility / Asset Line Identification", placeholder="e.g., AEGIS Patent")
     with c_col2:
         c_type = st.selectbox("Structural Transaction Classification", options=[
             "Fixed Asset Purchase", 
@@ -227,83 +267,7 @@ with st.expander("🏗️ Direct Capital, Asset Funding & Corporate Finance Desk
 st.markdown("---")
 
 # =========================================================================
-# 📁 METHOD C: BULK DOCUMENT INGESTION DESK (WITH AUTOMATED INTER-ROUTING)
-# =========================================================================
-st.subheader("📁 Method C: Bulk Document Ingestion Desk")
-st.markdown("Upload structured data maps via CSV or Excel sheets, or drop a text-based **PDF Document** to read raw operational briefs.")
-
-uploaded_file = st.file_uploader("Upload Structural Ledger Matrix Logs or PDF Briefs", type=["csv", "xlsx", "pdf"])
-
-if uploaded_file is not None:
-    try:
-        # Check if the uploaded file is a PDF layout document
-        if uploaded_file.name.lower().endswith(".pdf"):
-            with st.spinner("Extracting structural document text layers..."):
-                reader = PdfReader(uploaded_file)
-                extracted_text = ""
-                
-                for page_num, page in enumerate(reader.pages):
-                    page_text = page.extract_text()
-                    if page_text:
-                        extracted_text += f"\n--- Page {page_num + 1} ---\n{page_text}"
-                
-                if extracted_text.strip():
-                    st.success(f"Successfully processed {len(reader.pages)} PDF page(s)!")
-                    
-                    # Core automation improvement: Inject automated cross-routing action handler
-                    if st.button("⚡ Route Extracted Text Directly to Gemini AI Desk", use_container_width=True):
-                        st.session_state.routed_pdf_text = extracted_text
-                        st.toast("Data linked smoothly to Method A! Scrolling up...", icon="🚀")
-                        st.rerun()
-                    
-                    with st.expander("🔍 Preview Extracted Text Content", expanded=True):
-                        st.text_area("Scraped PDF Text Array", value=extracted_text, height=200, disabled=True)
-                else:
-                    st.error("PDF parsed, but no text layers could be detected. Is this a scanned image layout?")
-
-        # Handle standard spreadsheet files safely
-        else:
-            if uploaded_file.name.endswith(".csv"):
-                df_upload = pd.read_csv(uploaded_file)
-            else:
-                df_upload = pd.read_excel(uploaded_file)
-                
-            st.markdown("**📄 Preview Ingested Bulk Dataset:**")
-            st.dataframe(df_upload.head(5), use_container_width=True)
-            
-            target_queue = st.selectbox("Select Target Registry Destination Queue", options=[
-                "Revenue Stream Queue (Sales)", 
-                "Operational Expenditure Queue (OpEx)"
-            ])
-            
-            if st.button("🚀 Process & Hydrate Bulk Matrix Records", use_container_width=True):
-                success_count = 0
-                df_upload.columns = [c.lower().strip() for c in df_upload.columns]
-                
-                for _, row in df_upload.iterrows():
-                    r_name = str(row.get("name", "Bulk Ingested Entry"))
-                    r_amount = float(row.get("amount", 0.0))
-                    r_vat = float(row.get("vat", 0.20))
-                    r_lag = int(row.get("lag", 0))
-                    
-                    if r_amount > 0:
-                        payload = {"name": r_name, "amount": r_amount, "vat": r_vat, "lag": r_lag}
-                        if "Sales" in target_queue:
-                            st.session_state.manual_sales_entries.append(payload)
-                        else:
-                            st.session_state.manual_opex_entries.append(payload)
-                        success_count += 1
-                        
-                st.success(f"⚡ Bulk ingestion pipeline complete! Successfully processed and mapped {success_count} rows into the live model workspace registry.")
-                st.rerun()
-                
-    except Exception as upload_err:
-        st.error(f"Failed to compile uploaded structural document: {str(upload_err)}")
-
-st.markdown("---")
-
-# =========================================================================
-# 📂 STEP 3: ACTIVE REPOSITORIES & DATA TABLES VIEW
+# 📂 step 3: ACTIVE REPOSITORIES & DATA TABLES VIEW
 # =========================================================================
 st.subheader("📂 Active Workspace Data Repositories")
 st.markdown("Review the lines currently queued to feed your active Sandbox and Forecast calculation modules:")
