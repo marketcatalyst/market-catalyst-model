@@ -29,6 +29,10 @@ if "manual_opex_entries" not in st.session_state:
 if "manual_capital_entries" not in st.session_state:
     st.session_state.manual_capital_entries = []
 
+# Initialize automated routing states if not present
+if "routed_pdf_text" not in st.session_state:
+    st.session_state.routed_pdf_text = ""
+
 st.title("✍️ Data Input Workspace & AI Ingestion Desk")
 st.caption(f"Active Context: `{st.session_state.get('selected_project', 'None Activated')}`")
 st.markdown("---")
@@ -44,12 +48,23 @@ gemini_key = os.environ.get("GEMINI_API_KEY") or st.secrets.get("GEMINI_API_KEY"
 if not gemini_key:
     st.warning("⚠️ `GEMINI_API_KEY` environment variable not detected. The AI engine is currently offline. Please export your key to your terminal session.")
 
+# Check if text was routed automatically from Method C, otherwise use default empty string
+default_narrative = st.session_state.get("routed_pdf_text", "")
+
 user_narrative = st.text_area(
     "Paste Commercial Project Notes / Engineering Manifests Here", 
-    height=120,
-    placeholder="Example: We are launching our AVAWT turbine trial next month. Raw structural components will cost £45,000 upfront. We have a contractual engineering overhead run-rate of £3,500 per month. We expect our first commercial lease contract to sign in Month 3 bringing in £18,000 monthly, but the client negotiated a 60-day cash payment lag...",
+    height=150,
+    value=default_narrative,
+    placeholder="Example: We are launching our AVAWT turbine trial next month. Raw structural components will cost £45,000 upfront...",
     key="narrative_input"
 )
+
+# Clear routed banner notification if data is present
+if st.session_state.routed_pdf_text:
+    st.info("⚡ **System Automation:** Operational data successfully mapped from Method C document uploader below. Review the narrative data structure and trigger analysis.")
+    if st.button("🔄 Clear Routed Memory Slot"):
+        st.session_state.routed_pdf_text = ""
+        st.rerun()
 
 if st.button("🔮 Analyze & Distill Narrative with Gemini", disabled=not gemini_key, use_container_width=True):
     if not user_narrative.strip():
@@ -111,7 +126,9 @@ if st.button("🔮 Analyze & Distill Narrative with Gemini", disabled=not gemini
                 for c in parsed_payload.get("capital", []):
                     st.session_state.manual_capital_entries.append(c)
                     injected_cap += 1
-                    
+                
+                # Clear routed memory slot upon successful translation run
+                st.session_state.routed_pdf_text = ""
                 st.success(f"🔮 Gemini Translation Complete: Hydrated {injected_sales} Sales lines, {injected_opex} OpEx variables, and {injected_cap} Capital vectors directly into your data queue!")
                 st.rerun()
                 
@@ -210,7 +227,7 @@ with st.expander("🏗️ Direct Capital, Asset Funding & Corporate Finance Desk
 st.markdown("---")
 
 # =========================================================================
-# 📁 METHOD C: BULK DOCUMENT INGESTION (RESTRUCTURED FOR PDF & MATRICES)
+# 📁 METHOD C: BULK DOCUMENT INGESTION DESK (WITH AUTOMATED INTER-ROUTING)
 # =========================================================================
 st.subheader("📁 Method C: Bulk Document Ingestion Desk")
 st.markdown("Upload structured data maps via CSV or Excel sheets, or drop a text-based **PDF Document** to read raw operational briefs.")
@@ -233,10 +250,14 @@ if uploaded_file is not None:
                 if extracted_text.strip():
                     st.success(f"Successfully processed {len(reader.pages)} PDF page(s)!")
                     
-                    # Output the data cleanly on screen and allow immediate redirect to Method A
+                    # Core automation improvement: Inject automated cross-routing action handler
+                    if st.button("⚡ Route Extracted Text Directly to Gemini AI Desk", use_container_width=True):
+                        st.session_state.routed_pdf_text = extracted_text
+                        st.toast("Data linked smoothly to Method A! Scrolling up...", icon="🚀")
+                        st.rerun()
+                    
                     with st.expander("🔍 Preview Extracted Text Content", expanded=True):
-                        st.text_area("Scraped PDF Text Array", value=extracted_text, height=250, disabled=True)
-                        st.info("💡 **Next Step:** You can copy this data directly into the **Method A Narrative Ingestion** workspace above to let Gemini structure the data entries automatically.")
+                        st.text_area("Scraped PDF Text Array", value=extracted_text, height=200, disabled=True)
                 else:
                     st.error("PDF parsed, but no text layers could be detected. Is this a scanned image layout?")
 
