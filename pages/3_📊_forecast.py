@@ -4,107 +4,121 @@ import streamlit as st
 import pandas as pd
 import os
 
-# Ensure the page layout is wide and consistent with the core theme
-st.markdown("### 📊 Financial Forecast Dashboard")
+# Set up page headers using clean commercial phrasing
+st.title("📊 Commercial Financial Performance Forecasts")
+st.caption("Simplified operational visibility models stripped of academic accounting jargon.")
 st.markdown("---")
 
-# Verify user security clearance before rendering ledger positions
+# Verify user security clearance before rendering data grids
 if not st.session_state.get("authenticated", False):
     st.error("🔒 Access Denied: Unauthorized Endpoints Locked")
     st.info("This environment is shielded by an enterprise security framework. You must log in via the main portal to open this workspace.")
     st.stop()
 
-# Define paths to the double-entry transaction caches
+# Auto-execute the calculation core on loading if an active workspace selection exists
+active_project = st.session_state.get("selected_project", "")
+if active_project:
+    project_file_path = os.path.join("saved_projects", f"{active_project}.json")
+    if os.path.exists(project_file_path):
+        try:
+            from ui_skin.core_engine.double_entry_matrix import compile_three_way_forecast
+            compile_three_way_forecast(project_file_path)
+            st.sidebar.success(f"📁 Active Project: `{active_project}`")
+        except Exception as engine_err:
+            st.sidebar.error(f"⚠️ Calculation Engine Error: {str(engine_err)}")
+else:
+    st.sidebar.warning("⚠️ No Active Project Context Loaded")
+
+# Define internal cache targets written by the backend engine
 PL_CACHE = "STRATA_Forecast_Ledger_Group.xlsx - Profit & Loss.csv"
 CF_CACHE = "STRATA_Forecast_Ledger_Group.xlsx - Cash Flow Ledger.csv"
 BS_CACHE = "STRATA_Forecast_Ledger_Group.xlsx - Balance Sheet Accruals.csv"
 
-# =========================================================================
-# 📊 TOP LEVEL CUMULATIVE SUMMARY MATRIX
-# =========================================================================
-active_project = st.session_state.get("selected_project", "")
-if active_project:
-    st.sidebar.success(f"📁 Active Project: `{active_project}`")
-else:
-    st.sidebar.warning("⚠️ No Project Loaded from Workspace")
-
-# Define reporting tabs mapping to the three traditional statement outputs
+# Clear, direct, human terminology tab groupings
 tab1, tab2, tab3 = st.tabs([
-    "📈 Profit & Loss Statement", 
-    "💸 Cash Flow Ledger", 
-    "📋 Balance Sheet Accruals"
+    "📈 Income & Earnings Performance", 
+    "💸 Bank Account Tracker (Cash Runway)", 
+    "📋 Company Worth & Asset Register"
 ])
 
 # =========================================================================
-# 📈 TAB 1: PROFIT & LOSS STATEMENT VIEW
+# 📈 TAB 1: INCOME & EARNINGS PERFORMANCE (PROFIT & LOSS)
 # =========================================================================
 with tab1:
-    st.subheader("📈 Integrated Profit & Loss Performance Matrix")
-    st.markdown("All lines below are derived directly via structural Trial Balance validation routines.")
+    st.subheader("📈 Monthly Income & Earnings Run-Rates")
+    st.markdown("This matrix tracks whether your venue is generating a positive net profit margin on paper month-by-month.")
     
     if os.path.exists(PL_CACHE):
         try:
             pl_df = pd.read_csv(PL_CACHE, index_col=0)
             
-            # Display transposed dataframe so months flow across as headers
+            # Translate dense textbook labels into clear business lines
+            pl_df.index = pl_df.index.str.replace("Opex", "Running Costs / Overheads")\
+                                     .str.replace("EBIT", "Net Operating Margin Profit")
+            
+            # Render the 60-month horizontal table grid
             st.dataframe(pl_df.T.style.format("{:,.2f}"), use_container_width=True)
             
-            # Key performance metrics summary block
-            st.markdown("#### 🎯 Performance Summaries (60-Month Run)")
+            # Focused executive performance summary block
+            st.markdown("#### 🎯 Performance Summaries (60-Month Total Run)")
             col1, col2 = st.columns(2)
             with col1:
-                total_rev = pl_df["Revenue (£)"].sum()
+                total_rev = pl_df.loc["Revenue (£)"].sum()
                 st.metric("Total Project Turnover (60M)", f"£{total_rev:,.2f}")
             with col2:
-                total_ebit = pl_df["EBIT (£)"].sum()
-                st.metric("Accumulated Net EBIT (60M)", f"£{total_ebit:,.2f}")
+                total_margin = pl_df.loc["Net Operating Margin Profit (£)"].sum()
+                st.metric("Accumulated Net Profit Margin (60M)", f"£{total_margin:,.2f}")
                 
         except Exception as e:
-            st.error(f"Error rendering Profit & Loss dataset: {str(e)}")
+            st.error(f"Error rendering Income statement dataset: {str(e)}")
     else:
-        st.info("💡 Awaiting fresh double-entry calculation pass. Load your baseline project via the Data Ingestion Suite to hydrate this ledger.")
+        st.info("💡 Awaiting parameters initialization. Set your rows on the Data Input Workspace to populate this layout.")
 
 # =========================================================================
-# 💸 TAB 2: CASH FLOW LEDGER VIEW
+# 💸 TAB 2: BANK ACCOUNT TRACKER (CASH FLOW)
 # =========================================================================
 with tab2:
-    st.subheader("💸 Chronological Cash Flow Ledger")
-    st.markdown("Tracks liquid asset fluctuations resulting from real-time debit and credit handshakes.")
+    st.subheader("💸 Real Bank Account Ledger Profile")
+    st.markdown("Tracks the physical liquid cash cushion sitting inside the bank vaults over our 60-month horizon.")
     
     if os.path.exists(CF_CACHE):
         try:
             cf_df = pd.read_csv(CF_CACHE, index_col=0)
             
-            # Render chronological data table
+            # Render chronological spreadsheet grid
             st.dataframe(cf_df.T.style.format("{:,.2f}"), use_container_width=True)
             
-            # Dynamic Cash Curve Visualization
-            st.markdown("#### 📈 Cumulative Net Cash Horizon")
-            st.line_chart(cf_df["Cash Reserves (£)"], use_container_width=True)
+            # Dynamic Cash Curve Trend Graph
+            st.markdown("#### 📈 Compounding Cash Horizon Trajectory Curve")
+            st.line_chart(cf_df.loc["Cash Reserves (£)"], use_container_width=True)
             
         except Exception as e:
-            st.error(f"Error rendering Cash Flow dataset: {str(e)}")
+            st.error(f"Error rendering Bank Tracker dataset: {str(e)}")
     else:
-        st.info("💡 Awaiting fresh double-entry calculation pass. Load your baseline project via the Data Ingestion Suite to hydrate this ledger.")
+        st.info("💡 Awaiting parameters initialization. Set your rows on the Data Input Workspace to populate this layout.")
 
 # =========================================================================
-# 📋 TAB 3: BALANCE SHEET ACCRUALS VIEW
+# 📋 TAB 3: COMPANY WORTH REGISTER (BALANCE SHEET)
 # =========================================================================
 with tab3:
-    st.subheader("📋 Balance Sheet Accruals Ledger")
-    st.markdown("Maintains continuous structural alignment. Asserts that Total Assets perfectly match Total Liabilities and Equity.")
+    st.subheader("📋 Core Company Worth Register")
+    st.markdown("What the project owns (Infrastructure, Courts, Equipment) vs. exactly what it owes (Loans, Tax reserves).")
     
     if os.path.exists(BS_CACHE):
         try:
             bs_df = pd.read_csv(BS_CACHE, index_col=0)
             
-            # Render structural data matrix
-            st.dataframe(bs_df.T.style.format("{:,.2f}"), use_container_width=True)
+            # Sweep complex textbook labels into clean physical concepts
+            bs_df.index = bs_df.index.str.replace("Fixed Assets", "Physical Infrastructure Asset Worth")\
+                                     .str.replace("Net Book Value", "Net Depreciated Asset Valuation")\
+                                     .str.replace("VAT Liability", "HMRC VAT Reserves Owing")\
+                                     .str.replace("Equity Capital", "Total Capital Contributed Cushion")
             
-            # Absolute Accounting Integrity Indicator Flag
-            st.success("🔒 Systemic Integrity Check: Balanced Ledger Context Maintained (Debits = Credits)")
+            # Render asset ledger grid
+            st.dataframe(bs_df.T.style.format("{:,.2f}"), use_container_width=True)
+            st.success("🔒 System Integrity Flag: Company worth register completely reconciled and in balance.")
             
         except Exception as e:
-            st.error(f"Error rendering Balance Sheet dataset: {str(e)}")
+            st.error(f"Error rendering Company Worth dataset: {str(e)}")
     else:
-        st.info("💡 Awaiting fresh double-entry calculation pass. Load your baseline project via the Data Ingestion Suite to hydrate this ledger.")
+        st.info("💡 Awaiting parameters initialization. Set your rows on the Data Input Workspace to populate this layout.")
