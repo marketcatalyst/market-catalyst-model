@@ -5,8 +5,12 @@ import sys
 import json
 import streamlit as st
 import pandas as pd
-import google.generativeai as genai
-from pypdf import PdfReader
+from pathlib import Path
+
+# Absolute project path resolution to handle multi-page layout shifts smoothly
+root_dir = Path(__file__).resolve().parent.parent
+if str(root_dir) not in sys.path:
+    sys.path.append(str(root_dir))
 
 # =========================================================================
 # 🔒 ENDPOINT SECURITY GUARDS
@@ -16,66 +20,96 @@ if not st.session_state.get("authenticated", False):
     st.info("This environment is shielded by an enterprise security framework. You must log in via the main portal to open this workspace.")
     st.stop()
 
-# Ensure local storage path for projects exists
 PROJECTS_DIR = "saved_projects"
 if not os.path.exists(PROJECTS_DIR):
     os.makedirs(PROJECTS_DIR)
 
-# Initialize generic session state lists for dynamic data collection
-if "manual_sales_entries" not in st.session_state:
-    st.session_state.manual_sales_entries = []
-if "manual_opex_entries" not in st.session_state:
-    st.session_state.manual_opex_entries = []
-if "manual_capital_entries" not in st.session_state:
-    st.session_state.manual_capital_entries = []
-if "active_project_name" not in st.session_state:
-    st.session_state.active_project_name = ""
-
-st.title("✍️ Intelligent Data Input Workspace")
+st.title("✍️ Data Input Workspace")
+st.caption("Directly build your model rows, type parameters, and manage saved project baselines.")
 st.markdown("---")
 
 # =========================================================================
-# 💾 PERSISTENT PROJECT MANAGEMENT PANEL
+# ✍️ PANEL 1: MANUAL DIRECT DATA ENTRY FORMS
 # =========================================================================
-st.subheader("📁 Project Lifecycle Matrix")
-st.markdown("Save your active data state or pull a historical forecasting project directly from disk storage.")
+st.subheader("📝 Direct Parameter Setup Desks")
+st.markdown("Type numbers and descriptions below to build or expand your project tracking parameters:")
 
-proj_col1, proj_col2 = st.columns([1, 1])
+inc_col1, inc_col2, inc_col3 = st.columns(3)
 
-with proj_col1:
-    saved_files = [f.replace(".json", "") for f in os.listdir(PROJECTS_DIR) if f.endswith(".json") and not f.startswith("SANDBOX_VARIANT_")]
+with inc_col1:
+    st.markdown("### 📊 Revenue Streams")
+    s_name = st.text_input("Income Name / Description:", placeholder="e.g., Court Hire Fees", key="s_name")
+    s_amt = st.number_input("Projected Annual Income (£):", min_value=0.0, step=5000.0, key="s_amt")
+    s_vat = st.checkbox("Apply Standard 20% VAT?", value=True, key="s_vat")
     
-    if saved_files:
-        selected_to_load = st.selectbox("Select a Saved Project to Load", options=["-- Select --"] + saved_files)
-        if selected_to_load != "-- Select --":
-            if st.button("📂 Load Selected Project State", use_container_width=True):
-                try:
-                    filepath = os.path.join(PROJECTS_DIR, f"{selected_to_load}.json")
-                    with open(filepath, "r") as pf:
-                        payload = json.load(pf)
-                    
-                    st.session_state.manual_sales_entries = payload.get("sales", [])
-                    st.session_state.manual_opex_entries = payload.get("opex", [])
-                    st.session_state.manual_capital_entries = payload.get("capital", [])
-                    st.session_state.active_project_name = selected_to_load
-                    st.session_state.selected_project = selected_to_load
-                    st.success(f"💾 Project state `{selected_to_load}` successfully restored into memory registers!")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Failed to load project file: {str(e)}")
-    else:
-        st.info("No saved project matrices detected on disk.")
+    if st.button("➕ Add Income Row", use_container_width=True):
+        if s_name.strip():
+            st.session_state.manual_sales_entries.append({
+                "name": s_name.strip(), 
+                "amount": float(s_amt), 
+                "vat": 0.20 if s_vat else 0.0
+            })
+            st.success(f"Added income: {s_name}")
+            st.rerun()
 
-with proj_col2:
-    default_name = st.session_state.get("active_project_name", "")
-    new_project_title = st.text_input("Project Name to Save/Export", value=default_name, placeholder="e.g., Project-Alpha-Run-1")
+with inc_col2:
+    st.markdown("### 💸 Running Overhead Costs")
+    o_name = st.text_input("Cost Name / Description:", placeholder="e.g., Site Utilities & Rent", key="o_name")
+    o_amt = st.number_input("Projected Annual Cost (£):", min_value=0.0, step=1000.0, key="o_amt")
     
-    if st.button("💾 Save Active Workspace State", use_container_width=True):
-        if not new_project_title.strip():
-            st.error("Please provide a valid project identifier name to execute the save routine.")
-        else:
-            clean_title = "".join(c for c in new_project_title if c.isalnum() or c in ("-", "_")).strip()
-            project_data = {
+    if st.button("➕ Add Overhead Row", use_container_width=True):
+        if o_name.strip():
+            st.session_state.manual_opex_entries.append({
+                "name": o_name.strip(), 
+                "amount": float(o_amt), 
+                "vat": 0.20
+            })
+            st.success(f"Added overhead: {o_name}")
+            st.rerun()
+
+with inc_col3:
+    st.markdown("### 🏗️ Setup Costs & Funding")
+    c_name = st.text_input("Investment Item / Asset Name:", placeholder="e.g., Main Building Build", key="c_name")
+    c_type = st.selectbox("Classification Category:", [
+        "Fixed Asset Purchase", 
+        "Director / Equity Inflow", 
+        "New Bank Loan Injection"
+    ])
+    c_val = st.number_input("Transaction Value (£):", min_value=0.0, step=5000.0, key="c_val")
+    
+    if st.button("➕ Add Capital Row", use_container_width=True):
+        if c_name.strip():
+            # Setup purchases default to Day 1 (Month 1) with 10% structural depreciation rules
+            st.session_state.manual_capital_entries.append({
+                "name": c_name.strip(), 
+                "type": c_type, 
+                "value": float(c_val), 
+                "month": 1, 
+                "parameter": 10.0 if c_type == "Fixed Asset Purchase" else 0.0
+            })
+            st.success(f"Added capital row: {c_name}")
+            st.rerun()
+
+st.markdown("---")
+
+# =========================================================================
+# 💾 PANEL 2: COMPACT WORKSPACE PROFILE EXPORTS
+# =========================================================================
+st.subheader("💾 Master Save Workspace Registry")
+st.markdown("Commit your active data inputs to disk storage so they populate your dynamic forecast screens.")
+
+save_col1, save_col2 = st.columns([2, 1])
+
+with save_col1:
+    current_default_title = st.session_state.get("selected_project", "My-Padel-Baseline")
+    save_title = st.text_input("Project Filename Target Identifier:", value=current_default_title)
+
+with save_col2:
+    st.markdown("<div style='padding-top: 28px;'></div>", unsafe_allow_html=True)
+    if st.button("💾 Export Project to Secure File Target", use_container_width=True):
+        clean_title = "".join(c for c in save_title if c.isalnum() or c in ("-", "_")).strip()
+        if clean_title:
+            project_payload = {
                 "sales": st.session_state.manual_sales_entries,
                 "opex": st.session_state.manual_opex_entries,
                 "capital": st.session_state.manual_capital_entries
@@ -83,182 +117,59 @@ with proj_col2:
             try:
                 filepath = os.path.join(PROJECTS_DIR, f"{clean_title}.json")
                 with open(filepath, "w") as pf:
-                    json.dump(project_data, pf, indent=4)
-                st.session_state.active_project_name = clean_title
-                st.session_state.selected_project = clean_title
-                st.success(f"🚀 Project parameters committed cleanly to disk target: `{clean_title}.json`")
+                    json.dump(project_payload, pf, indent=4)
+                st.session_state["selected_project"] = clean_title
+                st.session_state["active_project_name"] = clean_title
+                st.success(f"🚀 Active dataset locked and saved perfectly as: `{clean_title}.json`")
                 st.rerun()
             except Exception as e:
-                st.error(f"Failed to commit data to file system: {str(e)}")
+                st.error(f"Failed to export data rows: {str(e)}")
 
 st.markdown("---")
 
 # =========================================================================
-# 🚀 UNIFIED COGNITIVE INGESTION GATEWAY (COGNITIVE ACCOUNTING SCHEMATIC)
+# 📁 PANEL 3: LIVE REPOSITORY QUEUES MONITOR
 # =========================================================================
-st.subheader("🔮 Universal AI Data Ingestion Desk")
-st.markdown("Feed the STRATA forecasting engine by pasting narrative briefs **OR** dropping project files directly into the system.")
-
-gemini_key = os.environ.get("GEMINI_API_KEY") or st.secrets.get("GEMINI_API_KEY", "")
-
-if not gemini_key:
-    st.warning("⚠️ `GEMINI_API_KEY` environment variable not detected. The AI engine is currently offline.")
-
-input_col1, input_col2 = st.columns([1, 1])
-
-with input_col1:
-    user_narrative = st.text_area(
-        "Option 1: Paste Commercial / Engineering Notes", 
-        height=180,
-        placeholder="Paste narrative text here...",
-        key="narrative_input"
-    )
-
-with input_col2:
-    uploaded_file = st.file_uploader(
-        "Option 2: Drop Project File (PDF, CSV, or Excel)", 
-        type=["pdf", "csv", "xlsx"]
-    )
-    if uploaded_file is not None:
-        st.success(f"📎 Attached file: {uploaded_file.name}")
-
-if st.button("🚀 Execute Intelligent System Ingestion", disabled=not gemini_key, use_container_width=True):
-    
-    text_to_analyze = ""
-    
-    if user_narrative.strip():
-        text_to_analyze += f"\n[User Provided Narrative Brief]:\n{user_narrative}\n"
-        
-    if uploaded_file is not None:
-        file_name = uploaded_file.name.lower()
-        
-        if file_name.endswith(".pdf"):
-            with st.spinner("Extracting structural document text layers..."):
-                try:
-                    reader = PdfReader(uploaded_file)
-                    pdf_text = ""
-                    for page in reader.pages:
-                        page_char = page.extract_text()
-                        if page_char:
-                            pdf_text += f"\n{page_char}\n"
-                    text_to_analyze += f"\n[System Extracted PDF Content]:\n{pdf_text}\n"
-                except Exception as e:
-                    st.error(f"Failed parsing PDF attachment: {str(e)}")
-                    st.stop()
-                    
-        elif file_name.endswith(".csv") or file_name.endswith(".xlsx"):
-            with st.spinner("Parsing data matrix values..."):
-                try:
-                    if file_name.endswith(".xlsx"):
-                        xls = pd.ExcelFile(uploaded_file)
-                        for sheet in xls.sheet_names:
-                            df_sheet = pd.read_excel(uploaded_file, sheet_name=sheet)
-                            if not df_sheet.empty:
-                                text_to_analyze += f"\n[Tab '{sheet}']:\n{df_sheet.to_markdown(index=False)}\n"
-                    else:
-                        df_raw = pd.read_csv(uploaded_file)
-                        text_to_analyze += f"\n[Spreadsheet Data]:\n{df_raw.to_markdown(index=False)}\n"
-                except Exception as e:
-                    st.error(f"Failed parsing spreadsheet data: {str(e)}")
-                    st.stop()
-
-    if not text_to_analyze.strip():
-        st.error("Processing failed: Please paste a narrative or attach an operational document first.")
-    else:
-        with st.spinner("Gemini is extracting financial variables into structured accounting vectors..."):
-            try:
-                genai.configure(api_key=gemini_key)
-                model = genai.GenerativeModel(model_name="models/gemini-2.5-flash")
-                
-                system_prompt = f"""
-                You are the advanced STRATA cognitive financial extraction engine. 
-                Analyze the provided text or data matrix and decompose the values into abstract, balanced accounting categories.
-
-                CRITICAL CLASSIFICATION ARCHETYPES:
-                1. "sales": Recurring operational inflows generated from core business activities during active trading.
-                2. "opex": Recurring operational overhead expenditures required to maintain daily business run-rates.
-                3. "capital": Non-recurring, fundamental balance sheet structural shifts. You MUST categorize items here if they match:
-                   - Upfront capital cushions, director investments, equity injections, or loan additions (You MUST tag these exactly as "type": "Director / Equity Inflow" or "New Bank Loan Injection").
-                   - Non-recurring infrastructure outlays, property acquisitions, building renovations, setups, or fixed equipment purchases (You MUST tag these exactly as "type": "Fixed Asset Purchase").
-
-                Return a valid JSON object matching this schema precisely:
-                {{
-                    "sales": [
-                        {{"name": "Description name", "amount": 10000.0, "vat": 0.20, "lag": 0}}
-                    ],
-                    "opex": [
-                        {{"name": "Description name", "amount": 2500.0, "vat": 0.20, "lag": 0}}
-                    ],
-                    "capital": [
-                        {{"name": "Description name", "type": "Fixed Asset Purchase", "value": 5000.0, "month": 1, "parameter": 10.0}}
-                    ]
-                }}
-
-                Analyse the parameters from this text block:
-                \"\"\"{text_to_analyze}\"\"\"
-                """
-                
-                response = model.generate_content(system_prompt)
-                raw_json = response.text.strip()
-                
-                if raw_json.startswith("```"):
-                    raw_json = raw_json.split("\n", 1)[1].rsplit("\n", 1)[0].strip()
-                if raw_json.startswith("json"):
-                    raw_json = raw_json.split("\n", 1)[1].strip()
-                    
-                parsed_payload = json.loads(raw_json)
-                
-                for s in parsed_payload.get("sales", []):
-                    st.session_state.manual_sales_entries.append(s)
-                for o in parsed_payload.get("opex", []):
-                    st.session_state.manual_opex_entries.append(o)
-                for c in parsed_payload.get("capital", []):
-                    st.session_state.manual_capital_entries.append(c)
-                
-                st.success("🔮 Ingestion complete: Financial data vectors successfully mapped into memory queues.")
-                st.rerun()
-                
-            except Exception as ai_err:
-                st.error(f"AI Ingestion Fault: {str(ai_err)}")
-
-st.markdown("---")
-
-# =========================================================================
-# 📂 ACTIVE REPOSITORIES VIEW WITH PERSISTENCE INVITATIONS
-# =========================================================================
-st.subheader("📂 Active Workspace Data Repositories")
-st.markdown("Review the raw financial rows sitting inside the active workspace memory context:")
+st.subheader("📁 Active Workspace Data Repositories")
+st.markdown("Review the raw tables currently held in active model memory context:")
 
 if (st.session_state.manual_sales_entries or 
     st.session_state.manual_opex_entries or 
-    st.session_state.manual_capital_entries) and not st.session_state.get("active_project_name"):
-    st.info("💡 **Unsaved Progress Warning:** You have active rows in memory. Enter a project name in the panel above and click save to protect your work.")
+    st.session_state.manual_capital_entries) and not st.session_state.get("selected_project"):
+    st.warning("⚠️ Notice: Active data rows are currently unsaved. Save your workspace configuration above to unlock the forecast sheets.")
 
-tab1, tab2, tab3 = st.tabs(["📊 Queued Revenues", "💸 Queued Expenses", "🏗️ Queued Capital Structures"])
+tab1, tab2, tab3 = st.tabs(["📈 Income Streams", "💸 Running Overhead Costs", "🏗️ Setup & Injected Funds"])
 
 with tab1:
     if st.session_state.manual_sales_entries:
-        st.dataframe(pd.DataFrame(st.session_state.manual_sales_entries), use_container_width=True)
-        if st.button("🗑️ Clear Revenue Queue", key="clear_s"):
+        df_sales = pd.DataFrame(st.session_state.manual_sales_entries)
+        df_sales.columns = ["Revenue Stream Name", "Annual Gross Amount (£)", "VAT Rate Fraction"]
+        st.dataframe(df_sales.style.format({"Annual Gross Amount (£)": "{:,.2f}"}), use_container_width=True)
+        if st.button("🗑️ Clear Income Rows", key="clear_s"):
             st.session_state.manual_sales_entries = []
             st.rerun()
     else:
-        st.caption("No data currently tracking in this register.")
+        st.caption("No revenue lines currently configured in this workspace.")
 
 with tab2:
     if st.session_state.manual_opex_entries:
-        st.dataframe(pd.DataFrame(st.session_state.manual_opex_entries), use_container_width=True)
-        if st.button("🗑️ Clear Expense Queue", key="clear_o"):
+        df_opex = pd.DataFrame(st.session_state.manual_opex_entries)
+        df_opex.columns = ["Overhead Cost Name", "Annual Running Rate (£)", "VAT Rate Fraction"]
+        st.dataframe(df_opex.style.format({"Annual Running Rate (£)": "{:,.2f}"}), use_container_width=True)
+        if st.button("🗑️ Clear Overhead Rows", key="clear_o"):
             st.session_state.manual_opex_entries = []
             st.rerun()
     else:
-        st.caption("No data currently tracking in this register.")
+        st.caption("No operational overhead lines currently configured in this workspace.")
 
 with tab3:
     if st.session_state.manual_capital_entries:
-        st.dataframe(pd.DataFrame(st.session_state.manual_capital_entries), use_container_width=True)
-        if st.button("🗑️ Clear Capital Queue", key="clear_c"):
+        df_cap = pd.DataFrame(st.session_state.manual_capital_entries)
+        df_cap = df_cap[["name", "type", "value", "month"]]
+        df_cap.columns = ["Asset / Funding Source Name", "Structural Category", "Transaction Value (£)", "Target Month"]
+        st.dataframe(df_cap.style.format({"Transaction Value (£)": "{:,.2f}"}), use_container_width=True)
+        if st.button("🗑️ Clear Capital Rows", key="clear_c"):
             st.session_state.manual_capital_entries = []
             st.rerun()
     else:
-        st.caption("No data currently tracking in this register.")
+        st.caption("No asset build costs or opening cash cushions currently configured in this workspace.")
