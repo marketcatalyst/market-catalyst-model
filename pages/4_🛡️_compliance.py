@@ -1,8 +1,7 @@
-# pages/4_⚖️_compliance.py
+# pages/4_🛡️_compliance.py
 
 import os
 import sys
-import streamlit as pd
 import streamlit as st
 import pandas as pd
 from pathlib import Path
@@ -16,7 +15,7 @@ if str(root_dir) not in sys.path:
 is_authenticated = st.session_state.get("authenticated", False)
 
 st.title("🛡️ Regulatory Compliance & Audit Gateway")
-st.caption("Baseline Data Verification Frameworks & HMRC Audit Trails")
+st.caption("Baseline Data Verification Frameworks & HMRC Digital Audit Trails")
 st.markdown("---")
 
 if not is_authenticated:
@@ -25,27 +24,27 @@ if not is_authenticated:
     
     # Provide an immediate escape hatch to return to the root gateway for re-authentication
     if st.button("🔑 Return to Main Portal Login", use_container_width=True):
-        st.switch_page("home.py")
+        st.switch_page("app.py")
     st.stop()
 
-# Define the absolute calculation endpoints written by our double-entry engine
+# Define the absolute calculation endpoints written by our core double-entry engine
 PL_CACHE = "STRATA_Forecast_Ledger_Group.xlsx - Profit & Loss.csv"
 BS_CACHE = "STRATA_Forecast_Ledger_Group.xlsx - Balance Sheet Accruals.csv"
 
 # --- 🏁 AUTHENTICATED TIER ---
 st.subheader("📊 Dynamic Statutory Integrity Checks")
-st.markdown("This control center extracts rolling tax liabilities and compliance positions directly from your active double-entry transactional matrix.")
+st.markdown("This control center extracts rolling tax allocations and setup values directly from your active baseline data model.")
 
 # Initialize default fields in case calculation caches haven't run yet
 live_vat_payable = 0.0
 cumulative_depr = 0.0
 active_project = st.session_state.get("selected_project", "No Baseline Loaded")
 
-# Forensically extract real ledger states from disk caches
+# Extract real ledger positions from disk caches
 if os.path.exists(BS_CACHE):
     try:
         bs_df = pd.read_csv(BS_CACHE, index_col=0)
-        # Pull the final month's standing balance for rolling liabilities
+        # Pull the final month's standing balance for rolling tax reserves
         if "VAT Liability (£)" in bs_df.index:
             live_vat_payable = float(bs_df.loc["VAT Liability (£)"].iloc[-1])
         if "Accumulated Depreciation (£)" in bs_df.index:
@@ -53,24 +52,24 @@ if os.path.exists(BS_CACHE):
     except Exception as e:
         st.sidebar.error(f"Compliance ledger parser anomaly: {str(e)}")
 
-# Render real-time audit cards based on actual ledger transactional data
+# Render real-time audit cards using simplified business descriptions
 comp_col1, comp_col2, comp_col3 = st.columns(3)
 with comp_col1:
     st.metric(
         label="Project Model Context", 
         value=active_project[:20] + "..." if len(active_project) > 20 else active_project, 
-        delta="Double-Entry Active"
+        delta="Workspace Linked"
     )
 with comp_col2:
     st.metric(
-        label="HMRC Rolling VAT Liability", 
+        label="HMRC Rolling VAT Reserves", 
         value=f"£{live_vat_payable:,.2f}", 
-        delta="MTD / Output Tax Linked",
+        delta="MTD Output Tax Linked",
         delta_color="inverse"
     )
 with comp_col3:
     st.metric(
-        label="Capital Allowance Depreciation", 
+        label="Capital Write-Off Allowances", 
         value=f"£{cumulative_depr:,.2f}", 
         delta="10% Straight Line Run"
     )
@@ -78,20 +77,20 @@ with comp_col3:
 st.markdown("---")
 
 # --- 🕒 SYSTEMIC HMRC TIME-SERIES TAX VIEW ---
-st.subheader("📅 Chronological Tax Liability Streams")
-st.markdown("Forensic timeline mapping of output values ready for digital submission windows (MTD):")
+st.subheader("📅 Chronological Tax Allocation Streams")
+st.markdown("Forensic timeline mapping of data output values structured for digital submission windows (Making Tax Digital):")
 
 if os.path.exists(BS_CACHE) and os.path.exists(PL_CACHE):
     try:
         bs_df = pd.read_csv(BS_CACHE, index_col=0)
         pl_df = pd.read_csv(PL_CACHE, index_col=0)
         
-        # Build a focused, audit-ready compliance matrix from our master statements
+        # Build a focused, jargon-free compliance matrix matching user definitions
         compliance_matrix = pd.DataFrame({
-            "Monthly Revenue Received (£)": pl_df["Revenue (£)"],
-            "Rolling VAT Payable Balance (£)": bs_df["VAT Liability (£)"],
-            "Monthly Non-Cash Depreciation (£)": pl_df["Depreciation (£)"],
-            "Cumulative Asset Net Book Value (£)": bs_df["Net Book Value (£)"]
+            "Monthly Trading Income Received (£)": pl_df["Revenue (£)"],
+            "Rolling VAT Reserves Owed (£)": bs_df["VAT Liability (£)"],
+            "Monthly Non-Cash Asset Write-Off (£)": pl_df["Depreciation (£)"],
+            "Net Infrastructure Asset Worth (£)": bs_df["Net Book Value (£)"]
         }, index=pl_df.index).T
         
         st.dataframe(compliance_matrix.style.format("{:,.2f}"), use_container_width=True)
@@ -99,11 +98,11 @@ if os.path.exists(BS_CACHE) and os.path.exists(PL_CACHE):
     except Exception as matrix_err:
         st.error(f"Failed to compile statutory reporting matrix: {str(matrix_err)}")
 else:
-    st.info("💡 Awaiting background double-entry calculations. Load your baseline project via the Ingestion workspace to populate your statutory tax timelines.")
+    st.info("💡 Awaiting background calculations. Set your rows on the Data Input Workspace to populate your statutory tax timelines.")
 
 st.markdown("---")
 st.subheader("📁 Standard Industrial Classification (SIC) Reference Check")
-st.markdown("Verifying real-time regional benchmarks against statutory datasets:")
+st.markdown("Verifying real-time regional benchmarks against statutory UK datasets:")
 
 benchmark_path = Path(root_dir) / "static_data" / "sic_benchmarks.csv"
 if benchmark_path.exists():
