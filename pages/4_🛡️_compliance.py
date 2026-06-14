@@ -40,11 +40,11 @@ live_vat_payable = 0.0
 cumulative_depr = 0.0
 active_project = st.session_state.get("selected_project", "No Baseline Loaded")
 
-# Extract real ledger positions from disk caches
+# Extract real ledger positions from disk caches defensively
 if os.path.exists(BS_CACHE):
     try:
         bs_df = pd.read_csv(BS_CACHE, index_col=0)
-        # Pull the final month's standing balance for rolling tax reserves
+        # Pull the final month's standing balance for rolling tax reserves using the exact engine keys
         if "VAT Liability (£)" in bs_df.index:
             live_vat_payable = float(bs_df.loc["VAT Liability (£)"].iloc[-1])
         if "Accumulated Depreciation (£)" in bs_df.index:
@@ -85,13 +85,19 @@ if os.path.exists(BS_CACHE) and os.path.exists(PL_CACHE):
         bs_df = pd.read_csv(BS_CACHE, index_col=0)
         pl_df = pd.read_csv(PL_CACHE, index_col=0)
         
+        # Guard checking to prevent KeyError mapping strings before the master statements run
+        rev_key = "Revenue (£)" if "Revenue (£)" in pl_df.index else pl_df.index[0]
+        vat_key = "VAT Liability (£)" if "VAT Liability (£)" in bs_df.index else bs_df.index[0]
+        dep_key = "Depreciation (£)" if "Depreciation (£)" in pl_df.index else pl_df.index[0]
+        nbv_key = "Net Book Value (£)" if "Net Book Value (£)" in bs_df.index else bs_df.index[0]
+        
         # Build a focused, jargon-free compliance matrix matching user definitions
         compliance_matrix = pd.DataFrame({
-            "Monthly Trading Income Received (£)": pl_df["Revenue (£)"],
-            "Rolling VAT Reserves Owed (£)": bs_df["VAT Liability (£)"],
-            "Monthly Non-Cash Asset Write-Off (£)": pl_df["Depreciation (£)"],
-            "Net Infrastructure Asset Worth (£)": bs_df["Net Book Value (£)"]
-        }, index=pl_df.index).T
+            "Monthly Trading Income Received (£)": pl_df.loc[rev_key],
+            "Rolling VAT Reserves Owed (£)": bs_df.loc[vat_key],
+            "Monthly Non-Cash Asset Write-Off (£)": pl_df.loc[dep_key],
+            "Net Infrastructure Asset Worth (£)": bs_df.loc[nbv_key]
+        }, index=pl_df.columns).T
         
         st.dataframe(compliance_matrix.style.format("{:,.2f}"), use_container_width=True)
         
