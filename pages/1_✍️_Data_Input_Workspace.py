@@ -49,7 +49,7 @@ with inc_col1:
                 "amount": float(s_amt), 
                 "vat": 0.20 if s_vat else 0.0
             })
-            st.success(f"Added income: {s_name}")
+            st.success(f"Added income: {s_name.strip()}")
             st.rerun()
 
 with inc_col2:
@@ -64,7 +64,7 @@ with inc_col2:
                 "amount": float(o_amt), 
                 "vat": 0.20
             })
-            st.success(f"Added overhead: {o_name}")
+            st.success(f"Added overhead: {o_name.strip()}")
             st.rerun()
 
 with inc_col3:
@@ -87,7 +87,7 @@ with inc_col3:
                 "month": 1, 
                 "parameter": 10.0 if c_type == "Fixed Asset Purchase" else 0.0
             })
-            st.success(f"Added capital row: {c_name}")
+            st.success(f"Added capital row: {c_name.strip()}")
             st.rerun()
 
 st.markdown("---")
@@ -143,7 +143,9 @@ tab1, tab2, tab3 = st.tabs(["📈 Income Streams", "💸 Running Overhead Costs"
 with tab1:
     if st.session_state.manual_sales_entries:
         df_sales = pd.DataFrame(st.session_state.manual_sales_entries)
-        df_sales.columns = ["Revenue Stream Name", "Annual Gross Amount (£)", "VAT Rate Fraction"]
+        # Ensure fallback safety bounds if raw keys mismatch template lengths
+        if len(df_sales.columns) == 3:
+            df_sales.columns = ["Revenue Stream Name", "Annual Gross Amount (£)", "VAT Rate Fraction"]
         st.dataframe(df_sales.style.format({"Annual Gross Amount (£)": "{:,.2f}"}), use_container_width=True)
         if st.button("🗑️ Clear Income Rows", key="clear_s"):
             st.session_state.manual_sales_entries = []
@@ -154,7 +156,8 @@ with tab1:
 with tab2:
     if st.session_state.manual_opex_entries:
         df_opex = pd.DataFrame(st.session_state.manual_opex_entries)
-        df_opex.columns = ["Overhead Cost Name", "Annual Running Rate (£)", "VAT Rate Fraction"]
+        if len(df_opex.columns) == 3:
+            df_opex.columns = ["Overhead Cost Name", "Annual Running Rate (£)", "VAT Rate Fraction"]
         st.dataframe(df_opex.style.format({"Annual Running Rate (£)": "{:,.2f}"}), use_container_width=True)
         if st.button("🗑️ Clear Overhead Rows", key="clear_o"):
             st.session_state.manual_opex_entries = []
@@ -165,8 +168,11 @@ with tab2:
 with tab3:
     if st.session_state.manual_capital_entries:
         df_cap = pd.DataFrame(st.session_state.manual_capital_entries)
-        df_cap = df_cap[["name", "type", "value", "month"]]
-        df_cap.columns = ["Asset / Funding Source Name", "Structural Category", "Transaction Value (£)", "Target Month"]
+        # Protect column slicing loop against index length anomalies safely
+        available_cols = [c for c in ["name", "type", "value", "month"] if c in df_cap.columns]
+        df_cap = df_cap[available_cols]
+        if len(df_cap.columns) == 4:
+            df_cap.columns = ["Asset / Funding Source Name", "Structural Category", "Transaction Value (£)", "Target Month"]
         st.dataframe(df_cap.style.format({"Transaction Value (£)": "{:,.2f}"}), use_container_width=True)
         if st.button("🗑️ Clear Capital Rows", key="clear_c"):
             st.session_state.manual_capital_entries = []
