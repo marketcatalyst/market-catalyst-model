@@ -52,7 +52,14 @@ with tab1:
         try:
             pl_df = pd.read_csv(PL_CACHE, index_col=0)
             
-            # Translate dense textbook labels into clear business lines
+            # Create explicit, clear indexing for internal metrics before display modifications
+            total_rev = float(pl_df.loc["Revenue (£)"].sum()) if "Revenue (£)" in pl_df.index else 0.0
+            
+            # Handle variable names defensively regardless of incoming brackets
+            ebit_row_key = [idx for idx in pl_df.index if "EBIT" in idx]
+            total_margin = float(pl_df.loc[ebit_row_key[0]].sum()) if ebit_row_key else 0.0
+            
+            # Translate dense textbook labels into clear business lines for the user
             pl_df.index = pl_df.index.str.replace("Opex", "Running Costs / Overheads")\
                                      .str.replace("EBIT", "Net Operating Margin Profit")
             
@@ -63,10 +70,8 @@ with tab1:
             st.markdown("#### 🎯 Performance Summaries (60-Month Total Run)")
             col1, col2 = st.columns(2)
             with col1:
-                total_rev = pl_df.loc["Revenue (£)"].sum()
                 st.metric("Total Project Turnover (60M)", f"£{total_rev:,.2f}")
             with col2:
-                total_margin = pl_df.loc["Net Operating Margin Profit (£)"].sum()
                 st.metric("Accumulated Net Profit Margin (60M)", f"£{total_margin:,.2f}")
                 
         except Exception as e:
@@ -90,7 +95,8 @@ with tab2:
             
             # Dynamic Cash Curve Trend Graph
             st.markdown("#### 📈 Compounding Cash Horizon Trajectory Curve")
-            st.line_chart(cf_df.loc["Cash Reserves (£)"], use_container_width=True)
+            if "Cash Reserves (£)" in cf_df.index:
+                st.line_chart(cf_df.loc["Cash Reserves (£)"], use_container_width=True)
             
         except Exception as e:
             st.error(f"Error rendering Bank Tracker dataset: {str(e)}")
