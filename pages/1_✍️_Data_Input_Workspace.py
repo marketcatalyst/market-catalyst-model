@@ -76,7 +76,7 @@ if os.path.exists(CACHE_FILE):
         st.markdown("---")
 
 # =========================================================================
-# ✍️ DIRECT PARAMETER SETUP FORMS (FORM BLOCK ARCHITECTURE INSTALLED)
+# ✍️ DIRECT PARAMETER SETUP FORMS
 # =========================================================================
 st.subheader("📝 Direct Parameter Setup Desks")
 inc_col1, inc_col2, inc_col3 = st.columns(3)
@@ -110,22 +110,20 @@ with inc_col3:
     with st.form("capital_entry_form", clear_on_submit=True):
         c_name = st.text_input("Asset Description / Capital Event:", placeholder="e.g., Core Court Infrastructure")
         c_type_display = st.selectbox("Classification Category:", [
-            "New / Existing Fixed Asset CapEx", 
             "Equity Capital / Share Premium Injection", 
-            "Commercial Debt / Facility Drawdown"
+            "Commercial Debt / Facility Drawdown",
+            "New / Existing Fixed Asset CapEx"
         ])
         c_val = st.number_input("Transaction Value (£):", min_value=0.0, step=5000.0)
         if st.form_submit_button("➕ Add Capital Row", use_container_width=True):
             if c_name.strip():
-                backend_type_map = {
-                    "New / Existing Fixed Asset CapEx": "Fixed Asset Purchase",
-                    "Equity Capital / Share Premium Injection": "Director / Equity Inflow",
-                    "Commercial Debt / Facility Drawdown": "New Bank Loan Injection"
-                }
-                mapped_type = backend_type_map[c_type_display]
+                # FIXED: Save keys natively matching backend parsing string logic vectors exactly
                 st.session_state.manual_capital_entries.append({
-                    "name": c_name.strip(), "type": mapped_type, "value": float(c_val), "month": 1, 
-                    "parameter": 10.0 if mapped_type == "Fixed Asset Purchase" else 0.0
+                    "name": c_name.strip(), 
+                    "type": c_type_display, 
+                    "value": float(c_val), 
+                    "month": 1, 
+                    "parameter": 10.0 if c_type_display == "New / Existing Fixed Asset CapEx" else 0.0
                 })
                 save_local_backup_cache()
                 st.rerun()
@@ -156,7 +154,7 @@ with save_col2:
 st.markdown("---")
 
 # =========================================================================
-# 📁 LIVE MONITOR LEDGERS WITH SURGICAL SINGLE-ROW DELETION
+# 📁 LIVE MONITOR LEDGERS
 # =========================================================================
 st.subheader("📁 Active Workspace Data Repositories")
 tab1, tab2, tab3 = st.tabs(["📈 Income Streams", "💸 Overhead Costs", "🏛️ Cap-Ex & Capitalization Ledger"])
