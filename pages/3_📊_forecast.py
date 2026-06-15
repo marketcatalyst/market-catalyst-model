@@ -70,10 +70,10 @@ with rep_col2:
                         cf_df = pd.read_csv(CF_CACHE, index_col=0)
                         bs_df = pd.read_csv(BS_CACHE, index_col=0)
                         
-                        # Defensive column matching patterns for totals synthesis
-                        rev_idx = [idx for idx in pl_df.index if "Revenue" in idx]
-                        ebit_idx = [idx for idx in pl_df.index if "EBIT" in idx]
-                        cash_idx = [idx for idx in cf_df.index if "Cash" in idx]
+                        # Aggressive general search strings for PDF payload mapping
+                        rev_idx = [idx for idx in pl_df.index if "rev" in str(idx).lower()]
+                        ebit_idx = [idx for idx in pl_df.index if "ebit" in str(idx).lower() or "margin" in str(idx).lower()]
+                        cash_idx = [idx for idx in cf_df.index if "cash" in str(idx).lower() or "reserve" in str(idx).lower()]
                         
                         tot_turnover = float(pl_df.loc[rev_idx[0]].sum()) if rev_idx else 0.0
                         tot_margin = float(pl_df.loc[ebit_idx[0]].sum()) if ebit_idx else 0.0
@@ -182,9 +182,15 @@ with tab1:
         try:
             pl_df = pd.read_csv(PL_CACHE, index_col=0)
             
-            # Robust partial key discovery for grand total calculation functions
-            rev_row_key = [idx for idx in pl_df.index if "Revenue" in idx]
-            ebit_row_key = [idx for idx in pl_df.index if "EBIT" in idx]
+            # 🔍 --- SYSTEM INTEGRITY DIAGNOSTIC DETECTOR ---
+            # Explicitly outputs raw row headers to screen to trace formatting issues instantly
+            st.sidebar.markdown("### 🗂️ System Data Row Debugger")
+            st.sidebar.write("Actual rows found in file index:")
+            st.sidebar.json(list(pl_df.index))
+            
+            # Comprehensive case-insensitive search loop for totals calculation functions
+            rev_row_key = [idx for idx in pl_df.index if "revenue" in str(idx).lower()]
+            ebit_row_key = [idx for idx in pl_df.index if "ebit" in str(idx).lower() or "operating" in str(idx).lower()]
             
             total_rev = float(pl_df.loc[rev_row_key[0]].sum()) if rev_row_key else 0.0
             total_margin = float(pl_df.loc[ebit_row_key[0]].sum()) if ebit_row_key else 0.0
@@ -192,8 +198,14 @@ with tab1:
             if view_granularity == "Consolidated Account Buckets":
                 st.markdown("Displaying aggregated, executive-level corporate operational totals:")
                 display_pl = pl_df.copy()
-                display_pl.index = display_pl.index.str.replace("Opex", "Running Costs / Overheads")\
-                                                   .str.replace("EBIT", "Net Operating Margin Profit")
+                # Clean labels on screen safely using string containment replacements
+                new_indices = []
+                for idx in display_pl.index:
+                    lbl = str(idx)
+                    if "opex" in lbl.lower(): lbl = "Running Costs / Overheads"
+                    elif "ebit" in lbl.lower(): lbl = "Net Operating Margin Profit"
+                    new_indices.append(lbl)
+                display_pl.index = new_indices
                 st.dataframe(display_pl.T.style.format("{:,.2f}"), use_container_width=True)
             else:
                 st.markdown("De-consolidated view breaking down every independent account line over the 60-month runway:")
@@ -202,28 +214,27 @@ with tab1:
                 timeline_cols = pl_df.columns
                 
                 for idx, item in enumerate(raw_sales_setup):
-                    monthly_val = float(item["amount"]) / 12.0
-                    granular_rows[f"Revenue Account: {item['name']} (£)"] = [monthly_val] * len(timeline_cols)
+                    granular_rows[f"Revenue Account: {item['name']} (£)"] = [float(item["amount"]) / 12.0] * len(timeline_cols)
                 if not raw_sales_setup and rev_row_key:
                     granular_rows["Revenue Account: Combined Core Inflow (£)"] = pl_df.loc[rev_row_key[0]].tolist()
                     
                 for idx, item in enumerate(raw_opex_setup):
-                    monthly_val = float(item["amount"]) / 12.0
-                    granular_rows[f"Overhead Account: {item['name']} (£)"] = [monthly_val] * len(timeline_cols)
-                if not raw_opex_setup and "Opex" in pl_df.index:
-                    granular_rows["Overhead Account: Combined Overheads (£)"] = pl_df.loc["Opex"].tolist()
+                    granular_rows[f"Overhead Account: {item['name']} (£)"] = [float(item["amount"]) / 12.0] * len(timeline_cols)
+                if not raw_opex_setup and any("opex" in str(k).lower() for k in pl_df.index):
+                    op_key = [k for k in pl_df.index if "opex" in str(k).lower()][0]
+                    granular_rows["Overhead Account: Combined Overheads (£)"] = pl_df.loc[op_key].tolist()
                 
                 if ebit_row_key:
                     granular_rows["Net Operating Margin Profit (EBIT) (£)"] = pl_df.loc[ebit_row_key[0]].tolist()
                 
-                dep_idx = [idx for idx in pl_df.index if "Depreciation" in idx]
+                dep_idx = [idx for idx in pl_df.index if "depr" in str(idx).lower()]
                 if dep_idx:
                     granular_rows["Non-Cash Asset Write-Off (Depreciation) (£)"] = pl_df.loc[dep_idx[0]].tolist()
                 
                 df_granular_pl = pd.DataFrame(granular_rows, index=timeline_cols).T
                 st.dataframe(df_granular_pl.style.format("{:,.2f}"), use_container_width=True)
             
-            # --- POPULATED GRAND TOTAL PERFORMANCE CARDS ---
+            # --- SUMMARY METRICS CARDS WITH CASE-INSENSITIVE TARGETING ---
             st.markdown("#### 🎯 Performance Summaries (60-Month Total Run)")
             col1, col2 = st.columns(2)
             with col1: st.metric("Total Project Turnover (60M)", f"£{total_rev:,.2f}")
@@ -245,7 +256,7 @@ with tab2:
             st.dataframe(cf_df.T.style.format("{:,.2f}"), use_container_width=True)
             
             st.markdown("#### 📈 Compounding Cash Horizon Trajectory Curve")
-            cash_row_key = [idx for idx in cf_df.index if "Cash" in idx]
+            cash_row_key = [idx for idx in cf_df.index if "cash" in str(idx).lower()]
             if cash_row_key:
                 st.line_chart(cf_df.loc[cash_row_key[0]], use_container_width=True)
         except Exception as e: st.error(f"Error rendering Bank Tracker dataset: {str(e)}")
@@ -262,10 +273,17 @@ with tab3:
         try:
             bs_df = pd.read_csv(BS_CACHE, index_col=0)
             display_bs = bs_df.copy()
-            display_bs.index = display_bs.index.str.replace("Fixed Assets", "Physical Infrastructure Asset Worth")\
-                                               .str.replace("Net Book Value", "Net Depreciated Asset Valuation")\
-                                               .str.replace("VAT Liability", "HMRC VAT Reserves Owing")\
-                                               .str.replace("Equity Capital", "Total Capital Contributed Cushion")
+            
+            # Map structural balance sheet rows flexibly matching lowercase containment keys
+            new_bs_indices = []
+            for idx in display_bs.index:
+                lbl = str(idx)
+                if "fixed asset" in lbl.lower(): lbl = "Physical Infrastructure Asset Worth"
+                elif "book value" in lbl.lower() or "nbv" in lbl.lower(): lbl = "Net Depreciated Asset Valuation"
+                elif "vat" in lbl.lower() or "liability" in lbl.lower(): lbl = "HMRC VAT Reserves Owing"
+                elif "equity" in lbl.lower() or "capital" in lbl.lower(): lbl = "Total Capital Contributed Cushion"
+                new_bs_indices.append(lbl)
+            display_bs.index = new_bs_indices
             
             st.dataframe(display_bs.T.style.format("{:,.2f}"), use_container_width=True)
             st.success("🔒 System Integrity Flag: Company worth register completely reconciled and in balance.")
