@@ -59,7 +59,6 @@ with rep_col1:
 with rep_col2:
     st.markdown("<div style='padding-top: 5px;'></div>", unsafe_allow_html=True)
     
-    # Enable the professional PDF compilation trigger if caches exist on disk
     if os.path.exists(PL_CACHE) and os.path.exists(CF_CACHE) and os.path.exists(BS_CACHE):
         if st.button("📄 Compile Executive PDF & Summary Dossier", use_container_width=True):
             if not gemini_key:
@@ -67,17 +66,19 @@ with rep_col2:
             else:
                 with st.spinner("Executing cognitive synthesis and typeset compilation..."):
                     try:
-                        # 1. Parse caches to feed numerical anchors to the AI
                         pl_df = pd.read_csv(PL_CACHE, index_col=0)
                         cf_df = pd.read_csv(CF_CACHE, index_col=0)
                         bs_df = pd.read_csv(BS_CACHE, index_col=0)
                         
-                        tot_turnover = pl_df.loc["Revenue (£)"].sum() if "Revenue (£)" in pl_df.index else 0.0
-                        ebit_key = [k for k in pl_df.index if "EBIT" in k]
-                        tot_margin = pl_df.loc[ebit_key[0]].sum() if ebit_key else 0.0
-                        final_cash = cf_df.loc["Cash Reserves (£)"].iloc[-1] if "Cash Reserves (£)" in cf_df.index else 0.0
+                        # Defensive column matching patterns for totals synthesis
+                        rev_idx = [idx for idx in pl_df.index if "Revenue" in idx]
+                        ebit_idx = [idx for idx in pl_df.index if "EBIT" in idx]
+                        cash_idx = [idx for idx in cf_df.index if "Cash" in idx]
                         
-                        # 2. Trigger Gemini Cognitive Synthesis Conduit
+                        tot_turnover = float(pl_df.loc[rev_idx[0]].sum()) if rev_idx else 0.0
+                        tot_margin = float(pl_df.loc[ebit_idx[0]].sum()) if ebit_idx else 0.0
+                        final_cash = float(cf_df.loc[cash_idx[0]].iloc[-1]) if cash_idx else 0.0
+                        
                         genai.configure(api_key=gemini_key)
                         model = genai.GenerativeModel(model_name="models/gemini-2.5-flash")
                         
@@ -99,7 +100,6 @@ with rep_col2:
                         response = model.generate_content(executive_prompt)
                         ai_narrative = response.text.strip()
                         
-                        # 3. Compile Vector PDF Document inside memory buffer
                         pdf_buffer = io.BytesIO()
                         doc = SimpleDocTemplate(
                             pdf_buffer,
@@ -121,7 +121,6 @@ with rep_col2:
                         story.append(Paragraph(ai_narrative, body_style))
                         story.append(Spacer(1, 15))
                         
-                        # Build brief core summary table data for the document layout
                         summary_data = [
                             ["Financial Metric Framework", "60-Month Aggregated Performance Profile"],
                             ["Cumulative Project Turnover", f"£{tot_turnover:,.2f}"],
@@ -145,13 +144,11 @@ with rep_col2:
                         doc.build(story)
                         pdf_data = pdf_buffer.getvalue()
                         
-                        # Cache raw generated document to session state layout context safely
                         st.session_state["compiled_pdf_bytes"] = pdf_data
                         st.success("✨ Executive Briefing Dossier compiled flawlessly! Hit download below.")
                     except Exception as pdf_err:
                         st.error(f"Compilation pipeline fault: {str(pdf_err)}")
                         
-        # Render clean Download Trigger if the binary stream sits inside memory cache
         if "compiled_pdf_bytes" in st.session_state:
             st.download_button(
                 label="📥 Download Print-Ready Briefing PDF",
@@ -184,8 +181,12 @@ with tab1:
     if os.path.exists(PL_CACHE):
         try:
             pl_df = pd.read_csv(PL_CACHE, index_col=0)
-            total_rev = float(pl_df.loc["Revenue (£)"].sum()) if "Revenue (£)" in pl_df.index else 0.0
+            
+            # Robust partial key discovery for grand total calculation functions
+            rev_row_key = [idx for idx in pl_df.index if "Revenue" in idx]
             ebit_row_key = [idx for idx in pl_df.index if "EBIT" in idx]
+            
+            total_rev = float(pl_df.loc[rev_row_key[0]].sum()) if rev_row_key else 0.0
             total_margin = float(pl_df.loc[ebit_row_key[0]].sum()) if ebit_row_key else 0.0
             
             if view_granularity == "Consolidated Account Buckets":
@@ -203,23 +204,26 @@ with tab1:
                 for idx, item in enumerate(raw_sales_setup):
                     monthly_val = float(item["amount"]) / 12.0
                     granular_rows[f"Revenue Account: {item['name']} (£)"] = [monthly_val] * len(timeline_cols)
-                if not raw_sales_setup and "Revenue (£)" in pl_df.index:
-                    granular_rows["Revenue Account: Combined Core Inflow (£)"] = pl_df.loc["Revenue (£)"].tolist()
+                if not raw_sales_setup and rev_row_key:
+                    granular_rows["Revenue Account: Combined Core Inflow (£)"] = pl_df.loc[rev_row_key[0]].tolist()
                     
                 for idx, item in enumerate(raw_opex_setup):
                     monthly_val = float(item["amount"]) / 12.0
                     granular_rows[f"Overhead Account: {item['name']} (£)"] = [monthly_val] * len(timeline_cols)
-                if not raw_opex_setup and "Opex (£)" in pl_df.index:
-                    granular_rows["Overhead Account: Combined Overheads (£)"] = pl_df.loc["Opex (£)"].tolist()
+                if not raw_opex_setup and "Opex" in pl_df.index:
+                    granular_rows["Overhead Account: Combined Overheads (£)"] = pl_df.loc["Opex"].tolist()
                 
                 if ebit_row_key:
                     granular_rows["Net Operating Margin Profit (EBIT) (£)"] = pl_df.loc[ebit_row_key[0]].tolist()
-                if "Depreciation (£)" in pl_df.index:
-                    granular_rows["Non-Cash Asset Write-Off (Depreciation) (£)"] = pl_df.loc["Depreciation (£)"].tolist()
+                
+                dep_idx = [idx for idx in pl_df.index if "Depreciation" in idx]
+                if dep_idx:
+                    granular_rows["Non-Cash Asset Write-Off (Depreciation) (£)"] = pl_df.loc[dep_idx[0]].tolist()
                 
                 df_granular_pl = pd.DataFrame(granular_rows, index=timeline_cols).T
                 st.dataframe(df_granular_pl.style.format("{:,.2f}"), use_container_width=True)
             
+            # --- POPULATED GRAND TOTAL PERFORMANCE CARDS ---
             st.markdown("#### 🎯 Performance Summaries (60-Month Total Run)")
             col1, col2 = st.columns(2)
             with col1: st.metric("Total Project Turnover (60M)", f"£{total_rev:,.2f}")
@@ -241,8 +245,9 @@ with tab2:
             st.dataframe(cf_df.T.style.format("{:,.2f}"), use_container_width=True)
             
             st.markdown("#### 📈 Compounding Cash Horizon Trajectory Curve")
-            if "Cash Reserves (£)" in cf_df.index:
-                st.line_chart(cf_df.loc["Cash Reserves (£)"], use_container_width=True)
+            cash_row_key = [idx for idx in cf_df.index if "Cash" in idx]
+            if cash_row_key:
+                st.line_chart(cf_df.loc[cash_row_key[0]], use_container_width=True)
         except Exception as e: st.error(f"Error rendering Bank Tracker dataset: {str(e)}")
     else: st.info("💡 Awaiting initialization vectors from your active workspace.")
 
