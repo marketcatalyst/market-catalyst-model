@@ -60,31 +60,31 @@ view_granularity = st.radio(
 st.markdown("---")
 
 # =========================================================================
-# 🏛️ RE-ENGINEERING DATA PIPELINES (EXPLICIT DIRECT MAPPING HOOKS)
+# 🏛️ RE-ENGINEERING DATA PIPELINES (DETERMINISTIC FIXED DATA EXTRACTION)
 # =========================================================================
 if os.path.exists(PL_CACHE) and os.path.exists(CF_CACHE) and os.path.exists(BS_CACHE):
-    # Read raw data tables from backend engine compilation output
+    # Load data files cleanly without treating column headers as indexes
     df_raw_pl = pd.read_csv(PL_CACHE, index_col=0)
     df_raw_cf = pd.read_csv(CF_CACHE, index_col=0)
     df_raw_bs = pd.read_csv(BS_CACHE, index_col=0)
     
-    timeline_cols = df_raw_pl.index.tolist() if "M01" in df_raw_pl.index else df_raw_pl.columns.tolist()
-    
-    # Enforce standard horizontal index arrays (Months as Columns always)
-    if "M01" in df_raw_pl.index:
+    # Deterministically ensure Accounts are Rows and Months are Columns
+    if "M01" not in df_raw_pl.columns:
         df_raw_pl = df_raw_pl.T
         df_raw_cf = df_raw_cf.T
         df_raw_bs = df_raw_bs.T
+        
+    timeline_cols = df_raw_pl.columns.tolist()
 
     # --- 1. RE-BUILD P&L MATRICES VIA DIRECT STRING LABELS ---
     consolidated_pl_data = {}
-    consolidated_pl_data["Revenue (£)"] = df_raw_pl.loc[[r for r in df_raw_pl.index if "revenue" in str(r).lower()][0]].tolist()
-    consolidated_pl_data["COGS (£)"] = df_raw_pl.loc[[r for r in df_raw_pl.index if "cogs" in str(r).lower()][0]].tolist()
-    consolidated_pl_data["Running Costs / Overheads"] = df_raw_pl.loc[[r for r in df_raw_pl.index if "opex" in str(r).lower() or "overhead" in str(r).lower()][0]].tolist()
-    consolidated_pl_data["Depreciation (£)"] = df_raw_pl.loc[[r for r in df_raw_pl.index if "depr" in str(r).lower()][0]].tolist()
-    consolidated_pl_data["Net Operating Margin Profit"] = df_raw_pl.loc[[r for r in df_raw_pl.index if "ebit" in str(r).lower() or "operating" in str(r).lower()][0]].tolist()
-    consolidated_pl_data["Interest Expense (£)"] = df_raw_pl.loc[[r for r in df_raw_pl.index if "interest" in str(r).lower()][0]].tolist()
-    consolidated_pl_data["Tax Expense (£)"] = df_raw_pl.loc[[r for r in df_raw_pl.index if "tax" in str(r).lower()][0]].tolist()
+    consolidated_pl_data["Revenue (£)"] = df_raw_pl.loc[[r for r in df_raw_pl.index if "revenue" in str(r).lower()][0]].astype(float).tolist()
+    consolidated_pl_data["COGS (£)"] = df_raw_pl.loc[[r for r in df_raw_pl.index if "cogs" in str(r).lower()][0]].astype(float).tolist()
+    consolidated_pl_data["Running Costs / Overheads"] = df_raw_pl.loc[[r for r in df_raw_pl.index if "opex" in str(r).lower() or "overhead" in str(r).lower()][0]].astype(float).tolist()
+    consolidated_pl_data["Depreciation (£)"] = df_raw_pl.loc[[r for r in df_raw_pl.index if "depr" in str(r).lower()][0]].astype(float).tolist()
+    consolidated_pl_data["Net Operating Margin Profit"] = df_raw_pl.loc[[r for r in df_raw_pl.index if "ebit" in str(r).lower() or "operating" in str(r).lower()][0]].astype(float).tolist()
+    consolidated_pl_data["Interest Expense (£)"] = df_raw_pl.loc[[r for r in df_raw_pl.index if "interest" in str(r).lower()][0]].astype(float).tolist()
+    consolidated_pl_data["Tax Expense (£)"] = df_raw_pl.loc[[r for r in df_raw_pl.index if "tax" in str(r).lower()][0]].astype(float).tolist()
     df_consolidated_pl = pd.DataFrame(consolidated_pl_data, index=timeline_cols).T
 
     detailed_pl_data = {}
@@ -100,31 +100,31 @@ if os.path.exists(PL_CACHE) and os.path.exists(CF_CACHE) and os.path.exists(BS_C
     detailed_pl_data["Net Operating Profit (EBIT) (£)"] = consolidated_pl_data["Net Operating Margin Profit"]
     df_detailed_pl = pd.DataFrame(detailed_pl_data, index=timeline_cols).T
 
-    # --- 2. RE-BUILD CASH FLOW MATRICES (EXPLICIT RE-MAPPING TO UNIFORM KEYS) ---
+    # --- 2. RE-BUILD CASH FLOW MATRICES (FORCE EXPLICIT NUMERIC FLOATS) ---
     consolidated_cf_data = {}
-    consolidated_cf_data["Operational Cash Inflows (£)"] = df_raw_cf.loc[[r for r in df_raw_cf.index if "inflow" in str(r).lower() or "receipt" in str(r).lower()][0]].tolist()
-    consolidated_cf_data["Operational Cash Outflows (£)"] = df_raw_cf.loc[[r for r in df_raw_cf.index if "outflow" in str(r).lower() or "expense" in str(r).lower()][0]].tolist()
-    consolidated_cf_data["Net Cash Movement (£)"] = df_raw_cf.loc[[r for r in df_raw_cf.index if "net" in str(r).lower() or "movement" in str(r).lower()][0]].tolist()
-    consolidated_cf_data["Cash Reserves (£)"] = df_raw_cf.loc[[r for r in df_raw_cf.index if "reserves" in str(r).lower() or "cash" in str(r).lower()][0]].tolist()
+    consolidated_cf_data["Operational Cash Inflows (£)"] = df_raw_cf.loc[[r for r in df_raw_cf.index if "inflow" in str(r).lower() or "receipt" in str(r).lower()][0]].astype(float).tolist()
+    consolidated_cf_data["Operational Cash Outflows (£)"] = df_raw_cf.loc[[r for r in df_raw_cf.index if "outflow" in str(r).lower() or "expense" in str(r).lower()][0]].astype(float).tolist()
+    consolidated_cf_data["Net Cash Movement (£)"] = df_raw_cf.loc[[r for r in df_raw_cf.index if "net" in str(r).lower() or "movement" in str(r).lower()][0]].astype(float).tolist()
+    consolidated_cf_data["Cash Reserves (£)"] = df_raw_cf.loc[[r for r in df_raw_cf.index if "reserves" in str(r).lower() or "cash" in str(r).lower()][0]].astype(float).tolist()
     df_consolidated_cf = pd.DataFrame(consolidated_cf_data, index=timeline_cols).T
 
     detailed_cf_data = {}
     detailed_cf_data["Cash Receipts from Inflows (£)"] = consolidated_cf_data["Operational Cash Inflows (£)"]
     detailed_cf_data["Cash Paid for Running Expenses (£)"] = consolidated_cf_data["Operational Cash Outflows (£)"]
     detailed_cf_data["Net Cash Movement (£)"] = consolidated_cf_data["Net Cash Movement (£)"]
-    detailed_cf_data["Cash Reserves (£)"] = consolidated_cf_data["Cash Reserves (£)"]  # Normalized key string name locked
+    detailed_cf_data["Cash Reserves (£)"] = consolidated_cf_data["Cash Reserves (£)"]
     df_detailed_cf = pd.DataFrame(detailed_cf_data, index=timeline_cols).T
 
     # --- 3. RE-BUILD BALANCE SHEET REGISTER MATRICES ---
     consolidated_bs_data = {}
-    consolidated_bs_data["Physical Infrastructure Asset Worth"] = df_raw_bs.loc[[r for r in df_raw_bs.index if "fixed asset" in str(r).lower()][0]].tolist()
-    consolidated_bs_data["Accumulated Depreciation (£)"] = df_raw_bs.loc[[r for r in df_raw_bs.index if "accumulated" in str(r).lower() or "depr" in str(r).lower()][0]].tolist()
-    consolidated_bs_data["Net Depreciated Asset Valuation"] = df_raw_bs.loc[[r for r in df_raw_bs.index if "book value" in str(r).lower() or "nbv" in str(r).lower() or "net depreciated" in str(r).lower()][0]].tolist()
+    consolidated_bs_data["Physical Infrastructure Asset Worth"] = df_raw_bs.loc[[r for r in df_raw_bs.index if "fixed asset" in str(r).lower()][0]].astype(float).tolist()
+    consolidated_bs_data["Accumulated Depreciation (£)"] = df_raw_bs.loc[[r for r in df_raw_bs.index if "accumulated" in str(r).lower() or "depr" in str(r).lower()][0]].astype(float).tolist()
+    consolidated_bs_data["Net Depreciated Asset Valuation"] = df_raw_bs.loc[[r for r in df_raw_bs.index if "book value" in str(r).lower() or "nbv" in str(r).lower() or "net depreciated" in str(r).lower()][0]].astype(float).tolist()
     consolidated_bs_data["Cash Balances (£)"] = consolidated_cf_data["Cash Reserves (£)"]
-    consolidated_bs_data["Long Term Debt (£)"] = df_raw_bs.loc[[r for r in df_raw_bs.index if "debt" in str(r).lower() or "loan" in str(r).lower()][0]].tolist()
-    consolidated_bs_data["HMRC VAT Reserves Owing"] = df_raw_bs.loc[[r for r in df_raw_bs.index if "vat" in str(r).lower() or "payable" in str(r).lower()][0]].tolist()
-    consolidated_bs_data["Total Capital Contributed Cushion"] = df_raw_bs.loc[[r for r in df_raw_bs.index if "equity" in str(r).lower() or "capital" in str(r).lower()][0]].tolist()
-    consolidated_bs_data["Retained Earnings (£)"] = df_raw_bs.loc[[r for r in df_raw_bs.index if "retained" in str(r).lower() or "earnings" in str(r).lower()][0]].tolist()
+    consolidated_bs_data["Long Term Debt (£)"] = df_raw_bs.loc[[r for r in df_raw_bs.index if "debt" in str(r).lower() or "loan" in str(r).lower()][0]].astype(float).tolist()
+    consolidated_bs_data["HMRC VAT Reserves Owing"] = df_raw_bs.loc[[r for r in df_raw_bs.index if "vat" in str(r).lower() or "payable" in str(r).lower()][0]].astype(float).tolist()
+    consolidated_bs_data["Total Capital Contributed Cushion"] = df_raw_bs.loc[[r for r in df_raw_bs.index if "equity" in str(r).lower() or "capital" in str(r).lower()][0]].astype(float).tolist()
+    consolidated_bs_data["Retained Earnings (£)"] = df_raw_bs.loc[[r for r in df_raw_bs.index if "retained" in str(r).lower() or "earnings" in str(r).lower()][0]].astype(float).tolist()
     df_consolidated_bs = pd.DataFrame(consolidated_bs_data, index=timeline_cols).T
 
     # =========================================================================
@@ -328,15 +328,14 @@ if os.path.exists(PL_CACHE) and os.path.exists(CF_CACHE) and os.path.exists(BS_C
     with tab2:
         st.subheader("💸 Cash Flow Ledger Timeline")
         st.markdown("💡 *Scroll horizontally to track liquid cash movements over 60 months:*")
-        if view_granularity == "Consolidated Account Buckets":
-            st.dataframe(df_consolidated_cf.style.format("{:,.2f}"), use_container_width=False)
-        else:
-            st.dataframe(df_detailed_cf.style.format("{:,.2f}"), use_container_width=False)
+        
+        target_view_source = df_detailed_cf if view_granularity == "Granular Line-Item Accounts" else df_consolidated_cf
+        st.dataframe(target_view_source.style.format("{:,.2f}"), use_container_width=False)
         
         st.markdown("#### 📈 Compounding Cash Horizon Trajectory Curve")
-        # Fixed: Read the explicitly shared key 'Cash Reserves (£)' dynamically out of the active dataframe view state
-        target_chart_source = df_detailed_cf if view_granularity == "Granular Line-Item Accounts" else df_consolidated_cf
-        st.line_chart(target_chart_source.loc["Cash Reserves (£)"], use_container_width=True)
+        # Transpose explicitly inside the line chart parameter block to isolate chart engine values from the layout state
+        chart_data = target_view_source.loc[["Cash Reserves (£)"]].T
+        st.line_chart(chart_data, use_container_width=True)
 
     # --- TAB 3: BALANCE SHEET REGISTER ---
     with tab3:
