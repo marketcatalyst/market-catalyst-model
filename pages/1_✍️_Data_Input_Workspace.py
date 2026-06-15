@@ -105,7 +105,7 @@ with inc_col1:
             st.rerun()
 
 with inc_col2:
-    st.markdown("### 💸 Running Overhead Costs")
+    st.markdown("### 💸 Overhead Costs")
     o_name = st.text_input("Cost Name / Description:", placeholder="e.g., Site Utilities & Rent", key="o_name")
     o_amt = st.number_input("Projected Annual Cost (£):", min_value=0.0, step=1000.0, key="o_amt")
     if st.button("➕ Add Overhead Row", use_container_width=True):
@@ -114,7 +114,7 @@ with inc_col2:
             st.rerun()
 
 with inc_col3:
-    st.markdown("### 🏛️ Capital Expenditure & Financing")
+    st.markdown("### 🏛️ Cap-Ex & Finance")
     c_name = st.text_input("Asset Description / Capital Event:", placeholder="e.g., Core Court Infrastructure", key="c_name")
     c_type_display = st.selectbox("Classification Category:", [
         "New / Existing Fixed Asset CapEx", 
@@ -125,7 +125,6 @@ with inc_col3:
     
     if st.button("➕ Add Capital Row", use_container_width=True):
         if c_name.strip():
-            # Standardize structural backend keys to ensure complete backend engine alignment
             backend_type_map = {
                 "New / Existing Fixed Asset CapEx": "Fixed Asset Purchase",
                 "Equity Capital / Share Premium Injection": "Director / Equity Inflow",
@@ -170,7 +169,7 @@ st.markdown("---")
 # 📁 PANEL 4: LIVE MONITOR TABLES
 # =========================================================================
 st.subheader("📁 Active Workspace Data Repositories")
-tab1, tab2, tab3 = st.tabs(["📈 Income Streams", "💸 Running Overhead Costs", "🏛️ Capital Expenditure & Capitalization Ledger"])
+tab1, tab2, tab3 = st.tabs(["📈 Income Streams", "💸 Overhead Costs", "🏛️ Cap-Ex & Capitalization Ledger"])
 
 with tab1:
     if st.session_state.manual_sales_entries:
@@ -194,7 +193,6 @@ with tab3:
         available_cols = [c for c in ["name", "type", "value", "month"] if c in df_cap.columns]
         df_cap = df_cap[available_cols]
         
-        # Humanize backend matrix labels inside the review data table smoothly
         if not df_cap.empty:
             df_cap["type"] = df_cap["type"].str.replace("Fixed Asset Purchase", "Fixed Asset CapEx")\
                                            .str.replace("Director / Equity Inflow", "Equity Inflow")\
