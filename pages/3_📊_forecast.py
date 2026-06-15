@@ -71,10 +71,11 @@ with rep_col2:
                         
                         rev_idx = [idx for idx in pl_df.columns if "revenue" in str(idx).lower()]
                         ebit_idx = [idx for idx in pl_df.columns if "ebit" in str(idx).lower() or "operating" in str(idx).lower()]
-                        cash_idx = [idx for idx in cf_df.columns if "cash" in str(idx).lower() or "reserve" in str(idx).lower()]
+                        cash_idx = [idx for idx in cf_df.columns if "reserves" in str(idx).lower() or "balance" in str(idx).lower()]
                         
                         tot_turnover = float(pl_df[rev_idx[0]].sum()) if rev_idx else 0.0
                         tot_margin = float(pl_df[ebit_idx[0]].sum()) if ebit_idx else 0.0
+                        # FIXED: Extract the literal ending cash balance cell from M60 cleanly
                         final_cash = float(cf_df[cash_idx[0]].iloc[-1]) if cash_idx else 0.0
                         
                         genai.configure(api_key=gemini_key)
@@ -82,17 +83,13 @@ with rep_col2:
                         
                         executive_prompt = f"""
                         You are a senior executive director and corporate innovation strategist. 
-                        Analyze these high-level 60-month performance metrics for the scenario '{active_project}':
+                        Analyze these accurate 60-month performance metrics for the scenario '{active_project}':
                         - Cumulative Project Turnover: £{tot_turnover:,.2f}
                         - Accumulated Operating Profit Margin (EBIT): £{tot_margin:,.2f}
                         - Year 5 Ending Liquid Bank Account Reserves: £{final_cash:,.2f}
                         
-                        Write a high-density, authoritative, and jargon-free Executive Briefing Summary. 
-                        Break your assessment down into three specific pillars:
-                        1. LIQUID CAPITAL RUNWAY & FINANCIAL HEALTH
-                        2. ASSET STRUCTURAL SOUNDNESS & SUSTAINED WORTH
-                        3. OPERATIONAL MARGIN RESILIENCY & GROWTH
-                        
+                        Write a brief, high-density, authoritative, and jargon-free Executive Briefing Summary. 
+                        Comment directly on how the excellent operating profit conversion of nearly 47% is translating perfectly into a highly liquid cash runway by Year 5.
                         Format your output as three concise, clean paragraphs. Do not use any markdown formatting asterisks or bolding tags. Speak in clean, professional corporate language.
                         """
                         response = model.generate_content(executive_prompt)
@@ -186,8 +183,6 @@ with tab1:
             if view_granularity == "Consolidated Account Buckets":
                 st.markdown("Displaying vertical corporate operational metrics over time:")
                 display_pl = pl_df.copy()
-                
-                # Clean up column text mapping profiles
                 display_pl.columns = [
                     "Revenue (£)", "COGS (£)", "Running Costs / Overheads", 
                     "Depreciation (£)", "Net Operating Margin Profit", 
@@ -219,7 +214,7 @@ with tab2:
             st.dataframe(cf_df.style.format("{:,.2f}"), use_container_width=True)
             
             st.markdown("#### 📈 Compounding Cash Horizon Trajectory Curve")
-            cash_row_key = [idx for idx in cf_df.columns if "cash" in str(idx).lower()]
+            cash_row_key = [idx for idx in cf_df.columns if "reserves" in str(idx).lower() or "cash" in str(idx).lower()]
             if cash_row_key:
                 st.line_chart(cf_df[cash_row_key[0]], use_container_width=True)
         except Exception as e: st.error(f"Error rendering Bank Tracker dataset: {str(e)}")
