@@ -3,22 +3,29 @@
 import streamlit as st
 import pandas as pd
 import os
+import io
 import json
+import google.generativeai as genai
+from pathlib import Path
+
+# ReportLab imports for professional PDF type-setting construction
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib import colors
 
 # Set up page headers using clean commercial phrasing
 st.title("📊 Commercial Financial Performance Forecasts")
 st.caption("Simplified operational visibility models with interactive structural granularity selectors.")
 st.markdown("---")
 
-# Verify user security clearance before rendering data grids
 if not st.session_state.get("authenticated", False):
     st.error("🔒 Access Denied: Unauthorized Endpoints Locked")
-    st.info("This environment is shielded by an enterprise security framework. You must log in via the main portal to open this workspace.")
     st.stop()
 
-# Auto-execute the calculation core on loading if an active workspace selection exists
 active_project = st.session_state.get("selected_project", "")
 project_file_path = os.path.join("saved_projects", f"{active_project}.json")
+gemini_key = os.environ.get("GEMINI_API_KEY") or st.secrets.get("GEMINI_API_KEY", "")
 
 if active_project and os.path.exists(project_file_path):
     try:
@@ -30,48 +37,131 @@ if active_project and os.path.exists(project_file_path):
 else:
     st.sidebar.warning("⚠️ No Active Project Context Loaded")
 
-# Define internal cache targets written by the backend engine
 PL_CACHE = "STRATA_Forecast_Ledger_Group.xlsx - Profit & Loss.csv"
 CF_CACHE = "STRATA_Forecast_Ledger_Group.xlsx - Cash Flow Ledger.csv"
 BS_CACHE = "STRATA_Forecast_Ledger_Group.xlsx - Balance Sheet Accruals.csv"
 
 # =========================================================================
-# CONTROL PANEL: GRANULARITY & DOWNLOAD CONTROLLER
+# 📥 EXECUTIVE INTEL COMPILATION DECK (GEMINI + REPORTLAB PDF GENERATOR)
 # =========================================================================
-st.subheader("⚙️ Statement View & Compilation Controls")
+st.subheader("📥 Executive Report Compilation Desk")
+st.markdown("Synthesize raw multi-period ledger matrices into a signature, print-ready corporate dossier:")
 
-ctrl_col1, ctrl_col2 = st.columns([1, 2])
+rep_col1, rep_col2 = st.columns([1, 1])
 
-with ctrl_col1:
+with rep_col1:
     view_granularity = st.radio(
         "Reporting Ledger Granularity Mode:",
         options=["Consolidated Account Buckets", "Granular Line-Item Accounts"],
-        index=0,
-        help="Switch between high-level operational summaries and expanded line-by-line account statements."
+        index=0
     )
 
-with ctrl_col2:
+with rep_col2:
     st.markdown("<div style='padding-top: 5px;'></div>", unsafe_allow_html=True)
-    st.caption("Package active data arrays for distribution or external audit submission:")
-    rep_col1, rep_col2, rep_col3 = st.columns(3)
     
-    with rep_col1:
-        if os.path.exists(PL_CACHE):
-            with open(PL_CACHE, "rb") as f:
-                st.download_button("📈 Download P&L (CSV)", data=f, file_name=f"{active_project}_P_and_L.csv", mime="text/csv", use_container_width=True)
-        else: st.button("📈 P&L Offline", disabled=True, use_container_width=True)
-        
-    with rep_col2:
-        if os.path.exists(CF_CACHE):
-            with open(CF_CACHE, "rb") as f:
-                st.download_button("💸 Download Cash (CSV)", data=f, file_name=f"{active_project}_Cash_Flow.csv", mime="text/csv", use_container_width=True)
-        else: st.button("💸 Cash Offline", disabled=True, use_container_width=True)
-        
-    with rep_col3:
-        if os.path.exists(BS_CACHE):
-            with open(BS_CACHE, "rb") as f:
-                st.download_button("📋 Download Assets (CSV)", data=f, file_name=f"{active_project}_Balance_Sheet.csv", mime="text/csv", use_container_width=True)
-        else: st.button("📋 Assets Offline", disabled=True, use_container_width=True)
+    # Enable the professional PDF compilation trigger if caches exist on disk
+    if os.path.exists(PL_CACHE) and os.path.exists(CF_CACHE) and os.path.exists(BS_CACHE):
+        if st.button("📄 Compile Executive PDF & Summary Dossier", use_container_width=True):
+            if not gemini_key:
+                st.error("Missing Gemini API Token in system secrets config.")
+            else:
+                with st.spinner("Executing cognitive synthesis and typeset compilation..."):
+                    try:
+                        # 1. Parse caches to feed numerical anchors to the AI
+                        pl_df = pd.read_csv(PL_CACHE, index_col=0)
+                        cf_df = pd.read_csv(CF_CACHE, index_col=0)
+                        bs_df = pd.read_csv(BS_CACHE, index_col=0)
+                        
+                        tot_turnover = pl_df.loc["Revenue (£)"].sum() if "Revenue (£)" in pl_df.index else 0.0
+                        ebit_key = [k for k in pl_df.index if "EBIT" in k]
+                        tot_margin = pl_df.loc[ebit_key[0]].sum() if ebit_key else 0.0
+                        final_cash = cf_df.loc["Cash Reserves (£)"].iloc[-1] if "Cash Reserves (£)" in cf_df.index else 0.0
+                        
+                        # 2. Trigger Gemini Cognitive Synthesis Conduit
+                        genai.configure(api_key=gemini_key)
+                        model = genai.GenerativeModel(model_name="models/gemini-2.5-flash")
+                        
+                        executive_prompt = f"""
+                        You are a senior executive director and corporate innovation strategist. 
+                        Analyze these high-level 60-month performance metrics for the scenario '{active_project}':
+                        - Cumulative Project Turnover: £{tot_turnover:,.2f}
+                        - Accumulated Operating Profit Margin (EBIT): £{tot_margin:,.2f}
+                        - Year 5 Ending Liquid Bank Account Reserves: £{final_cash:,.2f}
+                        
+                        Write a high-density, authoritative, and jargon-free Executive Briefing Summary. 
+                        Break your assessment down into three specific pillars:
+                        1. LIQUID CAPITAL RUNWAY & FINANCIAL HEALTH
+                        2. ASSET STRUCTURAL SOUNDNESS & SUSTAINED WORTH
+                        3. OPERATIONAL MARGIN RESILIENCY & GROWTH
+                        
+                        Format your output as three concise, clean paragraphs. Do not use any markdown formatting asterisks or bolding tags. Speak in clean, professional corporate language.
+                        """
+                        response = model.generate_content(executive_prompt)
+                        ai_narrative = response.text.strip()
+                        
+                        # 3. Compile Vector PDF Document inside memory buffer
+                        pdf_buffer = io.BytesIO()
+                        doc = SimpleDocTemplate(
+                            pdf_buffer,
+                            pagesize=letter,
+                            rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40
+                        )
+                        
+                        styles = getSampleStyleSheet()
+                        title_style = ParagraphStyle('DocTitle', parent=styles['Heading1'], fontSize=22, textColor=colors.HexColor("#1A365D"), spaceAfter=15)
+                        h2_style = ParagraphStyle('SectionHeader', parent=styles['Heading2'], fontSize=14, textColor=colors.HexColor("#2B6CB0"), spaceBefore=15, spaceAfter=8)
+                        body_style = ParagraphStyle('ReportBody', parent=styles['BodyText'], fontSize=10.5, leading=15, spaceAfter=10)
+                        
+                        story = []
+                        story.append(Paragraph(f"STRATA // Corporate Financial Briefing", title_style))
+                        story.append(Paragraph(f"Scenario Workspace Analysis Dossier: {active_project}", styles['Normal']))
+                        story.append(Spacer(1, 15))
+                        
+                        story.append(Paragraph("Executive Summary & Strategic Review", h2_style))
+                        story.append(Paragraph(ai_narrative, body_style))
+                        story.append(Spacer(1, 15))
+                        
+                        # Build brief core summary table data for the document layout
+                        summary_data = [
+                            ["Financial Metric Framework", "60-Month Aggregated Performance Profile"],
+                            ["Cumulative Project Turnover", f"£{tot_turnover:,.2f}"],
+                            ["Accumulated Operating Profit (EBIT)", f"£{tot_margin:,.2f}"],
+                            ["Year 5 Projected Cash Position", f"£{final_cash:,.2f}"]
+                        ]
+                        
+                        t = Table(summary_data, colWidths=[240, 240])
+                        t.setStyle(TableStyle([
+                            ('BACKGROUND', (0,0), (1,0), colors.HexColor("#1A365D")),
+                            ('TEXTCOLOR', (0,0), (1,0), colors.whitesmoke),
+                            ('FONTNAME', (0,0), (1,0), 'Helvetica-Bold'),
+                            ('FONTSIZE', (0,0), (1,0), 11),
+                            ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+                            ('TOPPADDING', (0,0), (-1,-1), 8),
+                            ('GRID', (0,0), (-1,-1), 0.5, colors.lightgrey),
+                            ('BACKGROUND', (0,1), (-1,-1), colors.HexColor("#F7FAFC"))
+                        ]))
+                        story.append(t)
+                        
+                        doc.build(story)
+                        pdf_data = pdf_buffer.getvalue()
+                        
+                        # Cache raw generated document to session state layout context safely
+                        st.session_state["compiled_pdf_bytes"] = pdf_data
+                        st.success("✨ Executive Briefing Dossier compiled flawlessly! Hit download below.")
+                    except Exception as pdf_err:
+                        st.error(f"Compilation pipeline fault: {str(pdf_err)}")
+                        
+        # Render clean Download Trigger if the binary stream sits inside memory cache
+        if "compiled_pdf_bytes" in st.session_state:
+            st.download_button(
+                label="📥 Download Print-Ready Briefing PDF",
+                data=st.session_state["compiled_pdf_bytes"],
+                file_name=f"STRATA_Executive_Briefing_{active_project}.pdf",
+                mime="application/pdf",
+                use_container_width=True
+            )
+    else:
+        st.button("📄 Ledger Framework Offline", disabled=True, use_container_width=True)
 
 st.markdown("---")
 
@@ -82,7 +172,6 @@ tab1, tab2, tab3 = st.tabs([
     "📋 Company Worth & Asset Register"
 ])
 
-# Load master lists for line-item expansion mapping
 raw_sales_setup = st.session_state.get("manual_sales_entries", [])
 raw_opex_setup = st.session_state.get("manual_opex_entries", [])
 
@@ -108,25 +197,21 @@ with tab1:
             else:
                 st.markdown("De-consolidated view breaking down every independent account line over the 60-month runway:")
                 
-                # Build an expanded granular matrix dynamically based on active workspace parameters
                 granular_rows = {}
                 timeline_cols = pl_df.columns
                 
-                # Settle sales individual contributions
                 for idx, item in enumerate(raw_sales_setup):
                     monthly_val = float(item["amount"]) / 12.0
                     granular_rows[f"Revenue Account: {item['name']} (£)"] = [monthly_val] * len(timeline_cols)
                 if not raw_sales_setup and "Revenue (£)" in pl_df.index:
                     granular_rows["Revenue Account: Combined Core Inflow (£)"] = pl_df.loc["Revenue (£)"].tolist()
                     
-                # Settle operational expenses individual contributions
                 for idx, item in enumerate(raw_opex_setup):
                     monthly_val = float(item["amount"]) / 12.0
                     granular_rows[f"Overhead Account: {item['name']} (£)"] = [monthly_val] * len(timeline_cols)
                 if not raw_opex_setup and "Opex (£)" in pl_df.index:
                     granular_rows["Overhead Account: Combined Overheads (£)"] = pl_df.loc["Opex (£)"].tolist()
                 
-                # Re-append lynchpin bottom lines to ensure mathematical control context
                 if ebit_row_key:
                     granular_rows["Net Operating Margin Profit (EBIT) (£)"] = pl_df.loc[ebit_row_key[0]].tolist()
                 if "Depreciation (£)" in pl_df.index:
@@ -135,7 +220,6 @@ with tab1:
                 df_granular_pl = pd.DataFrame(granular_rows, index=timeline_cols).T
                 st.dataframe(df_granular_pl.style.format("{:,.2f}"), use_container_width=True)
             
-            # Summary Metrics Cards
             st.markdown("#### 🎯 Performance Summaries (60-Month Total Run)")
             col1, col2 = st.columns(2)
             with col1: st.metric("Total Project Turnover (60M)", f"£{total_rev:,.2f}")
