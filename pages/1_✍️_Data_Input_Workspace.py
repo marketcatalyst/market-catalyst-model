@@ -9,7 +9,7 @@ import google.generativeai as genai
 from pypdf import PdfReader
 from pathlib import Path
 
-# Absolute project path resolution to handle multi-page layout shifts smoothly
+# Path resolution for standalone multi-page layout environments
 root_dir = Path(__file__).resolve().parent.parent
 if str(root_dir) not in sys.path:
     sys.path.append(str(root_dir))
@@ -19,11 +19,63 @@ if not st.session_state.get("authenticated", False):
     st.stop()
 
 PROJECTS_DIR = "saved_projects"
+CACHE_FILE = os.path.join(PROJECTS_DIR, "UNSAVED_WORKSPACE_DRAFT_BACKUP.json")
+
+if not os.path.exists(PROJECTS_DIR):
+    os.makedirs(PROJECTS_DIR)
+
 gemini_key = os.environ.get("GEMINI_API_KEY") or st.secrets.get("GEMINI_API_KEY", "")
+
+# --- AUTOMATIC DATA RETENTION CACHE ENGINE ---
+def save_local_backup_cache():
+    """Instantly caches current tables to disk so data is never lost on timeout."""
+    cache_payload = {
+        "sales": st.session_state.get("manual_sales_entries", []),
+        "opex": st.session_state.get("manual_opex_entries", []),
+        "capital": st.session_state.get("manual_capital_entries", [])
+    }
+    try:
+        with open(CACHE_FILE, "w") as cf:
+            json.dump(cache_payload, cf, indent=4)
+    except:
+        pass
+
+def purge_local_backup_cache():
+    """Removes the temporary cache file once the user explicitly exports a named file."""
+    if os.path.exists(CACHE_FILE):
+        try:
+            os.remove(CACHE_FILE)
+        except:
+            pass
 
 st.title("✍️ Data Input Workspace")
 st.caption("Directly build your model rows, type parameters, or utilize the intelligent document analysis conduit.")
 st.markdown("---")
+
+# --- USER EXPERIENCE RESTORATION PROMPT ---
+if os.path.exists(CACHE_FILE):
+    # Check if memory arrays are currently empty before offering restoration
+    if not st.session_state.get("manual_sales_entries") and not st.session_state.get("manual_opex_entries") and not st.session_state.get("manual_capital_entries"):
+        st.info("✨ **Session Recovery Anchor Active:** We detected that your previous data entry session closed unexpectedly due to an idle timeout.")
+        restore_col1, restore_col2 = st.columns([1, 1])
+        with restore_col1:
+            if st.button("🔄 Restore My Lost Data Rows Instantly", use_container_width=True):
+                try:
+                    with open(CACHE_FILE, "r") as cf:
+                        loaded_cache = json.load(cf)
+                    st.session_state.manual_sales_entries = loaded_cache.get("sales", [])
+                    st.session_state.manual_opex_entries = loaded_cache.get("opex", [])
+                    st.session_state.manual_capital_entries = loaded_cache.get("capital", [])
+                    st.success("Data repositories restored successfully! Review your entries below.")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Recovery Error: {str(e)}")
+        with restore_col2:
+            if st.button("🗑️ Discard Draft & Start Completely Fresh", use_container_width=True):
+                purge_local_backup_cache()
+                st.success("Draft cleared. Ready for fresh inputs.")
+                st.rerun()
+        st.markdown("---")
 
 # =========================================================================
 # 🔮 INTELLIGENT ASSISTANT CONDUIT (EXPANDABLE)
@@ -81,14 +133,15 @@ with st.expander("✨ Open Intelligent Document Analysis Assistant", expanded=Fa
                     for c in payload.get("capital", []): 
                         c.update({"month": 1, "parameter": 10.0 if c.get("type") == "Fixed Asset Purchase" else 0.0})
                         st.session_state.manual_capital_entries.append(c)
-                        
+                    
+                    save_local_backup_cache()
                     st.success("Analysis complete! Corporate data rows successfully appended below.")
                     st.rerun()
                 except Exception as ai_err:
                     st.error(f"Intelligent Parsing Fault: {str(ai_err)}")
 
 # =========================================================================
-# ✍️ MANUAL DIRECT DATA ENTRY FORMS (VARIABLE TAX FIX APPLIED)
+# ✍️ MANUAL DIRECT DATA ENTRY FORMS
 # =========================================================================
 st.subheader("📝 Direct Parameter Setup Desks")
 inc_col1, inc_col2, inc_col3 = st.columns(3)
@@ -101,17 +154,18 @@ with inc_col1:
     if st.button("➕ Add Income Row", use_container_width=True):
         if s_name.strip():
             st.session_state.manual_sales_entries.append({"name": s_name.strip(), "amount": float(s_amt), "vat": 0.20 if s_vat else 0.0})
+            save_local_backup_cache()
             st.rerun()
 
 with inc_col2:
     st.markdown("### 💸 Overhead Costs")
     o_name = st.text_input("Cost Name / Description:", placeholder="e.g., Site Utilities & Rent", key="o_name")
     o_amt = st.number_input("Projected Annual Cost (£):", min_value=0.0, step=1000.0, key="o_amt")
-    # VARIABLE OVERHEAD TAX SAFEGUARD: Explicit control switch for zero-rated items
     o_vat = st.checkbox("Apply Standard 20% VAT?", value=True, key="o_vat")
     if st.button("➕ Add Overhead Row", use_container_width=True):
         if o_name.strip():
             st.session_state.manual_opex_entries.append({"name": o_name.strip(), "amount": float(o_amt), "vat": 0.20 if o_vat else 0.0})
+            save_local_backup_cache()
             st.rerun()
 
 with inc_col3:
@@ -140,12 +194,13 @@ with inc_col3:
                 "month": 1, 
                 "parameter": 10.0 if mapped_type == "Fixed Asset Purchase" else 0.0
             })
+            save_local_backup_cache()
             st.rerun()
 
 st.markdown("---")
 
 # =========================================================================
-# 💾 WORKSPACE EXPORTS
+# 💾 MASTER SAVE WORKSPACE REGISTRY
 # =========================================================================
 st.subheader("💾 Master Save Workspace Registry")
 save_col1, save_col2 = st.columns([2, 1])
@@ -160,6 +215,7 @@ with save_col2:
             try:
                 with open(os.path.join(PROJECTS_DIR, f"{clean_title}.json"), "w") as pf: json.dump(project_payload, pf, indent=4)
                 st.session_state["selected_project"] = clean_title
+                purge_local_backup_cache() # Safe named export accomplished, purge temp cache
                 st.success(f"🚀 Active dataset saved as: `{clean_title}.json`")
                 st.rerun()
             except Exception as e: st.error(f"Export error: {str(e)}")
@@ -167,7 +223,7 @@ with save_col2:
 st.markdown("---")
 
 # =========================================================================
-# 📁 LIVE MONITOR TABLES (INDEX LABELS HIDDEN CLEANLY)
+# 📁 LIVE MONITOR TABLES
 # =========================================================================
 st.subheader("📁 Active Workspace Data Repositories")
 tab1, tab2, tab3 = st.tabs(["📈 Income Streams", "💸 Overhead Costs", "🏛️ Cap-Ex & Capitalization Ledger"])
@@ -178,7 +234,10 @@ with tab1:
         if len(df_sales.columns) == 3: 
             df_sales.columns = ["Revenue Stream Name", "Annual Gross Amount (£)", "VAT Rate Fraction"]
         st.dataframe(df_sales.style.format({"Annual Gross Amount (£)": "{:,.2f}"}).hide(axis="index"), use_container_width=True)
-        if st.button("🗑️ Clear Income Rows", key="clear_s"): st.session_state.manual_sales_entries = []; st.rerun()
+        if st.button("🗑️ Clear Income Rows", key="clear_s"): 
+            st.session_state.manual_sales_entries = []
+            save_local_backup_cache()
+            st.rerun()
     else: st.caption("No revenue lines configured.")
 
 with tab2:
@@ -187,7 +246,10 @@ with tab2:
         if len(df_opex.columns) == 3: 
             df_opex.columns = ["Overhead Cost Name", "Annual Running Rate (£)", "VAT Rate Fraction"]
         st.dataframe(df_opex.style.format({"Annual Running Rate (£)": "{:,.2f}"}).hide(axis="index"), use_container_width=True)
-        if st.button("🗑️ Clear Overhead Rows", key="clear_o"): st.session_state.manual_opex_entries = []; st.rerun()
+        if st.button("🗑️ Clear Overhead Rows", key="clear_o"): 
+            st.session_state.manual_opex_entries = []
+            save_local_backup_cache()
+            st.rerun()
     else: st.caption("No operational overhead lines configured.")
 
 with tab3:
@@ -204,5 +266,8 @@ with tab3:
         if len(df_cap.columns) == 4: 
             df_cap.columns = ["Asset / Funding Source Name", "Structural Category", "Transaction Value (£)", "Target Month"]
         st.dataframe(df_cap.style.format({"Transaction Value (£)": "{:,.2f}"}).hide(axis="index"), use_container_width=True)
-        if st.button("🗑️ Clear Capital Rows", key="clear_c"): st.session_state.manual_capital_entries = []; st.rerun()
+        if st.button("🗑️ Clear Capital Rows", key="clear_c"): 
+            st.session_state.manual_capital_entries = []
+            save_local_backup_cache()
+            st.rerun()
     else: st.caption("No asset allocations or long-term funding entries configured.")
