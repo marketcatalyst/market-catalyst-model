@@ -1,4 +1,4 @@
-# pages/3_📊_forecast.py
+# pages/3_forecast.py
 
 import streamlit as st
 import pandas as pd
@@ -8,7 +8,7 @@ import json
 import google.generativeai as genai
 from pathlib import Path
 
-# ReportLab imports for professional LANDSCAPE type-setting construction
+# ReportLab imports for professional LANDSCAPE typesetting construction
 from reportlab.lib.pagesizes import letter, landscape
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
