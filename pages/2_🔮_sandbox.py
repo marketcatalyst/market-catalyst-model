@@ -1,4 +1,4 @@
-# ui_skin/pages/2_🔮_sandbox.py
+# pages/2_🔮_sandbox.py
 
 import os
 import sys
@@ -7,112 +7,79 @@ import streamlit as st
 import pandas as pd
 from pathlib import Path
 
-# Absolute project path resolution to handle multi-page layout shifts smoothly
-root_dir = Path(__file__).resolve().parent.parent.parent
+# Absolute project path resolution
+root_dir = Path(__file__).resolve().parent.parent
 if str(root_dir) not in sys.path:
     sys.path.append(str(root_dir))
 
-# Import our universal accounting master engine
-from ui_skin.core_engine.double_entry_matrix import compile_three_way_forecast
-
-# Verify user security clearance before rendering ledger parameters
 if not st.session_state.get("authenticated", False):
     st.error("🔒 Access Denied: Unauthorized Endpoints Locked")
-    st.info("This environment is shielded by an enterprise security framework. You must log in via the main portal to open this workspace.")
     st.stop()
 
-st.title("🔮 Multi-Variant Scenario Sandbox")
-st.caption("Systems-Thinking Scratchpad • Test Asset Deviations & High-Impact Projections")
+PROJECTS_DIR = "saved_projects"
+
+st.title("🔮 Multi-Variant Stress-Testing Sandbox")
+st.caption("Apply real-time adjustments and scenario levers to your active project baseline parameters.")
 st.markdown("---")
 
-# Verify an active project configuration baseline file exists to model against
-selected_project = st.session_state.get("selected_project", "")
-if not selected_project:
-    st.warning("⚠️ No Active Project Context Detected. Please load a baseline configuration state in the Ingestion Suite before accessing this sandbox.")
-    st.stop()
+active_project = st.session_state.get("selected_project", "")
 
-st.sidebar.success(f"📁 Modelling Sandbox Matrix for: `{selected_project}`")
+if not active_project:
+    st.info("💡 Please select an active project workspace context on the main Home Page first to open the sandbox tools.")
+else:
+    st.subheader(f"🛠️ Active Base Scenario: `{active_project}`")
+    st.markdown("Adjust the sliders below to apply sweeping adjustments across your cost and income modeling assumptions:")
+    
+    # --- SANDBOX SLIDER DIALS ---
+    col1, col2 = st.columns(2)
+    with col1:
+        revenue_multiplier = st.slider("Revenue Stream Performance Scale (%)", min_value=50, max_value=150, value=100, step=5)
+        opex_multiplier = st.slider("Running Overhead Inflation Scale (%)", min_value=50, max_value=150, value=100, step=5)
+    with col2:
+        st.markdown("### 📋 Variant Target Matrix")
+        st.caption("Adjustments modify copy parameters into a temporary scenario variant, leaving your baseline files untouched.")
+        sandbox_suffix = st.text_input("Alternative Scenario Name Suffix:", value="Stressed-Run")
 
-# --- ⚙️ UNIVERSAL SCENARIO STRESS CONTROLS ---
-st.subheader("🎛️ Scenario Stress Testing Controls")
-st.markdown("Adjust these parameters to scale values up or down across your active project baseline matrices:")
-
-col1, col2 = st.columns(2)
-with col1:
-    sandbox_volume_delta = st.slider("Revenue Volume Delta / Growth Spike (%)", min_value=-50, max_value=100, value=0, step=5)
-    vol_multiplier = 1.0 + (sandbox_volume_delta / 100.0)
-with col2:
-    sandbox_opex_delta = st.slider("Operational Overhead Cost Escalation (%)", min_value=-30, max_value=100, value=0, step=5)
-    opex_multiplier = 1.0 + (sandbox_opex_delta / 100.0)
-
-st.markdown("---")
-
-# Define execution and presentation paths
-base_json_path = os.path.join("saved_projects", f"{selected_project}.json")
-sandbox_json_path = os.path.join("saved_projects", f"SANDBOX_VARIANT_{selected_project}.json")
-
-# --- ⚙️ MASTER TRANSACTION SCENARIO COMPILER ---
-with st.spinner("Executing dynamic double-entry scenario run..."):
-    try:
-        # Load the clean baseline tracking queues from disk
-        if not os.path.exists(base_json_path):
-            st.error("Baseline project parameter file missing from disk storage target.")
-            st.stop()
+    # --- PROCESSING COPIED PARAMETERS ---
+    if st.button("🔮 Generate Alternative Scenario Run", use_container_width=True):
+        try:
+            # 1. Map adjustments down to lists
+            sandboxed_sales = []
+            for s in st.session_state.get("manual_sales_entries", []):
+                s_copy = s.copy()
+                s_copy["amount"] = float(s["amount"]) * (revenue_multiplier / 100.0)
+                sandboxed_sales.append(s_copy)
+                
+            sandboxed_opex = []
+            for o in st.session_state.get("manual_opex_entries", []):
+                o_copy = o.copy()
+                o_copy["amount"] = float(o["amount"]) * (opex_multiplier / 100.0)
+                sandboxed_opex.append(o_copy)
+                
+            # Capital setup costs are left fixed to preserve building infrastructure reality
+            sandboxed_capital = [c.copy() for c in st.session_state.get("manual_capital_entries", [])]
             
-        with open(base_json_path, "r") as bf:
-            payload = json.load(bf)
+            # 2. Package and export as a unique variant file identifier
+            variant_filename = f"SANDBOX_VARIANT_{active_project}_{sandbox_suffix}"
+            variant_payload = {
+                "sales": sandboxed_sales,
+                "opex": sandboxed_opex,
+                "capital": sandboxed_capital
+            }
             
-        # Initialize variant queues
-        variant_payload = {
-            "sales": [],
-            "opex": [],
-            "capital": payload.get("capital", []) # Capital asset infusions remain locked to baseline defaults
-        }
-        
-        # Apply scaling delta multipliers uniformly across the raw rows
-        for item in payload.get("sales", []):
-            modified_item = item.copy()
-            modified_item["amount"] = float(item.get("amount", 0.0)) * vol_multiplier
-            variant_payload["sales"].append(modified_item)
+            filepath = os.path.join(PROJECTS_DIR, f"{variant_filename}.json")
+            with open(filepath, "w") as pf:
+                json.dump(variant_payload, pf, indent=4)
+                
+            # 3. Swap the active workspace selection context to look at the new scenario run files instantly
+            st.session_state["selected_project"] = variant_filename
+            st.session_state["manual_sales_entries"] = sandboxed_sales
+            st.session_state["manual_opex_entries"] = sandboxed_opex
+            st.session_state["manual_capital_entries"] = sandboxed_capital
             
-        for item in payload.get("opex", []):
-            modified_item = item.copy()
-            modified_item["amount"] = float(item.get("amount", 0.0)) * opex_multiplier
-            variant_payload["opex"].append(modified_item)
+            st.success(f"🚀 Alternative scenario variant compiled and loaded perfectly as: `{variant_filename}`")
+            st.info("Navigate to the Financial Forecast Sheets via the sidebar drawer to compare your variant projections!")
+            st.rerun()
             
-        # Serialize the dynamically altered data state to a temporary sandbox run file
-        with open(sandbox_json_path, "w") as sf:
-            json.dump(variant_payload, sf, indent=4)
-            
-        # Re-run our master trial balance routine on the variant file to update statement caches
-        compile_three_way_forecast(sandbox_json_path)
-        
-        # Load the updated outputs generated by the double-entry calculation block
-        pl_cache = "STRATA_Forecast_Ledger_Group.xlsx - Profit & Loss.csv"
-        cf_cache = "STRATA_Forecast_Ledger_Group.xlsx - Cash Flow Ledger.csv"
-        
-        if os.path.exists(pl_cache) and os.path.exists(cf_cache):
-            pl_df = pd.read_csv(pl_cache, index_col=0)
-            cf_df = pd.read_csv(cf_cache, index_col=0)
-            
-            # Reconstruct the tracking layout view for the sandbox page
-            df_sandbox_display = pd.DataFrame({
-                "Variant Revenue (£)": pl_df["Revenue (£)"],
-                "Variant OpEx (£)": pl_df["Opex (£)"],
-                "Net Operational Profit (£)": pl_df["EBIT (£)"],
-                "Projected Cash Position (£)": cf_df["Cash Reserves (£)"]
-            }, index=pl_df.index).T
-            
-            st.subheader("📊 Visualized Run-Rate Impact Matrix (60-Month View)")
-            st.dataframe(df_sandbox_display.style.format("{:,.2f}"), use_container_width=True)
-            
-            # Render a quick visualization curve of the modified cash runway
-            st.markdown("#### 📈 Variant Cash Reserves Trajectory")
-            st.line_chart(cf_df["Cash Reserves (£)"], use_container_width=True)
-            st.success("🔒 Double-Entry Sandbox Verification Check: Trial balance reconciled (Debits = Credits)")
-            
-        else:
-            st.error("Error: Calculation outputs could not be retrieved from core repository caches.")
-            
-    except Exception as e:
-        st.error(f"Sandbox Variant Systemic Execution Error: {str(e)}")
+        except Exception as sand_err:
+            st.error(f"Sandbox Variant Compilation Error: {str(sand_err)}")
