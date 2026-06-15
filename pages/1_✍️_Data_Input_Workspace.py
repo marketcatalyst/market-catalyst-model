@@ -44,21 +44,18 @@ def purge_local_backup_cache():
         try: os.remove(CACHE_FILE)
         except: pass
 
+# Ensure list anchors exist within session memory matrix
+if "manual_sales_entries" not in st.session_state: st.session_state.manual_sales_entries = []
+if "manual_opex_entries" not in st.session_state: st.session_state.manual_opex_entries = []
+if "manual_capital_entries" not in st.session_state: st.session_state.manual_capital_entries = []
+
 st.title("✍️ Data Input Workspace")
 st.caption("Directly build your model rows, type parameters, or utilize the intelligent document analysis conduit.")
 st.markdown("---")
 
-# --- SESSION STATE INITIALIZERS FOR TRACKING TO FORWARD CLEARANCE LEAP ---
-if "s_name_input" not in st.session_state: st.session_state.s_name_input = ""
-if "s_amt_input" not in st.session_state: st.session_state.s_amt_input = 0.0
-if "o_name_input" not in st.session_state: st.session_state.o_name_input = ""
-if "o_amt_input" not in st.session_state: st.session_state.o_amt_input = 0.0
-if "c_name_input" not in st.session_state: st.session_state.c_name_input = ""
-if "c_val_input" not in st.session_state: st.session_state.c_val_input = 0.0
-
 # --- USER EXPERIENCE RESTORATION PROMPT ---
 if os.path.exists(CACHE_FILE):
-    if not st.session_state.get("manual_sales_entries") and not st.session_state.get("manual_opex_entries") and not st.session_state.get("manual_capital_entries"):
+    if not st.session_state.manual_sales_entries and not st.session_state.manual_opex_entries and not st.session_state.manual_capital_entries:
         st.info("✨ **Session Recovery Anchor Active:** We detected an unsaved data entry session that closed unexpectedly.")
         restore_col1, restore_col2 = st.columns([1, 1])
         with restore_col1:
@@ -79,64 +76,59 @@ if os.path.exists(CACHE_FILE):
         st.markdown("---")
 
 # =========================================================================
-# ✍️ DIRECT PARAMETER SETUP DESKS (INPUT VALUE FORCED BINDINGS)
+# ✍️ DIRECT PARAMETER SETUP FORMS (FORM BLOCK ARCHITECTURE INSTALLED)
 # =========================================================================
 st.subheader("📝 Direct Parameter Setup Desks")
 inc_col1, inc_col2, inc_col3 = st.columns(3)
 
 with inc_col1:
     st.markdown("### 📊 Revenue Streams")
-    s_name = st.text_input("Income Name / Description:", placeholder="e.g., Court Hire Fees", key="s_name_input")
-    s_amt = st.number_input("Projected Annual Income (£):", min_value=0.0, step=5000.0, key="s_amt_input")
-    s_vat = st.checkbox("Apply Standard 20% VAT?", value=True, key="s_vat_toggle")
-    if st.button("➕ Add Income Row", use_container_width=True):
-        if s_name.strip():
-            st.session_state.manual_sales_entries.append({"name": s_name.strip(), "amount": float(s_amt), "vat": 0.20 if s_vat else 0.0})
-            save_local_backup_cache()
-            # Explicitly force the clearance leap state wipe
-            st.session_state.s_name_input = ""
-            st.session_state.s_amt_input = 0.0
-            st.rerun()
+    with st.form("revenue_entry_form", clear_on_submit=True):
+        s_name = st.text_input("Income Name / Description:", placeholder="e.g., Court Hire Fees")
+        s_amt = st.number_input("Projected Annual Income (£):", min_value=0.0, step=5000.0)
+        s_vat = st.checkbox("Apply Standard 20% VAT?", value=True)
+        if st.form_submit_button("➕ Add Income Row", use_container_width=True):
+            if s_name.strip():
+                st.session_state.manual_sales_entries.append({"name": s_name.strip(), "amount": float(s_amt), "vat": 0.20 if s_vat else 0.0})
+                save_local_backup_cache()
+                st.rerun()
 
 with inc_col2:
     st.markdown("### 💸 Overhead Costs")
-    o_name = st.text_input("Cost Name / Description:", placeholder="e.g., Site Utilities & Rent", key="o_name_input")
-    o_amt = st.number_input("Projected Annual Cost (£):", min_value=0.0, step=1000.0, key="o_amt_input")
-    o_vat = st.checkbox("Apply Standard 20% VAT?", value=True, key="o_vat_toggle")
-    if st.button("➕ Add Overhead Row", use_container_width=True):
-        if o_name.strip():
-            st.session_state.manual_opex_entries.append({"name": o_name.strip(), "amount": float(o_amt), "vat": 0.20 if o_vat else 0.0})
-            save_local_backup_cache()
-            st.session_state.o_name_input = ""
-            st.session_state.o_amt_input = 0.0
-            st.rerun()
+    with st.form("opex_entry_form", clear_on_submit=True):
+        o_name = st.text_input("Cost Name / Description:", placeholder="e.g., Site Utilities & Rent")
+        o_amt = st.number_input("Projected Annual Cost (£):", min_value=0.0, step=1000.0)
+        o_vat = st.checkbox("Apply Standard 20% VAT?", value=True)
+        if st.form_submit_button("➕ Add Overhead Row", use_container_width=True):
+            if o_name.strip():
+                st.session_state.manual_opex_entries.append({"name": o_name.strip(), "amount": float(o_amt), "vat": 0.20 if o_vat else 0.0})
+                save_local_backup_cache()
+                st.rerun()
 
 with inc_col3:
     st.markdown("### 🏛️ Cap-Ex & Finance")
-    c_name = st.text_input("Asset Description / Capital Event:", placeholder="e.g., Core Court Infrastructure", key="c_name_input")
-    c_type_display = st.selectbox("Classification Category:", [
-        "New / Existing Fixed Asset CapEx", 
-        "Equity Capital / Share Premium Injection", 
-        "Commercial Debt / Facility Drawdown"
-    ], key="c_type_dropdown")
-    c_val = st.number_input("Transaction Value (£):", min_value=0.0, step=5000.0, key="c_val_input")
-    
-    if st.button("➕ Add Capital Row", use_container_width=True):
-        if c_name.strip():
-            backend_type_map = {
-                "New / Existing Fixed Asset CapEx": "Fixed Asset Purchase",
-                "Equity Capital / Share Premium Injection": "Director / Equity Inflow",
-                "Commercial Debt / Facility Drawdown": "New Bank Loan Injection"
-            }
-            mapped_type = backend_type_map[c_type_display]
-            st.session_state.manual_capital_entries.append({
-                "name": c_name.strip(), "type": mapped_type, "value": float(c_val), "month": 1, 
-                "parameter": 10.0 if mapped_type == "Fixed Asset Purchase" else 0.0
-            })
-            save_local_backup_cache()
-            st.session_state.c_name_input = ""
-            st.session_state.c_val_input = 0.0
-            st.rerun()
+    with st.form("capital_entry_form", clear_on_submit=True):
+        c_name = st.text_input("Asset Description / Capital Event:", placeholder="e.g., Core Court Infrastructure")
+        c_type_display = st.selectbox("Classification Category:", [
+            "New / Existing Fixed Asset CapEx", 
+            "Equity Capital / Share Premium Injection", 
+            "Commercial Debt / Facility Drawdown"
+        ])
+        c_val = st.number_input("Transaction Value (£):", min_value=0.0, step=5000.0)
+        if st.form_submit_button("➕ Add Capital Row", use_container_width=True):
+            if c_name.strip():
+                backend_type_map = {
+                    "New / Existing Fixed Asset CapEx": "Fixed Asset Purchase",
+                    "Equity Capital / Share Premium Injection": "Director / Equity Inflow",
+                    "Commercial Debt / Facility Drawdown": "New Bank Loan Injection"
+                }
+                mapped_type = backend_type_map[c_type_display]
+                st.session_state.manual_capital_entries.append({
+                    "name": c_name.strip(), "type": mapped_type, "value": float(c_val), "month": 1, 
+                    "parameter": 10.0 if mapped_type == "Fixed Asset Purchase" else 0.0
+                })
+                save_local_backup_cache()
+                st.rerun()
 
 st.markdown("---")
 
@@ -193,7 +185,6 @@ with tab2:
             with o_col2: st.markdown(f"**Annual Rate:** £{item['amount']:,.2f}")
             with o_col3: st.markdown(f"**VAT:** {int(item['vat']*100)}%")
             with o_col4:
-                # Surgical targeting button to remove only this exact list index item
                 if st.button("🗑️ Delete", key=f"del_o_{idx}"):
                     st.session_state.manual_opex_entries.pop(idx)
                     save_local_backup_cache()
@@ -209,7 +200,7 @@ with tab3:
             with c_col1: st.markdown(f"**Asset/Funding:** {item['name']}")
             with c_col2: st.markdown(f"**Category:** {item['type']}")
             with c_col3: st.markdown(f"**Value:** £{item['value']:,.2f}")
-            with r_col4:
+            with c_col4:
                 if st.button("🗑️ Delete", key=f"del_c_{idx}"):
                     st.session_state.manual_capital_entries.pop(idx)
                     save_local_backup_cache()
