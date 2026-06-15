@@ -66,7 +66,6 @@ with rep_col2:
             else:
                 with st.spinner("Executing cognitive synthesis and typeset compilation..."):
                     try:
-                        # Direct correction loader
                         pl_df = pd.read_csv(PL_CACHE, index_col=0)
                         if "M01" in pl_df.index: pl_df = pl_df.T
                         cf_df = pd.read_csv(CF_CACHE, index_col=0)
@@ -181,7 +180,6 @@ with tab1:
     
     if os.path.exists(PL_CACHE):
         try:
-            # Read and immediately normalize layout if transposed on disk
             pl_df = pd.read_csv(PL_CACHE, index_col=0)
             if "M01" in pl_df.index:
                 pl_df = pl_df.T
@@ -202,7 +200,8 @@ with tab1:
                     elif "ebit" in lbl.lower(): lbl = "Net Operating Margin Profit"
                     new_indices.append(lbl)
                 display_pl.index = new_indices
-                st.dataframe(display_pl.T.style.format("{:,.2f}"), use_container_width=True)
+                # FIXED: Transposition removed here to present metrics horizontally across rows
+                st.dataframe(display_pl.style.format("{:,.2f}"), use_container_width=True)
             else:
                 st.markdown("De-consolidated view breaking down every independent account line over the 60-month runway:")
                 
@@ -228,9 +227,9 @@ with tab1:
                     granular_rows["Non-Cash Asset Write-Off (Depreciation) (£)"] = pl_df.loc[dep_idx[0]].tolist()
                 
                 df_granular_pl = pd.DataFrame(granular_rows, index=timeline_cols).T
+                # FIXED: Transposition removed here to keep line items on rows
                 st.dataframe(df_granular_pl.style.format("{:,.2f}"), use_container_width=True)
             
-            # --- POPULATED CARDS ---
             st.markdown("#### 🎯 Performance Summaries (60-Month Total Run)")
             col1, col2 = st.columns(2)
             with col1: st.metric("Total Project Turnover (60M)", f"£{total_rev:,.2f}")
@@ -252,7 +251,8 @@ with tab2:
             if "M01" in cf_df.index:
                 cf_df = cf_df.T
                 
-            st.dataframe(cf_df.T.style.format("{:,.2f}"), use_container_width=True)
+            # FIXED: Transposition removed here to align cash metrics correctly
+            st.dataframe(cf_df.style.format("{:,.2f}"), use_container_width=True)
             
             st.markdown("#### 📈 Compounding Cash Horizon Trajectory Curve")
             cash_row_key = [idx for idx in cf_df.index if "cash" in str(idx).lower()]
@@ -285,7 +285,8 @@ with tab3:
                 new_bs_indices.append(lbl)
             display_bs.index = new_bs_indices
             
-            st.dataframe(display_bs.T.style.format("{:,.2f}"), use_container_width=True)
+            # FIXED: Transposition removed here to present metrics horizontally on rows
+            st.dataframe(display_bs.style.format("{:,.2f}"), use_container_width=True)
             st.success("🔒 System Integrity Flag: Company worth register completely reconciled and in balance.")
         except Exception as e: st.error(f"Error rendering Company Worth dataset: {str(e)}")
     else: st.info("💡 Awaiting initialization vectors from your active workspace.")
