@@ -37,24 +37,7 @@ if "manual_opex_entries" not in st.session_state:
 if "manual_capital_entries" not in st.session_state:
     st.session_state.manual_capital_entries = []
 
-# --- 3. SECURITY GATEKEEPER ---
-if not st.session_state["authenticated"]:
-    st.title("🔒 STRATA Security Access Gateway")
-    st.caption("Enterprise Workspace Security Engine & Scenario Access Control Gateway")
-    st.markdown("---")
-    
-    username = st.text_input("Corporate Username:")
-    password = st.text_input("Security Access Key:", type="password")
-    
-    if st.button("Authenticate Corporate Identity", use_container_width=True):
-        if username.lower() in ["admin", "marketcatalyst", "user2"] and password == "strata2026":
-            st.session_state["authenticated"] = True
-            st.rerun()
-        else:
-            st.error("Authentication Fault: Invalid profile credentials.")
-    st.stop()
-
-# --- 4. DYNAMIC PATH DISCOVERY RESOLUTION ---
+# --- 3. DYNAMIC PATH DISCOVERY RESOLUTION ---
 pages_dir = Path("pages")
 all_discovered_files = os.listdir(pages_dir) if pages_dir.exists() else []
 
@@ -69,7 +52,7 @@ path_sandbox    = locate_target_page("2_", "pages/2_🔮_sandbox.py")
 path_forecast   = locate_target_page("3_", "pages/3_📊_forecast.py")
 path_compliance = locate_target_page("4_", "pages/4_🛡️_compliance.py")
 
-# --- 5. COMPILING THE STATIC LAUNCHPAD FUNCTION ---
+# --- 4. STATIC LAUNCHPAD DESK DISPLAY LAYOUT ---
 def render_landing_launchpad():
     st.title("🛡️ STRATA // Financial Intelligence Portal")
     st.caption("Active Environment: Market Catalyst Management Matrix")
@@ -128,7 +111,7 @@ def render_landing_launchpad():
     else:
         st.warning("⚠️ No active workspace loaded yet. Please select a project baseline above to unlock your data desks.")
 
-# --- 6. COMPILE PERMANENT SIDEBAR ROUTER ---
+# --- 5. COMPILING THE SIDEBAR NAVIGATION GATEWAY ---
 try:
     page_launchpad  = st.Page(render_landing_launchpad, title="Project Setup Hub", icon="🛡️")
     page_input      = st.Page(path_input_desk, title="Data Input Workspace", icon="✍️")
@@ -136,7 +119,7 @@ try:
     page_forecast   = st.Page(path_forecast, title="Financial Forecast Sheets", icon="📊")
     page_compliance = st.Page(path_compliance, title="Compliance & Tax Portal", icon="🛡️")
 
-    # Group pages into permanent, uncollapsible sidebar headers
+    # Group layout entries inside the system router structure
     pg = st.navigation(
         {
             "Workspace Manager": [page_launchpad],
@@ -148,7 +131,25 @@ except Exception as e:
     st.error(f"Routing Fault: Streamlit engine could not map the dashboard page files. Details: {str(e)}")
     st.stop()
 
-# --- 7. GLOBAL SIDEBAR PERFORMANCE MONITOR ---
+# --- 6. OVERRIDING SECURITY GATEKEEPER INTERCEPT ---
+if not st.session_state["authenticated"]:
+    st.title("🔒 STRATA Security Access Gateway")
+    st.caption("Enterprise Workspace Security Engine & Scenario Access Control Gateway")
+    st.markdown("---")
+    
+    username = st.text_input("Corporate Username:")
+    password = st.text_input("Security Access Key:", type="password")
+    
+    if st.button("Authenticate Corporate Identity", use_container_width=True):
+        if username.lower() in ["admin", "marketcatalyst", "user2"] and password == "strata2026":
+            st.session_state["authenticated"] = True
+            st.rerun()
+        else:
+            st.error("Authentication Fault: Invalid profile credentials.")
+    # Stop layout progression here until keys are validated, without choking the structural setup above
+    st.stop()
+
+# --- 7. GLOBAL SIDEBAR UTILITIES (AUTHENTICATED ONLY) ---
 if st.session_state.get("selected_project"):
     st.sidebar.markdown(f"**Active Workspace Context:**\n`{st.session_state['selected_project']}`")
     if st.sidebar.button("🔄 Clear & Switch Project", use_container_width=True):
