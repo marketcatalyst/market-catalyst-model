@@ -114,26 +114,27 @@ def compile_three_way_forecast(project_json_path):
 
         # 4. Process Straight-Line Asset Depreciation
         if m_idx >= start_month:
-            # Check current asset pool standing in this specific month frame
             current_asset_base = tbc.matrix.loc["BS_Asset_Fixed_Assets", :m_label].sum()
             if current_asset_base > 0.0:
                 monthly_depr = (current_asset_base * 0.10) / 12.0
                 tbc.post_journal(m_label, "PL_Expense_Depreciation", "BS_Asset_Accumulated_Depreciation", monthly_depr)
 
-        # Confirm the core journal transaction ledger is in balance
         tbc.verify_ledger_integrity(m_label)
 
     # -------------------------------------------------------------------------
-    # TRANSLATION LAYER: ACCUMULATE AND EXPORT REPORTING PAPERS
+    # TRANSLATION LAYER: PROGRESSIVE CHRONOLOGICAL CUMULATIVE ACCUMULATOR
     # -------------------------------------------------------------------------
-    # Generate cumulative balances for Balance Sheet presentation profiles
-    cumulative_matrix = tbc.matrix.copy()
-    for idx, col_curr in enumerate(months_labels):
-        if idx > 0:
-            col_prev = months_labels[idx - 1]
-            for acct in tbc.accounts:
-                if acct.startswith("BS_"):
-                    cumulative_matrix.at[acct, col_curr] += cumulative_matrix.at[acct, col_prev]
+    # Re-engineered to eliminate shallow-copy row tracking drops completely
+    cumulative_matrix = pd.DataFrame(0.0, index=tbc.accounts, columns=months_labels)
+    
+    # Initialize a tracking dictionary to hold absolute historical values alive
+    running_balances = {acct: 0.0 for acct in tbc.accounts if acct.startswith("BS_")}
+    
+    for m_label in months_labels:
+        for acct in running_balances.keys():
+            # Add the current month's transaction movement to the running total
+            running_balances[acct] += tbc.matrix.at[acct, m_label]
+            cumulative_matrix.at[acct, m_label] = running_balances[acct]
 
     # Calculate and compound Retained Earnings chronologically from P&L histories
     running_retained_earnings = 0.0
