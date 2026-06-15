@@ -16,14 +16,15 @@ from reportlab.lib import colors
 
 # Set up page headers using clean commercial phrasing
 st.title("📊 Commercial Financial Performance Forecasts")
-st.caption("Simplified operational visibility models with multi-period timeline tracking matrices.")
+st.caption("Simplified operational visibility models with horizontal multi-period timeline tracking matrices.")
 st.markdown("---")
 
+# Enforce explicit authorization barriers
 if not st.session_state.get("authenticated", False):
     st.error("🔒 Access Denied: Unauthorized Endpoints Locked")
     st.stop()
 
-active_project = st.session_state.get("selected_project", "")
+active_project = st.session_state.get("st.session_state.get('selected_project', '')", st.session_state.get("selected_project", ""))
 project_file_path = os.path.join("saved_projects", f"{active_project}.json")
 gemini_key = os.environ.get("GEMINI_API_KEY") or st.secrets.get("GEMINI_API_KEY", "")
 
@@ -46,37 +47,56 @@ raw_sales_setup = st.session_state.get("manual_sales_entries", [])
 raw_opex_setup = st.session_state.get("manual_opex_entries", [])
 
 # =========================================================================
-# 📥 MASTER EXPORT UTILITY HUB (SPREADSHEET EXPORTS + LANDSCAPE PDF PACK)
+# ⚙️ CONTROL LAYER: STRUCTURAL GRANULARITY INTERFACES (INITIALIZED FIRST)
 # =========================================================================
-st.subheader("📥 Master Corporate Export Utility Hub")
-st.markdown("Download full statement baselines or compile a signature, print-ready landscape dossier:")
+st.subheader("⚙️ Report Configuration Settings")
+view_granularity = st.radio(
+    "Reporting Ledger Granularity Mode:",
+    options=["Consolidated Account Buckets", "Granular Line-Item Accounts"],
+    index=0,
+    help="Toggle between high-level macro summaries and detailed multi-channel line items."
+)
+
+st.markdown("---")
+
+# =========================================================================
+# 📥 EXPORT DESK: HORIZONTAL CSV DEPLOYMENT & LANDSCAPE PDF SYSTEM
+# =========================================================================
+st.subheader("📥 Corporate Statement Export Desk")
+st.markdown("Download full horizontal spreadsheet baselines or compile a print-ready landscape dossier:")
 
 if os.path.exists(PL_CACHE) and os.path.exists(CF_CACHE) and os.path.exists(BS_CACHE):
-    # Load foundational engine data frames
+    # Load and map baseline sheets to horizontal month tracks
     base_pl = pd.read_csv(PL_CACHE, index_col=0).T
     base_cf = pd.read_csv(CF_CACHE, index_col=0).T
     base_bs = pd.read_csv(BS_CACHE, index_col=0).T
     
-    # Restored Detailed Extraction Matrix Logic for comprehensive CSV files
     timeline_cols = base_pl.columns
     
-    # 1. Build Detailed P&L
+    # 1. Build Restored Detailed Profit & Loss Dataframe
     detailed_pl_rows = {}
     for item in raw_sales_setup:
         detailed_pl_rows[f"Revenue: {item['name']} (£)"] = [float(item["amount"]) / 12.0] * len(timeline_cols)
     if not raw_sales_setup and "Revenue (£)" in base_pl.index:
         detailed_pl_rows["Revenue: Core Inflow (£)"] = base_pl.loc["Revenue (£)"].tolist()
+        
     for item in raw_opex_setup:
         detailed_pl_rows[f"Opex: {item['name']} (£)"] = [float(item["amount"]) / 12.0] * len(timeline_cols)
-    if not raw_opex_setup and "Opex (£)" in base_pl.index:
+    if not raw_opex_setup and "Running Costs / Overheads" in base_pl.index:
+        detailed_pl_rows["Opex: Core Running Costs (£)"] = base_pl.loc["Running Costs / Overheads"].tolist()
+    elif not raw_opex_setup and "Opex (£)" in base_pl.index:
         detailed_pl_rows["Opex: Core Running Costs (£)"] = base_pl.loc["Opex (£)"].tolist()
+        
     if "Depreciation (£)" in base_pl.index:
         detailed_pl_rows["Depreciation (£)"] = base_pl.loc["Depreciation (£)"].tolist()
     if "EBIT (£)" in base_pl.index:
         detailed_pl_rows["Net Operating Margin Profit (EBIT) (£)"] = base_pl.loc["EBIT (£)"].tolist()
+    elif "Net Operating Margin Profit" in base_pl.index:
+        detailed_pl_rows["Net Operating Margin Profit (EBIT) (£)"] = base_pl.loc["Net Operating Margin Profit"].tolist()
+        
     df_detailed_pl_export = pd.DataFrame(detailed_pl_rows, index=timeline_cols).T
 
-    # 2. Build Detailed Cash Flow
+    # 2. Build Restored Detailed Cash Flow Dataframe
     detailed_cf_rows = {}
     if "Operational Cash Inflows (£)" in base_cf.index:
         detailed_cf_rows["Cash Receipts from Inflows (£)"] = base_cf.loc["Operational Cash Inflows (£)"].tolist()
@@ -88,7 +108,7 @@ if os.path.exists(PL_CACHE) and os.path.exists(CF_CACHE) and os.path.exists(BS_C
         detailed_cf_rows["Closing Bank Account Balance (£)"] = base_cf.loc["Cash Reserves (£)"].tolist()
     df_detailed_cf_export = pd.DataFrame(detailed_cf_rows, index=timeline_cols).T
 
-    # Clean spreadsheet action columns
+    # Render Horizontal CSV spreadsheet download hubs
     csv_col1, csv_col2, csv_col3 = st.columns(3)
     with csv_col1:
         st.download_button(
@@ -117,16 +137,21 @@ if os.path.exists(PL_CACHE) and os.path.exists(CF_CACHE) and os.path.exists(BS_C
         
     st.markdown("<div style='padding-top: 10px;'></div>", unsafe_allow_html=True)
     
-    # PDF Compilation Command Section
+    # 📄 Landscape PDF Generation Engine
     if st.button("📄 Compile Executive Landscape PDF Dossier Package", use_container_width=True):
         if not gemini_key:
             st.error("Missing Gemini API Token in system secrets config.")
         else:
             with st.spinner("Executing cognitive synthesis and landscape typeset compilation..."):
                 try:
-                    tot_turnover = float(base_pl.loc["Revenue (£)"].sum()) if "Revenue (£)" in base_pl.index else 0.0
-                    tot_margin = float(base_pl.loc["EBIT (£)"].sum()) if "EBIT (£)" in base_pl.index else 0.0
-                    final_cash = float(base_cf.loc["Cash Reserves (£)"].iloc[-1]) if "Cash Reserves (£)" in base_cf.index else 0.0
+                    # Find baseline rows for cognitive analysis summary blocks
+                    rev_row = [r for r in base_pl.index if "revenue" in str(r).lower()][0] if any("revenue" in str(r).lower() for r in base_pl.index) else base_pl.index[0]
+                    ebit_row = [r for r in base_pl.index if "ebit" in str(r).lower() or "operating" in str(r).lower()][0] if any("ebit" in str(r).lower() or "operating" in str(r).lower() for r in base_pl.index) else base_pl.index[4]
+                    cash_row = [r for r in base_cf.index if "cash" in str(r).lower() or "reserves" in str(r).lower()][0] if any("cash" in str(r).lower() or "reserves" in str(r).lower() for r in base_cf.index) else base_cf.index[3]
+                    
+                    tot_turnover = float(base_pl.loc[rev_row].sum())
+                    tot_margin = float(base_pl.loc[ebit_row].sum())
+                    final_cash = float(base_cf.loc[cash_row].iloc[-1])
                     
                     genai.configure(api_key=gemini_key)
                     model = genai.GenerativeModel(model_name="models/gemini-2.5-flash")
@@ -161,7 +186,7 @@ if os.path.exists(PL_CACHE) and os.path.exists(CF_CACHE) and os.path.exists(BS_C
                     
                     story = []
                     
-                    # --- PAGE 1: SUMMARY ---
+                    # --- PAGE 1: EXECUTIVE BRIEFING ---
                     story.append(Paragraph(f"STRATA // Corporate Financial Briefing Analysis Pack", title_style))
                     story.append(Paragraph(f"Scenario Workspace Analysis Dossier: {active_project}", styles['Normal']))
                     story.append(Spacer(1, 10))
@@ -185,7 +210,7 @@ if os.path.exists(PL_CACHE) and os.path.exists(CF_CACHE) and os.path.exists(BS_C
                     ]))
                     story.append(t_summary)
                     
-                    # --- PAGE 2: P&L (YEAR 1 HORIZONTAL PROFILE) ---
+                    # --- PAGE 2: HORIZONTAL PROFIT & LOSS BREAKDOWN ---
                     story.append(PageBreak())
                     story.append(Paragraph("📈 Multi-Period Income Statement (Profit & Loss Model)", title_style))
                     story.append(Spacer(1, 10))
@@ -212,7 +237,7 @@ if os.path.exists(PL_CACHE) and os.path.exists(CF_CACHE) and os.path.exists(BS_C
                     ]))
                     story.append(t_pl)
                     
-                    # --- PAGE 3: INTEGRATED STATEMENT LINES ---
+                    # --- PAGE 3: HORIZONTAL INTEGRATED CAPITAL RUNWAY ---
                     story.append(PageBreak())
                     story.append(Paragraph("💸 Compounding Cash Ledger Horizon & Balance Sheet Registry", title_style))
                     story.append(Spacer(1, 10))
@@ -257,7 +282,7 @@ else:
 
 st.markdown("---")
 
-# Tab groupings - Terminology fully normalized to clean professional standards
+# Tab groupings - Terminology normalized to clean corporate standards
 tab1, tab2, tab3 = st.tabs([
     "📈 Income Statement (P&L)", 
     "💸 Cash Flow Statement", 
@@ -265,7 +290,7 @@ tab1, tab2, tab3 = st.tabs([
 ])
 
 # =========================================================================
-# 📈 TAB 1: PROFIT & LOSS MATRIX (SUMMARY VS GRANULAR LINE RESTORATION)
+# 📈 TAB 1: PROFIT & LOSS INTERFACE (TRUE HORIZONTAL TRACKING)
 # =========================================================================
 with tab1:
     st.subheader("📈 Income & Earnings Performance")
@@ -277,20 +302,23 @@ with tab1:
                 display_pl.index = ["Revenue (£)", "COGS (£)", "Running Costs / Overheads", "Depreciation (£)", "Net Operating Margin Profit", "Interest Expense (£)", "Tax Expense (£)"]
                 st.dataframe(display_pl.style.format("{:,.2f}"), use_container_width=False)
             else:
-                # Inject the restored granular sub-accounts array directly onto the screen matrix
                 st.dataframe(df_detailed_pl_export.style.format("{:,.2f}"), use_container_width=False)
             
-            tot_rev = float(base_pl.loc["Revenue (£)"].sum()) if "Revenue (£)" in base_pl.index else 0.0
-            tot_margin = float(base_pl.loc["EBIT (£)"].sum()) if "EBIT (£)" in base_pl.index else 0.0
+            rev_key = [r for r in base_pl.index if "revenue" in str(r).lower() or "inflow" in str(r).lower()][0]
+            ebit_key = [r for r in base_pl.index if "ebit" in str(r).lower() or "operating" in str(r).lower() or "margin" in str(r).lower()][0]
+            
+            tot_rev = float(base_pl.loc[rev_key].sum())
+            tot_margin = float(base_pl.loc[ebit_key].sum())
             
             st.markdown("#### 🎯 Performance Summaries (60-Month Total Run)")
             col1, col2 = st.columns(2)
             with col1: st.metric("Total Project Turnover (60M)", f"£{tot_rev:,.2f}")
             with col2: st.metric("Accumulated Net Profit Margin (60M)", f"£{tot_margin:,.2f}")
         except Exception as e: st.error(f"Error rendering Income statement dataset: {str(e)}")
+    else: st.info("💡 Awaiting initialization vectors from your active workspace.")
 
 # =========================================================================
-# 💸 TAB 2: CASH FLOW MATRIX (SUMMARY VS GRANULAR LINE RESTORATION)
+# 💸 TAB 2: CASH FLOW INTERFACE (TRUE HORIZONTAL TRACKING)
 # =========================================================================
 with tab2:
     st.subheader("💸 Cash Flow Ledger Timeline")
@@ -303,12 +331,14 @@ with tab2:
                 st.dataframe(df_detailed_cf_export.style.format("{:,.2f}"), use_container_width=False)
             
             st.markdown("#### 📈 Compounding Cash Horizon Trajectory Curve")
-            if "Cash Reserves (£)" in base_cf.index:
-                st.line_chart(base_cf.loc["Cash Reserves (£)"], use_container_width=True)
+            cash_row_key = [idx for idx in base_cf.index if "reserves" in str(idx).lower() or "cash" in str(idx).lower()]
+            if cash_row_key:
+                st.line_chart(base_cf.loc[cash_row_key[0]], use_container_width=True)
         except Exception as e: st.error(f"Error rendering Bank Tracker dataset: {str(e)}")
+    else: st.info("💡 Awaiting initialization vectors from your active workspace.")
 
 # =========================================================================
-# 📋 TAB 3: BALANCE SHEET MATRIX
+# 📋 TAB 3: BALANCE SHEET INTERFACE (TRUE HORIZONTAL TRACKING)
 # =========================================================================
 with tab3:
     st.subheader("📋 Balance Sheet Position Accruals")
@@ -320,3 +350,4 @@ with tab3:
             st.dataframe(display_bs.style.format("{:,.2f}"), use_container_width=False)
             st.success("🔒 System Integrity Flag: Company worth register completely reconciled and in balance.")
         except Exception as e: st.error(f"Error rendering Company Worth dataset: {str(e)}")
+    else: st.info("💡 Awaiting initialization vectors from your active workspace.")
