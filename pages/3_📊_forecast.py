@@ -24,7 +24,7 @@ if not st.session_state.get("authenticated", False):
     st.error("🔒 Access Denied: Unauthorized Endpoints Locked")
     st.stop()
 
-active_project = st.session_state.get("st.session_state.get('selected_project', '')", st.session_state.get("selected_project", ""))
+active_project = st.session_state.get("selected_project", "")
 project_file_path = os.path.join("saved_projects", f"{active_project}.json")
 gemini_key = os.environ.get("GEMINI_API_KEY") or st.secrets.get("GEMINI_API_KEY", "")
 
@@ -60,7 +60,7 @@ view_granularity = st.radio(
 st.markdown("---")
 
 # =========================================================================
-# 📥 EXPORT DESK: HORIZONTAL CSV DEPLOYMENT & LANDSCAPE PDF SYSTEM
+# 📥 EXPORT DESK: SPREADSHEET EXPORTS & LANDSCAPE PDF SYSTEM
 # =========================================================================
 st.subheader("📥 Corporate Statement Export Desk")
 st.markdown("Download full horizontal spreadsheet baselines or compile a print-ready landscape dossier:")
@@ -144,10 +144,10 @@ if os.path.exists(PL_CACHE) and os.path.exists(CF_CACHE) and os.path.exists(BS_C
         else:
             with st.spinner("Executing cognitive synthesis and landscape typeset compilation..."):
                 try:
-                    # Find baseline rows for cognitive analysis summary blocks
-                    rev_row = [r for r in base_pl.index if "revenue" in str(r).lower()][0] if any("revenue" in str(r).lower() for r in base_pl.index) else base_pl.index[0]
-                    ebit_row = [r for r in base_pl.index if "ebit" in str(r).lower() or "operating" in str(r).lower()][0] if any("ebit" in str(r).lower() or "operating" in str(r).lower() for r in base_pl.index) else base_pl.index[4]
-                    cash_row = [r for r in base_cf.index if "cash" in str(r).lower() or "reserves" in str(r).lower()][0] if any("cash" in str(r).lower() or "reserves" in str(r).lower() for r in base_cf.index) else base_cf.index[3]
+                    # Find baseline rows safely via dynamic string match filters
+                    rev_row = [r for r in base_pl.index if "revenue" in str(r).lower()][0]
+                    ebit_row = [r for r in base_pl.index if "ebit" in str(r).lower() or "operating" in str(r).lower()][0]
+                    cash_row = "Cash Reserves (£)" if "Cash Reserves (£)" in base_cf.index else base_cf.index[3]
                     
                     tot_turnover = float(base_pl.loc[rev_row].sum())
                     tot_margin = float(base_pl.loc[ebit_row].sum())
@@ -237,7 +237,7 @@ if os.path.exists(PL_CACHE) and os.path.exists(CF_CACHE) and os.path.exists(BS_C
                     ]))
                     story.append(t_pl)
                     
-                    # --- PAGE 3: HORIZONTAL INTEGRATED CAPITAL RUNWAY ---
+                    # --- PAGE 3: FIXED HORIZONTAL COMPOUNDING CASH PACK ---
                     story.append(PageBreak())
                     story.append(Paragraph("💸 Compounding Cash Ledger Horizon & Balance Sheet Registry", title_style))
                     story.append(Spacer(1, 10))
@@ -245,13 +245,19 @@ if os.path.exists(PL_CACHE) and os.path.exists(CF_CACHE) and os.path.exists(BS_C
                     cf_pdf_headers = [Paragraph("Cash Flow & Account Headings", table_header_style)] + [Paragraph(m, table_header_style) for m in y1_months]
                     cf_pdf_rows = [cf_pdf_headers]
                     
-                    target_cf_source = df_detailed_cf_export if view_granularity == "Granular Line-Item Accounts" else base_cf
-                    for acct_name in target_cf_source.index:
-                        row_cells = [Paragraph(str(acct_name), table_cell_style)]
-                        for m in y1_months:
-                            val = target_cf_source.at[acct_name, m]
-                            row_cells.append(Paragraph(f"{val:,.0f}", table_cell_style))
-                        cf_pdf_rows.append(row_cells)
+                    if view_granularity == "Consolidated Account Buckets":
+                        # Standard View Extraction Mapping Rules
+                        for acct_name in base_cf.index:
+                            row_cells = [Paragraph(str(acct_name), table_cell_style)]
+                            for m in y1_months:
+                                row_cells.append(Paragraph(f"{base_cf.at[acct_name, m]:,.0f}", table_cell_style))
+                            cf_pdf_rows.append(row_cells)
+                    else:
+                        # FIXED LINE EXTRACTION HOOKS: Bind string dictionary keys to eradicate layout index drift completely
+                        cf_pdf_rows.append([Paragraph("Cash Receipts from Inflows (£)", table_cell_style)] + [Paragraph(f"{df_detailed_cf_export.at['Cash Receipts from Inflows (£)', m]:,.0f}", table_cell_style) for m in y1_months])
+                        cf_pdf_rows.append([Paragraph("Cash Paid for Running Expenses (£)", table_cell_style)] + [Paragraph(f"{df_detailed_cf_export.at['Cash Paid for Running Expenses (£)', m]:,.0f}", table_cell_style) for m in y1_months])
+                        cf_pdf_rows.append([Paragraph("Net Monthly Cash Flow (£)", table_cell_style)] + [Paragraph(f"{df_detailed_cf_export.at['Net Monthly Cash Flow (£)', m]:,.0f}", table_cell_style) for m in y1_months])
+                        cf_pdf_rows.append([Paragraph("Closing Bank Account Balance (£)", table_cell_style)] + [Paragraph(f"{df_detailed_cf_export.at['Closing Bank Account Balance (£)', m]:,.0f}", table_cell_style) for m in y1_months])
                         
                     t_cf = Table(cf_pdf_rows, colWidths=[142] + [49]*12)
                     t_cf.setStyle(TableStyle([
@@ -282,7 +288,7 @@ else:
 
 st.markdown("---")
 
-# Tab groupings - Terminology normalized to clean corporate standards
+# Tab groupings
 tab1, tab2, tab3 = st.tabs([
     "📈 Income Statement (P&L)", 
     "💸 Cash Flow Statement", 
@@ -290,7 +296,7 @@ tab1, tab2, tab3 = st.tabs([
 ])
 
 # =========================================================================
-# 📈 TAB 1: PROFIT & LOSS INTERFACE (TRUE HORIZONTAL TRACKING)
+# 📈 TAB 1: INCOME STATEMENT (P&L)
 # =========================================================================
 with tab1:
     st.subheader("📈 Income & Earnings Performance")
@@ -315,10 +321,9 @@ with tab1:
             with col1: st.metric("Total Project Turnover (60M)", f"£{tot_rev:,.2f}")
             with col2: st.metric("Accumulated Net Profit Margin (60M)", f"£{tot_margin:,.2f}")
         except Exception as e: st.error(f"Error rendering Income statement dataset: {str(e)}")
-    else: st.info("💡 Awaiting initialization vectors from your active workspace.")
 
 # =========================================================================
-# 💸 TAB 2: CASH FLOW INTERFACE (TRUE HORIZONTAL TRACKING)
+# 💸 TAB 2: CASH FLOW STATEMENT
 # =========================================================================
 with tab2:
     st.subheader("💸 Cash Flow Ledger Timeline")
@@ -335,10 +340,9 @@ with tab2:
             if cash_row_key:
                 st.line_chart(base_cf.loc[cash_row_key[0]], use_container_width=True)
         except Exception as e: st.error(f"Error rendering Bank Tracker dataset: {str(e)}")
-    else: st.info("💡 Awaiting initialization vectors from your active workspace.")
 
 # =========================================================================
-# 📋 TAB 3: BALANCE SHEET INTERFACE (TRUE HORIZONTAL TRACKING)
+# 📋 TAB 3: BALANCE SHEET REGISTER
 # =========================================================================
 with tab3:
     st.subheader("📋 Balance Sheet Position Accruals")
@@ -350,4 +354,3 @@ with tab3:
             st.dataframe(display_bs.style.format("{:,.2f}"), use_container_width=False)
             st.success("🔒 System Integrity Flag: Company worth register completely reconciled and in balance.")
         except Exception as e: st.error(f"Error rendering Company Worth dataset: {str(e)}")
-    else: st.info("💡 Awaiting initialization vectors from your active workspace.")
