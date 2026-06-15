@@ -67,17 +67,15 @@ with rep_col2:
                 with st.spinner("Executing cognitive synthesis and typeset compilation..."):
                     try:
                         pl_df = pd.read_csv(PL_CACHE, index_col=0)
-                        if "M01" in pl_df.index: pl_df = pl_df.T
                         cf_df = pd.read_csv(CF_CACHE, index_col=0)
-                        if "M01" in cf_df.index: cf_df = cf_df.T
                         
-                        rev_idx = [idx for idx in pl_df.index if "revenue" in str(idx).lower()]
-                        ebit_idx = [idx for idx in pl_df.index if "ebit" in str(idx).lower() or "operating" in str(idx).lower()]
-                        cash_idx = [idx for idx in cf_df.index if "cash" in str(idx).lower() or "reserve" in str(idx).lower()]
+                        rev_idx = [idx for idx in pl_df.columns if "revenue" in str(idx).lower()]
+                        ebit_idx = [idx for idx in pl_df.columns if "ebit" in str(idx).lower() or "operating" in str(idx).lower()]
+                        cash_idx = [idx for idx in cf_df.columns if "cash" in str(idx).lower() or "reserve" in str(idx).lower()]
                         
-                        tot_turnover = float(pl_df.loc[rev_idx[0]].sum()) if rev_idx else 0.0
-                        tot_margin = float(pl_df.loc[ebit_idx[0]].sum()) if ebit_idx else 0.0
-                        final_cash = float(cf_df.loc[cash_idx[0]].iloc[-1]) if cash_idx else 0.0
+                        tot_turnover = float(pl_df[rev_idx[0]].sum()) if rev_idx else 0.0
+                        tot_margin = float(pl_df[ebit_idx[0]].sum()) if ebit_idx else 0.0
+                        final_cash = float(cf_df[cash_idx[0]].iloc[-1]) if cash_idx else 0.0
                         
                         genai.configure(api_key=gemini_key)
                         model = genai.GenerativeModel(model_name="models/gemini-2.5-flash")
@@ -178,46 +176,27 @@ with tab1:
     if os.path.exists(PL_CACHE):
         try:
             pl_df = pd.read_csv(PL_CACHE, index_col=0)
-            if "M01" in pl_df.index:
-                pl_df = pl_df.T
-                
-            rev_row_key = [idx for idx in pl_df.index if "revenue" in str(idx).lower()]
-            ebit_row_key = [idx for idx in pl_df.index if "ebit" in str(idx).lower() or "operating" in str(idx).lower()]
             
-            total_rev = float(pl_df.loc[rev_row_key[0]].sum()) if rev_row_key else 0.0
-            total_margin = float(pl_df.loc[ebit_row_key[0]].sum()) if ebit_row_key else 0.0
+            rev_row_key = [idx for idx in pl_df.columns if "revenue" in str(idx).lower()]
+            ebit_row_key = [idx for idx in pl_df.columns if "ebit" in str(idx).lower() or "operating" in str(idx).lower()]
+            
+            total_rev = float(pl_df[rev_row_key[0]].sum()) if rev_row_key else 0.0
+            total_margin = float(pl_df[ebit_row_key[0]].sum()) if ebit_row_key else 0.0
             
             if view_granularity == "Consolidated Account Buckets":
-                st.markdown("Displaying aggregated, executive-level corporate operational totals:")
+                st.markdown("Displaying vertical corporate operational metrics over time:")
                 display_pl = pl_df.copy()
-                new_indices = []
-                for idx in display_pl.index:
-                    lbl = str(idx)
-                    if "opex" in lbl.lower(): lbl = "Running Costs / Overheads"
-                    elif "ebit" in lbl.lower(): lbl = "Net Operating Margin Profit"
-                    new_indices.append(lbl)
-                display_pl.index = new_indices
+                
+                # Clean up column text mapping profiles
+                display_pl.columns = [
+                    "Revenue (£)", "COGS (£)", "Running Costs / Overheads", 
+                    "Depreciation (£)", "Net Operating Margin Profit", 
+                    "Interest Expense (£)", "Tax Expense (£)"
+                ]
                 st.dataframe(display_pl.style.format("{:,.2f}"), use_container_width=True)
             else:
-                st.markdown("De-consolidated view breaking down every independent account line backed by engine calculations:")
-                
-                # FIXED ARCHITECTURE: Pull arrays directly from real computed backend matrix data rows
-                granular_rows = {}
-                timeline_cols = pl_df.columns
-                
-                for idx in pl_df.index:
-                    lbl = str(idx).lower()
-                    if "revenue" in lbl:
-                        granular_rows["Revenue Inflow Balance Layer (£)"] = pl_df.loc[idx].tolist()
-                    elif "opex" in lbl:
-                        granular_rows["Operational Running Overhead Layer (£)"] = pl_df.loc[idx].tolist()
-                    elif "ebit" in lbl:
-                        granular_rows["Net Operating Margin Profit (EBIT) (£)"] = pl_df.loc[idx].tolist()
-                    elif "depr" in lbl:
-                        granular_rows["Non-Cash Asset Write-Off (Depreciation) (£)"] = pl_df.loc[idx].tolist()
-                        
-                df_granular_pl = pd.DataFrame(granular_rows, index=timeline_cols).T
-                st.dataframe(df_granular_pl.style.format("{:,.2f}"), use_container_width=True)
+                st.markdown("De-consolidated timeline view tracking structural line accounts:")
+                st.dataframe(pl_df.style.format("{:,.2f}"), use_container_width=True)
             
             st.markdown("#### 🎯 Performance Summaries (60-Month Total Run)")
             col1, col2 = st.columns(2)
@@ -237,15 +216,12 @@ with tab2:
     if os.path.exists(CF_CACHE):
         try:
             cf_df = pd.read_csv(CF_CACHE, index_col=0)
-            if "M01" in cf_df.index:
-                cf_df = cf_df.T
-                
             st.dataframe(cf_df.style.format("{:,.2f}"), use_container_width=True)
             
             st.markdown("#### 📈 Compounding Cash Horizon Trajectory Curve")
-            cash_row_key = [idx for idx in cf_df.index if "cash" in str(idx).lower()]
+            cash_row_key = [idx for idx in cf_df.columns if "cash" in str(idx).lower()]
             if cash_row_key:
-                st.line_chart(cf_df.loc[cash_row_key[0]], use_container_width=True)
+                st.line_chart(cf_df[cash_row_key[0]], use_container_width=True)
         except Exception as e: st.error(f"Error rendering Bank Tracker dataset: {str(e)}")
     else: st.info("💡 Awaiting initialization vectors from your active workspace.")
 
@@ -259,19 +235,14 @@ with tab3:
     if os.path.exists(BS_CACHE):
         try:
             bs_df = pd.read_csv(BS_CACHE, index_col=0)
-            if "M01" in bs_df.index:
-                bs_df = bs_df.T
-                
             display_bs = bs_df.copy()
-            new_bs_indices = []
-            for idx in display_bs.index:
-                lbl = str(idx)
-                if "fixed asset" in lbl.lower(): lbl = "Physical Infrastructure Asset Worth"
-                elif "book value" in lbl.lower() or "nbv" in lbl.lower(): lbl = "Net Depreciated Asset Valuation"
-                elif "vat" in lbl.lower() or "liability" in lbl.lower(): lbl = "HMRC VAT Reserves Owing"
-                elif "equity" in lbl.lower() or "capital" in lbl.lower(): lbl = "Total Capital Contributed Cushion"
-                new_bs_indices.append(lbl)
-            display_bs.index = new_bs_indices
+            
+            display_bs.columns = [
+                "Physical Infrastructure Asset Worth", "Accumulated Depreciation (£)",
+                "Net Depreciated Asset Valuation", "Cash Balances (£)",
+                "Long Term Debt (£)", "HMRC VAT Reserves Owing",
+                "Total Capital Contributed Cushion", "Retained Earnings (£)"
+            ]
             
             st.dataframe(display_bs.style.format("{:,.2f}"), use_container_width=True)
             st.success("🔒 System Integrity Flag: Company worth register completely reconciled and in balance.")
