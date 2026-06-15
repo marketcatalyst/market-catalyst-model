@@ -16,7 +16,7 @@ from reportlab.lib import colors
 
 # Set up page headers using clean commercial phrasing
 st.title("📊 Commercial Financial Performance Forecasts")
-st.caption("Simplified operational visibility models with horizontal multi-period timeline tracking matrices.")
+st.caption("Simplified operational visibility models with multi-period timeline tracking matrices.")
 st.markdown("---")
 
 if not st.session_state.get("authenticated", False):
@@ -41,40 +41,76 @@ PL_CACHE = "STRATA_Forecast_Ledger_Group.xlsx - Profit & Loss.csv"
 CF_CACHE = "STRATA_Forecast_Ledger_Group.xlsx - Cash Flow Ledger.csv"
 BS_CACHE = "STRATA_Forecast_Ledger_Group.xlsx - Balance Sheet Accruals.csv"
 
+# Load the core workspace arrays to rebuild detailed matrices dynamically
+raw_sales_setup = st.session_state.get("manual_sales_entries", [])
+raw_opex_setup = st.session_state.get("manual_opex_entries", [])
+
 # =========================================================================
-# 📥 MASTER EXPORT UTILITY HUB (HORIZONTAL CSV + LANDSCAPE PDF PACK)
+# 📥 MASTER EXPORT UTILITY HUB (SPREADSHEET EXPORTS + LANDSCAPE PDF PACK)
 # =========================================================================
 st.subheader("📥 Master Corporate Export Utility Hub")
-st.markdown("Download full horizontal spreadsheet baselines or compile a signature, print-ready landscape dossier:")
+st.markdown("Download full statement baselines or compile a signature, print-ready landscape dossier:")
 
 if os.path.exists(PL_CACHE) and os.path.exists(CF_CACHE) and os.path.exists(BS_CACHE):
-    # Load and transpose datasets back to their correct horizontal format (Accounts as Rows, Months as Columns)
-    pl_horiz = pd.read_csv(PL_CACHE, index_col=0).T
-    cf_horiz = pd.read_csv(CF_CACHE, index_col=0).T
-    bs_horiz = pd.read_csv(BS_CACHE, index_col=0).T
+    # Load foundational engine data frames
+    base_pl = pd.read_csv(PL_CACHE, index_col=0).T
+    base_cf = pd.read_csv(CF_CACHE, index_col=0).T
+    base_bs = pd.read_csv(BS_CACHE, index_col=0).T
     
+    # Restored Detailed Extraction Matrix Logic for comprehensive CSV files
+    timeline_cols = base_pl.columns
+    
+    # 1. Build Detailed P&L
+    detailed_pl_rows = {}
+    for item in raw_sales_setup:
+        detailed_pl_rows[f"Revenue: {item['name']} (£)"] = [float(item["amount"]) / 12.0] * len(timeline_cols)
+    if not raw_sales_setup and "Revenue (£)" in base_pl.index:
+        detailed_pl_rows["Revenue: Core Inflow (£)"] = base_pl.loc["Revenue (£)"].tolist()
+    for item in raw_opex_setup:
+        detailed_pl_rows[f"Opex: {item['name']} (£)"] = [float(item["amount"]) / 12.0] * len(timeline_cols)
+    if not raw_opex_setup and "Opex (£)" in base_pl.index:
+        detailed_pl_rows["Opex: Core Running Costs (£)"] = base_pl.loc["Opex (£)"].tolist()
+    if "Depreciation (£)" in base_pl.index:
+        detailed_pl_rows["Depreciation (£)"] = base_pl.loc["Depreciation (£)"].tolist()
+    if "EBIT (£)" in base_pl.index:
+        detailed_pl_rows["Net Operating Margin Profit (EBIT) (£)"] = base_pl.loc["EBIT (£)"].tolist()
+    df_detailed_pl_export = pd.DataFrame(detailed_pl_rows, index=timeline_cols).T
+
+    # 2. Build Detailed Cash Flow
+    detailed_cf_rows = {}
+    if "Operational Cash Inflows (£)" in base_cf.index:
+        detailed_cf_rows["Cash Receipts from Inflows (£)"] = base_cf.loc["Operational Cash Inflows (£)"].tolist()
+    if "Operational Cash Outflows (£)" in base_cf.index:
+        detailed_cf_rows["Cash Paid for Running Expenses (£)"] = base_cf.loc["Operational Cash Outflows (£)"].tolist()
+    if "Net Cash Movement (£)" in base_cf.index:
+        detailed_cf_rows["Net Monthly Cash Flow (£)"] = base_cf.loc["Net Cash Movement (£)"].tolist()
+    if "Cash Reserves (£)" in base_cf.index:
+        detailed_cf_rows["Closing Bank Account Balance (£)"] = base_cf.loc["Cash Reserves (£)"].tolist()
+    df_detailed_cf_export = pd.DataFrame(detailed_cf_rows, index=timeline_cols).T
+
+    # Clean spreadsheet action columns
     csv_col1, csv_col2, csv_col3 = st.columns(3)
     with csv_col1:
         st.download_button(
-            label="📈 Export Horizontal P&L (CSV)",
-            data=pl_horiz.to_csv().encode('utf-8'),
-            file_name=f"STRATA_Horizontal_Profit_Loss_{active_project}.csv",
+            label="📈 Export Profit & Loss Statement (CSV)",
+            data=(df_detailed_pl_export.to_csv() if view_granularity == "Granular Line-Item Accounts" else base_pl.to_csv()).encode('utf-8'),
+            file_name=f"STRATA_Profit_Loss_Statement_{active_project}.csv",
             mime="text/csv",
             use_container_width=True
         )
     with csv_col2:
         st.download_button(
-            label="💸 Export Horizontal Cash Flow (CSV)",
-            data=cf_horiz.to_csv().encode('utf-8'),
-            file_name=f"STRATA_Horizontal_Cash_Flow_{active_project}.csv",
+            label="💸 Export Cash Flow Statement (CSV)",
+            data=(df_detailed_cf_export.to_csv() if view_granularity == "Granular Line-Item Accounts" else base_cf.to_csv()).encode('utf-8'),
+            file_name=f"STRATA_Cash_Flow_Statement_{active_project}.csv",
             mime="text/csv",
             use_container_width=True
         )
     with csv_col3:
         st.download_button(
-            label="📋 Export Horizontal Balance Sheet (CSV)",
-            data=bs_horiz.to_csv().encode('utf-8'),
-            file_name=f"STRATA_Horizontal_Balance_Sheet_{active_project}.csv",
+            label="📋 Export Balance Sheet Register (CSV)",
+            data=base_bs.to_csv().encode('utf-8'),
+            file_name=f"STRATA_Balance_Sheet_Register_{active_project}.csv",
             mime="text/csv",
             use_container_width=True
         )
@@ -88,10 +124,9 @@ if os.path.exists(PL_CACHE) and os.path.exists(CF_CACHE) and os.path.exists(BS_C
         else:
             with st.spinner("Executing cognitive synthesis and landscape typeset compilation..."):
                 try:
-                    # Extract high-level metrics for the prompt analysis
-                    tot_turnover = float(pl_horiz.loc["Revenue (£)"].sum()) if "Revenue (£)" in pl_horiz.index else 0.0
-                    tot_margin = float(pl_horiz.loc["EBIT (£)"].sum()) if "EBIT (£)" in pl_horiz.index else 0.0
-                    final_cash = float(cf_horiz.loc["Cash Reserves (£)"].iloc[-1]) if "Cash Reserves (£)" in cf_horiz.index else 0.0
+                    tot_turnover = float(base_pl.loc["Revenue (£)"].sum()) if "Revenue (£)" in base_pl.index else 0.0
+                    tot_margin = float(base_pl.loc["EBIT (£)"].sum()) if "EBIT (£)" in base_pl.index else 0.0
+                    final_cash = float(base_cf.loc["Cash Reserves (£)"].iloc[-1]) if "Cash Reserves (£)" in base_cf.index else 0.0
                     
                     genai.configure(api_key=gemini_key)
                     model = genai.GenerativeModel(model_name="models/gemini-2.5-flash")
@@ -105,13 +140,12 @@ if os.path.exists(PL_CACHE) and os.path.exists(CF_CACHE) and os.path.exists(BS_C
                     
                     Write a brief, high-density, authoritative, and jargon-free Executive Briefing Summary.
                     Comment directly on how the operating profit conversion translates perfectly into a liquid cash runway by Year 5.
-                    Format your output as three concise, clean paragraphs without markdown formatting asterisks or bolding tags.
+                    Format your output as three concise, clean paragraphs without markdown formatting asterisks or bolding tags. Speak in clean corporate language.
                     """
                     response = model.generate_content(executive_prompt)
                     ai_narrative = response.text.strip()
                     
                     pdf_buffer = io.BytesIO()
-                    # FORCE LANDSCAPE PAGE SIZE: letter is 612x792, landscape flips it to 792x612
                     doc = SimpleDocTemplate(
                         pdf_buffer,
                         pagesize=landscape(letter),
@@ -127,8 +161,8 @@ if os.path.exists(PL_CACHE) and os.path.exists(CF_CACHE) and os.path.exists(BS_C
                     
                     story = []
                     
-                    # --- PAGE 1: LANDSCAPE SUMMARY VIEW ---
-                    story.append(Paragraph(f"STRATA // Corporate Financial Briefing (Landscape Analysis Pack)", title_style))
+                    # --- PAGE 1: SUMMARY ---
+                    story.append(Paragraph(f"STRATA // Corporate Financial Briefing Analysis Pack", title_style))
                     story.append(Paragraph(f"Scenario Workspace Analysis Dossier: {active_project}", styles['Normal']))
                     story.append(Spacer(1, 10))
                     story.append(Paragraph("Executive Summary & Strategic Review", h2_style))
@@ -151,20 +185,20 @@ if os.path.exists(PL_CACHE) and os.path.exists(CF_CACHE) and os.path.exists(BS_C
                     ]))
                     story.append(t_summary)
                     
-                    # --- PAGE 2: HORIZONTAL PROFIT & LOSS STATEMENT (YEAR 1 GRANULARITY) ---
+                    # --- PAGE 2: P&L (YEAR 1 HORIZONTAL PROFILE) ---
                     story.append(PageBreak())
-                    story.append(Paragraph("📈 Year 1 Multi-Period Income Statement (Profit & Loss Model)", title_style))
+                    story.append(Paragraph("📈 Multi-Period Income Statement (Profit & Loss Model)", title_style))
                     story.append(Spacer(1, 10))
                     
-                    # Extract Year 1 horizontal slice (M01 to M12)
                     y1_months = [f"M{str(i).zfill(2)}" for i in range(1, 13)]
                     pl_pdf_headers = [Paragraph("Account Heading", table_header_style)] + [Paragraph(m, table_header_style) for m in y1_months]
                     pl_pdf_rows = [pl_pdf_headers]
                     
-                    for acct_name in pl_horiz.index:
+                    target_pl_source = df_detailed_pl_export if view_granularity == "Granular Line-Item Accounts" else base_pl
+                    for acct_name in target_pl_source.index:
                         row_cells = [Paragraph(str(acct_name), table_cell_style)]
                         for m in y1_months:
-                            val = pl_horiz.at[acct_name, m]
+                            val = target_pl_source.at[acct_name, m]
                             row_cells.append(Paragraph(f"{val:,.0f}", table_cell_style))
                         pl_pdf_rows.append(row_cells)
                         
@@ -178,23 +212,21 @@ if os.path.exists(PL_CACHE) and os.path.exists(CF_CACHE) and os.path.exists(BS_C
                     ]))
                     story.append(t_pl)
                     
-                    # --- PAGE 3: HORIZONTAL CASH FLOW & BALANCE ACCRUALS ---
+                    # --- PAGE 3: INTEGRATED STATEMENT LINES ---
                     story.append(PageBreak())
-                    story.append(Paragraph("💸 Year 1 Compounding Cash Ledger Horizon & Balance Sheet Registry", title_style))
+                    story.append(Paragraph("💸 Compounding Cash Ledger Horizon & Balance Sheet Registry", title_style))
                     story.append(Spacer(1, 10))
                     
                     cf_pdf_headers = [Paragraph("Cash Flow & Account Headings", table_header_style)] + [Paragraph(m, table_header_style) for m in y1_months]
                     cf_pdf_rows = [cf_pdf_headers]
                     
-                    # Extract key reporting tracks for integrated representation
-                    if "Net Cash Movement (£)" in cf_horiz.index:
-                        cf_pdf_rows.append([Paragraph("Net Cash Movement (£)", table_cell_style)] + [Paragraph(f"{cf_horiz.at['Net Cash Movement (£)', m]:,.0f}", table_cell_style) for m in y1_months])
-                    if "Cash Reserves (£)" in cf_horiz.index:
-                        cf_pdf_rows.append([Paragraph("Compounding Cash Reserves (£)", table_cell_style)] + [Paragraph(f"{cf_horiz.at['Cash Reserves (£)', m]:,.0f}", table_cell_style) for m in y1_months])
-                    if "HMRC VAT Reserves Owing" in bs_horiz.index:
-                        cf_pdf_rows.append([Paragraph("HMRC VAT Reserves Owing (£)", table_cell_style)] + [Paragraph(f"{bs_horiz.at['HMRC VAT Reserves Owing', m]:,.0f}", table_cell_style) for m in y1_months])
-                    if "Retained Earnings (£)" in bs_horiz.index:
-                        cf_pdf_rows.append([Paragraph("Retained Earnings Cushion (£)", table_cell_style)] + [Paragraph(f"{bs_horiz.at['Retained Earnings (£)', m]:,.0f}", table_cell_style) for m in y1_months])
+                    target_cf_source = df_detailed_cf_export if view_granularity == "Granular Line-Item Accounts" else base_cf
+                    for acct_name in target_cf_source.index:
+                        row_cells = [Paragraph(str(acct_name), table_cell_style)]
+                        for m in y1_months:
+                            val = target_cf_source.at[acct_name, m]
+                            row_cells.append(Paragraph(f"{val:,.0f}", table_cell_style))
+                        cf_pdf_rows.append(row_cells)
                         
                     t_cf = Table(cf_pdf_rows, colWidths=[142] + [49]*12)
                     t_cf.setStyle(TableStyle([
@@ -214,9 +246,9 @@ if os.path.exists(PL_CACHE) and os.path.exists(CF_CACHE) and os.path.exists(BS_C
                     
     if "compiled_pdf_bytes" in st.session_state:
         st.download_button(
-            label="📥 Download Print-Ready Landscape Briefing Pack (PDF)",
+            label="📥 Download Print-Ready Operational Briefing Pack (PDF)",
             data=st.session_state["compiled_pdf_bytes"],
-            file_name=f"STRATA_Landscape_Dossier_{active_project}.pdf",
+            file_name=f"STRATA_Operational_Dossier_{active_project}.pdf",
             mime="application/pdf",
             use_container_width=True
         )
@@ -225,28 +257,31 @@ else:
 
 st.markdown("---")
 
-# Tab groupings
+# Tab groupings - Terminology fully normalized to clean professional standards
 tab1, tab2, tab3 = st.tabs([
-    "📈 Horizontal Income Performance (P&L)", 
-    "💸 Horizontal Bank Tracker (Cash Flow)", 
-    "📋 Horizontal Worth Register (Balance Sheet)"
+    "📈 Income Statement (P&L)", 
+    "💸 Cash Flow Statement", 
+    "📋 Balance Sheet Register"
 ])
 
 # =========================================================================
-# 📈 TAB 1: PROFIT & LOSS MATRIX (AUTHENTIC HORIZONTAL ORIENTATION)
+# 📈 TAB 1: PROFIT & LOSS MATRIX (SUMMARY VS GRANULAR LINE RESTORATION)
 # =========================================================================
 with tab1:
-    st.subheader("📈 Income & Earnings Run-Rates")
+    st.subheader("📈 Income & Earnings Performance")
     if os.path.exists(PL_CACHE):
         try:
-            pl_horiz = pd.read_csv(PL_CACHE, index_col=0).T
-            st.markdown("💡 *Scroll horizontally to view months M01 through M60:*")
+            st.markdown("💡 *Scroll horizontally to trace timelines across M01 through M60:*")
+            if view_granularity == "Consolidated Account Buckets":
+                display_pl = base_pl.copy()
+                display_pl.index = ["Revenue (£)", "COGS (£)", "Running Costs / Overheads", "Depreciation (£)", "Net Operating Margin Profit", "Interest Expense (£)", "Tax Expense (£)"]
+                st.dataframe(display_pl.style.format("{:,.2f}"), use_container_width=False)
+            else:
+                # Inject the restored granular sub-accounts array directly onto the screen matrix
+                st.dataframe(df_detailed_pl_export.style.format("{:,.2f}"), use_container_width=False)
             
-            # Formatted native horizontal frame container
-            st.dataframe(pl_horiz.style.format("{:,.2f}"), use_container_width=False)
-            
-            tot_rev = float(pl_horiz.loc["Revenue (£)"].sum()) if "Revenue (£)" in pl_horiz.index else 0.0
-            tot_margin = float(pl_horiz.loc["EBIT (£)"].sum()) if "EBIT (£)" in pl_horiz.index else 0.0
+            tot_rev = float(base_pl.loc["Revenue (£)"].sum()) if "Revenue (£)" in base_pl.index else 0.0
+            tot_margin = float(base_pl.loc["EBIT (£)"].sum()) if "EBIT (£)" in base_pl.index else 0.0
             
             st.markdown("#### 🎯 Performance Summaries (60-Month Total Run)")
             col1, col2 = st.columns(2)
@@ -255,30 +290,33 @@ with tab1:
         except Exception as e: st.error(f"Error rendering Income statement dataset: {str(e)}")
 
 # =========================================================================
-# 💸 TAB 2: CASH FLOW MATRIX (AUTHENTIC HORIZONTAL ORIENTATION)
+# 💸 TAB 2: CASH FLOW MATRIX (SUMMARY VS GRANULAR LINE RESTORATION)
 # =========================================================================
 with tab2:
-    st.subheader("💸 Real Bank Account Ledger Profile")
+    st.subheader("💸 Cash Flow Ledger Timeline")
     if os.path.exists(CF_CACHE):
         try:
-            cf_horiz = pd.read_csv(CF_CACHE, index_col=0).T
-            st.markdown("💡 *Scroll horizontally to track liquid cash adjustments over 60 months:*")
-            st.dataframe(cf_horiz.style.format("{:,.2f}"), use_container_width=False)
+            st.markdown("💡 *Scroll horizontally to track liquid cash movements over 60 months:*")
+            if view_granularity == "Consolidated Account Buckets":
+                st.dataframe(base_cf.style.format("{:,.2f}"), use_container_width=False)
+            else:
+                st.dataframe(df_detailed_cf_export.style.format("{:,.2f}"), use_container_width=False)
             
             st.markdown("#### 📈 Compounding Cash Horizon Trajectory Curve")
-            if "Cash Reserves (£)" in cf_horiz.index:
-                st.line_chart(cf_horiz.loc["Cash Reserves (£)"], use_container_width=True)
+            if "Cash Reserves (£)" in base_cf.index:
+                st.line_chart(base_cf.loc["Cash Reserves (£)"], use_container_width=True)
         except Exception as e: st.error(f"Error rendering Bank Tracker dataset: {str(e)}")
 
 # =========================================================================
-# 📋 TAB 3: BALANCE SHEET MATRIX (AUTHENTIC HORIZONTAL ORIENTATION)
+# 📋 TAB 3: BALANCE SHEET MATRIX
 # =========================================================================
 with tab3:
-    st.subheader("📋 Core Company Worth Register")
+    st.subheader("📋 Balance Sheet Position Accruals")
     if os.path.exists(BS_CACHE):
         try:
-            bs_horiz = pd.read_csv(BS_CACHE, index_col=0).T
             st.markdown("💡 *Scroll horizontally to monitor balanced asset metrics across timelines:*")
-            st.dataframe(bs_horiz.style.format("{:,.2f}"), use_container_width=False)
+            display_bs = base_bs.copy()
+            display_bs.index = ["Physical Infrastructure Asset Worth", "Accumulated Depreciation (£)", "Net Depreciated Asset Valuation", "Cash Balances (£)", "Long Term Debt (£)", "HMRC VAT Reserves Owing", "Total Capital Contributed Cushion", "Retained Earnings (£)"]
+            st.dataframe(display_bs.style.format("{:,.2f}"), use_container_width=False)
             st.success("🔒 System Integrity Flag: Company worth register completely reconciled and in balance.")
         except Exception as e: st.error(f"Error rendering Company Worth dataset: {str(e)}")
