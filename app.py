@@ -69,7 +69,7 @@ path_sandbox    = locate_target_page("2_", "pages/2_🔮_sandbox.py")
 path_forecast   = locate_target_page("3_", "pages/3_📊_forecast.py")
 path_compliance = locate_target_page("4_", "pages/4_🛡️_compliance.py")
 
-# --- 5. COMILING THE SIDEBAR NAVIGATION OBJECT ---
+# --- 5. COMPILING THE SIDEBAR NAVIGATION OBJECT ---
 try:
     pg = st.navigation(
         {
@@ -87,11 +87,8 @@ except Exception as e:
     st.stop()
 
 # --- 6. CONDITIONAL RENDERING BLOCK ---
-# Determine if the user is currently looking at a sub-page, or sitting on the root launchpad
-current_page = st.session_state.get("current_page")
-
-# If no page has been run or they are at the root, display the workspace configuration dashboard
-if pg.current_path == None or pg.current_path == "":
+# Show the workspace selector exclusively if no baseline profile project has been selected yet
+if not st.session_state.get("selected_project"):
     st.title("🛡️ STRATA // Financial Intelligence Portal")
     st.caption("Active Environment: Market Catalyst Management Matrix")
     st.markdown("---")
@@ -147,4 +144,12 @@ if pg.current_path == None or pg.current_path == "":
     st.info("💡 Use the sidebar navigation drawer to hop across into your dynamic workspaces and financial forecast sheets seamlessly.")
 
 # --- 7. RUN EXECUTABLE SUB-PAGES CLEANLY ---
+else:
+    # Add an immediate escape hatch in the sidebar to reset or change projects easily
+    st.sidebar.markdown("---")
+    if st.sidebar.button("🔄 Switch Project Context", use_container_width=True):
+        st.session_state["selected_project"] = ""
+        st.session_state["active_project_name"] = ""
+        st.rerun()
+
 pg.run()
