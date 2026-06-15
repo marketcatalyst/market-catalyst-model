@@ -100,7 +100,7 @@ if os.path.exists(PL_CACHE) and os.path.exists(CF_CACHE) and os.path.exists(BS_C
     detailed_pl_data["Net Operating Profit (EBIT) (£)"] = consolidated_pl_data["Net Operating Margin Profit"]
     df_detailed_pl = pd.DataFrame(detailed_pl_data, index=timeline_cols).T
 
-    # --- 2. RE-BUILD CASH FLOW MATRICES (FORCE EXPLICIT NUMERIC FLOATS) ---
+    # --- 2. RE-BUILD CASH FLOW MATRICES ---
     consolidated_cf_data = {}
     consolidated_cf_data["Operational Cash Inflows (£)"] = df_raw_cf.loc[[r for r in df_raw_cf.index if "inflow" in str(r).lower() or "receipt" in str(r).lower()][0]].astype(float).tolist()
     consolidated_cf_data["Operational Cash Outflows (£)"] = df_raw_cf.loc[[r for r in df_raw_cf.index if "outflow" in str(r).lower() or "expense" in str(r).lower()][0]].astype(float).tolist()
@@ -333,13 +333,23 @@ if os.path.exists(PL_CACHE) and os.path.exists(CF_CACHE) and os.path.exists(BS_C
         st.dataframe(target_view_source.style.format("{:,.2f}"), use_container_width=False)
         
         st.markdown("#### 📈 Compounding Cash Horizon Trajectory Curve")
-        # Explicit deterministic extraction mapping to prevent matrix-shape collapse inside the visualization engine
-        chart_df = pd.DataFrame(
-            data=target_view_source.loc["Cash Reserves (£)"].values,
+        
+        # --- THE ULTIMATE VEGA-LITE ALIGNMENT FIX ---
+        # Instead of feeding standard slices, we force-build a pristine two-column data format
+        # with a cleanly resolved structural mapping layer.
+        raw_cash_array = target_view_source.loc["Cash Reserves (£)"].astype(float).values
+        
+        chart_isolated_frame = pd.DataFrame(
+            data=raw_cash_array,
             index=target_view_source.columns,
-            columns=["Cash Reserves (£)"]
+            columns=["Cash Balance (£)"]
         )
-        st.line_chart(chart_df, use_container_width=True)
+        
+        # Explicitly label the timeline index column name to prevent Vega-Lite from throwing 'Infinite extent' alerts
+        chart_isolated_frame.index.name = "Month"
+        
+        # Plot the verified numerical channel
+        st.line_chart(chart_isolated_frame, use_container_width=True)
 
     # --- TAB 3: BALANCE SHEET REGISTER ---
     with tab3:
