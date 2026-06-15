@@ -71,7 +71,7 @@ path_compliance = locate_target_page("4_", "pages/4_🛡️_compliance.py")
 
 # --- 5. COMPILING THE SIDEBAR NAVIGATION OBJECT ---
 try:
-    page_input      = st.Page(path_input_desk, title="Data Input Workspace", icon="✍️")
+    page_input      = st.Page(path_input_desk, title="Data Input Workspace", icon="✍️", default=True)
     page_sandbox    = st.Page(path_sandbox, title="Multi-Variant Sandbox", icon="🔮")
     page_forecast   = st.Page(path_forecast, title="Financial Forecast Sheets", icon="📊")
     page_compliance = st.Page(path_compliance, title="Compliance & Tax Portal", icon="🛡️")
@@ -92,7 +92,7 @@ except Exception as e:
     st.stop()
 
 # --- 6. CONDITIONAL HOME DESK ROUTING LAYER ---
-# Show the workspace selector exclusively if no baseline profile project has been selected yet
+# Show the workspace selector exclusively if no baseline profile project has been locked down in state yet
 if not st.session_state.get("selected_project"):
     st.title("🛡️ STRATA // Financial Intelligence Portal")
     st.caption("Active Environment: Market Catalyst Management Matrix")
@@ -158,5 +158,5 @@ else:
         st.rerun()
     st.sidebar.markdown("---")
     
-    # Let the sub-page execute completely clean without welcome layouts leaking through
+    # Run the navigation page engine unconditionally at the root layout level
     pg.run()
