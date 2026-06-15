@@ -26,7 +26,7 @@ st.caption("Directly build your model rows, type parameters, or utilize the inte
 st.markdown("---")
 
 # =========================================================================
-# 🔮 OPTIONAL: INTELLIGENT ASSISTANT CONDUIT (EXPANDABLE)
+# 🔮 INTELLIGENT ASSISTANT CONDUIT (EXPANDABLE)
 # =========================================================================
 with st.expander("✨ Open Intelligent Document Analysis Assistant", expanded=False):
     st.markdown("Drop project notes, balance sheet positions, or brief financial summaries here. The assistant will extract the parameters into your active workspace memory context.")
@@ -63,7 +63,7 @@ with st.expander("✨ Open Intelligent Document Analysis Assistant", expanded=Fa
                     structural_prompt = f"""
                     You are a financial parsing assistant. Extract data lines into strict JSON format with these exact buckets:
                     - "sales": Recurring operational inflows. Include "name", "amount" (annualized), and "vat" (0.20 or 0.0).
-                    - "opex": Recurring operational overheads. Include "name", "amount" (annualized), and "vat" (0.20).
+                    - "opex": Recurring operational overheads. Include "name", "amount" (annualized), and "vat" (0.20 or 0.0).
                     - "capital": Non-recurring capital or asset rows. Include "name", "type" ("Fixed Asset Purchase", "Director / Equity Inflow", or "New Bank Loan Injection"), and "value" (total amount).
                     
                     Return ONLY valid raw JSON matching this schema exactly without markdown formatting wrappers:
@@ -76,7 +76,6 @@ with st.expander("✨ Open Intelligent Document Analysis Assistant", expanded=Fa
                     clean_res = response.text.strip().replace("```json", "").replace("```", "").strip()
                     payload = json.loads(clean_res)
                     
-                    # Merge parsed rows directly into memory contexts cleanly
                     for s in payload.get("sales", []): st.session_state.manual_sales_entries.append(s)
                     for o in payload.get("opex", []): st.session_state.manual_opex_entries.append(o)
                     for c in payload.get("capital", []): 
@@ -89,7 +88,7 @@ with st.expander("✨ Open Intelligent Document Analysis Assistant", expanded=Fa
                     st.error(f"Intelligent Parsing Fault: {str(ai_err)}")
 
 # =========================================================================
-# ✍️ PANEL 2: MANUAL DIRECT DATA ENTRY FORMS
+# ✍️ MANUAL DIRECT DATA ENTRY FORMS (VARIABLE TAX FIX APPLIED)
 # =========================================================================
 st.subheader("📝 Direct Parameter Setup Desks")
 inc_col1, inc_col2, inc_col3 = st.columns(3)
@@ -108,9 +107,11 @@ with inc_col2:
     st.markdown("### 💸 Overhead Costs")
     o_name = st.text_input("Cost Name / Description:", placeholder="e.g., Site Utilities & Rent", key="o_name")
     o_amt = st.number_input("Projected Annual Cost (£):", min_value=0.0, step=1000.0, key="o_amt")
+    # VARIABLE OVERHEAD TAX SAFEGUARD: Explicit control switch for zero-rated items
+    o_vat = st.checkbox("Apply Standard 20% VAT?", value=True, key="o_vat")
     if st.button("➕ Add Overhead Row", use_container_width=True):
         if o_name.strip():
-            st.session_state.manual_opex_entries.append({"name": o_name.strip(), "amount": float(o_amt), "vat": 0.20})
+            st.session_state.manual_opex_entries.append({"name": o_name.strip(), "amount": float(o_amt), "vat": 0.20 if o_vat else 0.0})
             st.rerun()
 
 with inc_col3:
@@ -144,7 +145,7 @@ with inc_col3:
 st.markdown("---")
 
 # =========================================================================
-# 💾 PANEL 3: WORKSPACE EXPORTS
+# 💾 WORKSPACE EXPORTS
 # =========================================================================
 st.subheader("💾 Master Save Workspace Registry")
 save_col1, save_col2 = st.columns([2, 1])
@@ -166,7 +167,7 @@ with save_col2:
 st.markdown("---")
 
 # =========================================================================
-# 📁 PANEL 4: LIVE MONITOR TABLES (INDEX LABELS HIDDEN)
+# 📁 LIVE MONITOR TABLES (INDEX LABELS HIDDEN CLEANLY)
 # =========================================================================
 st.subheader("📁 Active Workspace Data Repositories")
 tab1, tab2, tab3 = st.tabs(["📈 Income Streams", "💸 Overhead Costs", "🏛️ Cap-Ex & Capitalization Ledger"])
@@ -176,7 +177,6 @@ with tab1:
         df_sales = pd.DataFrame(st.session_state.manual_sales_entries)
         if len(df_sales.columns) == 3: 
             df_sales.columns = ["Revenue Stream Name", "Annual Gross Amount (£)", "VAT Rate Fraction"]
-        # hide_index() prevents row 0 from rendering to ensure a smooth user layout
         st.dataframe(df_sales.style.format({"Annual Gross Amount (£)": "{:,.2f}"}).hide(axis="index"), use_container_width=True)
         if st.button("🗑️ Clear Income Rows", key="clear_s"): st.session_state.manual_sales_entries = []; st.rerun()
     else: st.caption("No revenue lines configured.")
