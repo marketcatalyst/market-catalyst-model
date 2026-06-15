@@ -70,30 +70,8 @@ path_forecast   = locate_target_page("3_", "pages/3_📊_forecast.py")
 path_compliance = locate_target_page("4_", "pages/4_🛡️_compliance.py")
 
 # --- 5. COMPILING THE SIDEBAR NAVIGATION OBJECT ---
-try:
-    page_input      = st.Page(path_input_desk, title="Data Input Workspace", icon="✍️", default=True)
-    page_sandbox    = st.Page(path_sandbox, title="Multi-Variant Sandbox", icon="🔮")
-    page_forecast   = st.Page(path_forecast, title="Financial Forecast Sheets", icon="📊")
-    page_compliance = st.Page(path_compliance, title="Compliance & Tax Portal", icon="🛡️")
-
-    pg = st.navigation(
-        {
-            "Commercial Dashboards": [
-                page_input,
-                page_sandbox,
-                page_forecast,
-                page_compliance,
-            ]
-        }, 
-        position="sidebar"
-    )
-except Exception as e:
-    st.error(f"Routing Fault: Streamlit engine could not map the dashboard page files. Details: {str(e)}")
-    st.stop()
-
-# --- 6. CONDITIONAL HOME DESK ROUTING LAYER ---
-# Show the workspace selector exclusively if no baseline profile project has been locked down in state yet
-if not st.session_state.get("selected_project"):
+# Define a fallback local function to handle the landing experience if no project is active
+def render_landing_launchpad():
     st.title("🛡️ STRATA // Financial Intelligence Portal")
     st.caption("Active Environment: Market Catalyst Management Matrix")
     st.markdown("---")
@@ -148,15 +126,35 @@ if not st.session_state.get("selected_project"):
     st.markdown("---")
     st.info("💡 Use the sidebar navigation drawer to hop across into your dynamic workspaces and financial forecast sheets seamlessly.")
 
-# --- 7. EXECUTIVE ACTIVE PAGE RUNNER ---
-else:
-    # Append a convenient escape selector button at the top of the sidebar panel
-    st.sidebar.markdown(f"**Active File:** `{st.session_state['selected_project']}`")
+try:
+    # Build distinct page configurations
+    page_launchpad  = st.Page(render_landing_launchpad, title="Project Selector launchpad", icon="🛡️")
+    page_input      = st.Page(path_input_desk, title="Data Input Workspace", icon="✍️")
+    page_sandbox    = st.Page(path_sandbox, title="Multi-Variant Sandbox", icon="🔮")
+    page_forecast   = st.Page(path_forecast, title="Financial Forecast Sheets", icon="📊")
+    page_compliance = st.Page(path_compliance, title="Compliance & Tax Portal", icon="🛡️")
+
+    # Construct sidebar dynamically depending on whether a context has been loaded
+    if not st.session_state.get("selected_project"):
+        dashboard_pages = [page_launchpad]
+    else:
+        dashboard_pages = [page_input, page_sandbox, page_forecast, page_compliance]
+
+    pg = st.navigation({"Commercial Dashboards": dashboard_pages}, position="sidebar")
+    
+except Exception as e:
+    st.error(f"Routing Fault: Streamlit engine could not map the dashboard page files. Details: {str(e)}")
+    st.stop()
+
+# --- 6. GLOBAL SIDEBAR UTILITIES ---
+if st.session_state.get("selected_project"):
+    st.sidebar.markdown(f"**Active Workspace:**\n`{st.session_state['selected_project']}`")
     if st.sidebar.button("🔄 Switch Project Context", use_container_width=True):
         st.session_state["selected_project"] = ""
         st.session_state["active_project_name"] = ""
         st.rerun()
     st.sidebar.markdown("---")
-    
-    # Run the navigation page engine unconditionally at the root layout level
-    pg.run()
+
+# --- 7. UNCONDITIONAL RUN COMMAND ---
+# Executes flawlessly on every lifecycle rerun without text layouts bleeding down
+pg.run()
