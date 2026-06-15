@@ -57,8 +57,8 @@ class TrialBalanceCuboid:
 
 def compile_three_way_forecast(project_json_path):
     """
-    Engine master routine. Reads generic project parameters and processes them 
-    chronologically into synchronized financial statements using transactional logic.
+    Engine master routine. Reads project parameters and processes them chronologically
+    into fully compounding, synchronized three-way financial statements.
     """
     tbc = TrialBalanceCuboid()
     
@@ -68,104 +68,127 @@ def compile_three_way_forecast(project_json_path):
     with open(project_json_path, "r") as pf:
         project_data = json.load(pf)
 
-    # -------------------------------------------------------------------------
-    # VECTOR A: CAPITAL INFLOW MATRIX DEPLOYMENT (DAY ONE ASSETS)
-    # -------------------------------------------------------------------------
-    for cap in project_data.get("capital", []):
-        val = float(cap.get("value", 0.0))
-        m_idx = int(cap.get("month", 1))
-        m_label = f"M{str(m_idx).zfill(2)}"
-        t_type = cap.get("type", "")
-        
-        if t_type in ["Director / Equity Inflow", "New Bank Loan Injection"]:
-            credit_target = "BS_Equity_Share_Capital" if "Equity" in t_type else "BS_Liability_Long_Term_Debt"
-            tbc.post_journal(m_label, "BS_Asset_Cash", credit_target, val)
-        
-        elif t_type == "Fixed Asset Purchase":
-            # Post directly to fixed asset registers
-            tbc.post_journal(m_label, "BS_Asset_Fixed_Assets", "BS_Asset_Cash", val)
-
-    # -------------------------------------------------------------------------
-    # VECTOR B: CHRONOLOGICAL TIME-SERIES TRANSACTIONS
-    # -------------------------------------------------------------------------
     months_labels = [f"M{str(i).zfill(2)}" for i in range(1, 61)]
     
+    # Identify if a real construction phase is requested by inspecting CapEx logs
+    has_fixed_assets = any(cap.get("type") == "New / Existing Fixed Asset CapEx" for cap in project_data.get("capital", []))
+    start_month = 13 if has_fixed_assets else 1
+
+    # -------------------------------------------------------------------------
+    # CHRONOLOGICAL DOUBLE-ENTRY PROCESSING LOOP
+    # -------------------------------------------------------------------------
     for m_idx, m_label in enumerate(months_labels, start=1):
         
-        # 1. Map Revenues (From Month 13 onwards)
-        if m_idx >= 13:
+        # A. Roll forward open balances from the previous month's ledger state
+        if m_idx > 1:
+            m_prev_label = months_labels[m_idx - 2]
+            for acct in tbc.accounts:
+                if acct.startswith("BS_"):
+                    # Bring forward the previous closing balance as the new opening balance
+                    tbc.matrix.at[acct, m_label] = tbc.matrix.at[acct, m_prev_label]
+
+        # B. Process Capital Events & Upfront Funding for the current month
+        for cap in project_data.get("capital", []):
+            target_month = int(cap.get("month", 1))
+            if target_month == m_idx:
+                val = float(cap.get("value", 0.0))
+                t_type = cap.get("type", "")
+                
+                if t_type == "Equity Capital / Share Premium Injection":
+                    tbc.post_journal(m_label, "BS_Asset_Cash", "BS_Equity_Share_Capital", val)
+                elif t_type == "Commercial Debt / Facility Drawdown":
+                    tbc.post_journal(m_label, "BS_Asset_Cash", "BS_Liability_Long_Term_Debt", val)
+                elif t_type == "New / Existing Fixed Asset CapEx":
+                    tbc.post_journal(m_label, "BS_Asset_Fixed_Assets", "BS_Asset_Cash", val)
+
+        # C. Process Active Trading Revenues
+        if m_idx >= start_month:
             for sale in project_data.get("sales", []):
                 annual_amt = float(sale.get("amount", 0.0))
                 monthly_revenue = annual_amt / 12.0
                 vat_rate = float(sale.get("vat", 0.20))
                 
+                # Gross cash incoming vs P&L performance
                 tbc.post_journal(m_label, "BS_Asset_Cash", "PL_Revenue_Gross", monthly_revenue)
-                vat_outflow = monthly_revenue * vat_rate
-                tbc.post_journal(m_label, "BS_Asset_Cash", "BS_Liability_VAT_Payable", vat_outflow)
+                if vat_rate > 0:
+                    vat_outflow = monthly_revenue * vat_rate
+                    tbc.post_journal(m_label, "BS_Asset_Cash", "BS_Liability_VAT_Payable", vat_outflow)
 
-        # 2. Map Operating Expenditures (From Month 13 onwards)
-        if m_idx >= 13:
+        # D. Process Active Operating Overheads
+        if m_idx >= start_month:
             for opex in project_data.get("opex", []):
                 annual_cost = float(opex.get("amount", 0.0))
                 monthly_cost = annual_cost / 12.0
                 tbc.post_journal(m_label, "PL_Expense_Overheads", "BS_Asset_Cash", monthly_cost)
 
-        # 3. Dynamic Depreciation on Cumulative Asset Balances
-        # Forensically evaluate all historic entries up to the current month to catch day-one values
-        cumulative_assets = tbc.matrix.loc["BS_Asset_Fixed_Assets", :m_label].sum()
-        if cumulative_assets > 0.0 and m_idx >= 13:
-            # Apply 10% straight-line capital depreciation rules during active trading
-            monthly_depr = (cumulative_assets * 0.10) / 12.0
-            tbc.post_journal(m_label, "PL_Expense_Depreciation", "BS_Asset_Accumulated_Depreciation", monthly_depr)
+        # E. Process Straight-Line Asset Depreciation
+        if m_idx >= start_month:
+            current_asset_base = tbc.matrix.at["BS_Asset_Fixed_Assets", m_label]
+            if current_asset_base > 0.0:
+                monthly_depr = (current_asset_base * 0.10) / 12.0
+                tbc.post_journal(m_label, "PL_Expense_Depreciation", "BS_Asset_Accumulated_Depreciation", monthly_depr)
+
+        # F. Close out current P&L into Retained Earnings to preserve balance sheet equilibrium
+        current_month_revenue = -tbc.matrix.at["PL_Revenue_Gross", m_label]
+        if m_idx >= start_month:
+            # Net monthly income calculation
+            current_month_expenses = (
+                tbc.matrix.at["PL_COGS", m_label] +
+                tbc.matrix.at["PL_Expense_Overheads", m_label] +
+                tbc.matrix.at["PL_Expense_Depreciation", m_label] +
+                tbc.matrix.at["PL_Expense_Interest", m_label] +
+                tbc.matrix.at["PL_Expense_Taxation", m_label]
+            )
+            net_monthly_profit = current_month_revenue - current_month_expenses
+            # Clear monthly profit into retained equity balance
+            tbc.matrix.at["BS_Equity_Retained_Earnings", m_label] += net_monthly_profit
 
         tbc.verify_ledger_integrity(m_label)
 
     # -------------------------------------------------------------------------
-    # TRANSLATION LAYER: HYDRATE THE THREE FORECAST OUTPUT MATRIX PAPERS
+    # TRANSLATION LAYER: DATA EXTRACTION SHEETS
     # -------------------------------------------------------------------------
-    rolling_matrix = tbc.matrix.copy()
-    for idx, col_curr in enumerate(months_labels):
-        if idx == 0:
-            continue
-        col_prev = months_labels[idx - 1]
-        # Accumulate standing asset and liability lines across the 60 months
-        for acct in tbc.accounts:
-            if acct.startswith("BS_"):
-                rolling_matrix.at[acct, col_curr] += rolling_matrix.at[acct, col_prev]
-
-    # Structure 1: PROFIT & LOSS EXPORT
+    # Structure 1: PROFIT & LOSS REPORT
     pl_export = pd.DataFrame(index=months_labels)
-    pl_export["Revenue (£)"] = (-tbc.matrix.loc["PL_Revenue_Gross"]) + 0.0
-    pl_export["COGS (£)"] = tbc.matrix.loc["PL_COGS"] + 0.0
-    pl_export["Opex (£)"] = tbc.matrix.loc["PL_Expense_Overheads"] + 0.0
-    pl_export["Depreciation (£)"] = tbc.matrix.loc["PL_Expense_Depreciation"] + 0.0
-    pl_export["EBIT (£)"] = pl_export["Revenue (£)"] - pl_export["COGS (£)"] - pl_export["Opex (£)"] - pl_export["Depreciation (£)"]
-    pl_export["Interest Expense (£)"] = tbc.matrix.loc["PL_Expense_Interest"] + 0.0
-    pl_export["Tax Expense (£)"] = tbc.matrix.loc["PL_Expense_Taxation"] + 0.0
+    pl_export["Revenue (£)"] = 0.0
+    pl_export["COGS (£)"] = 0.0
+    pl_export["Opex (£)"] = 0.0
+    pl_export["Depreciation (£)"] = 0.0
     
-    # Structure 2: CASH FLOW LEDGER EXPORT
+    for m_idx, m_label in enumerate(months_labels, start=1):
+        if m_idx >= start_month:
+            pl_export.at[m_label, "Revenue (£)"] = -tbc.matrix.at["PL_Revenue_Gross", m_label]
+            pl_export.at[m_label, "COGS (£)"] = tbc.matrix.at["PL_COGS", m_label]
+            pl_export.at[m_label, "Opex (£)"] = tbc.matrix.at["PL_Expense_Overheads", m_label]
+            pl_export.at[m_label, "Depreciation (£)"] = tbc.matrix.at["PL_Expense_Depreciation", m_label]
+
+    pl_export["EBIT (£)"] = pl_export["Revenue (£)"] - pl_export["COGS (£)"] - pl_export["Opex (£)"] - pl_export["Depreciation (£)"]
+    pl_export["Interest Expense (£)"] = 0.0
+    pl_export["Tax Expense (£)"] = 0.0
+    
+    # Structure 2: COMPOUNDING CASH FLOW LEDGER
     cf_export = pd.DataFrame(index=months_labels)
-    cf_export["Operational Cash Inflows (£)"] = (-tbc.matrix.loc["PL_Revenue_Gross"]) + 0.0
-    cf_export["Operational Cash Outflows (£)"] = tbc.matrix.loc["PL_Expense_Overheads"] + 0.0
+    cf_export["Operational Cash Inflows (£)"] = pl_export["Revenue (£)"]
+    cf_export["Operational Cash Outflows (£)"] = pl_export["Opex (£)"]
     cf_export["Net Cash Movement (£)"] = cf_export["Operational Cash Inflows (£)"] - cf_export["Operational Cash Outflows (£)"]
-    cf_export["Cash Reserves (£)"] = rolling_matrix.loc["BS_Asset_Cash"] + 0.0
+    cf_export["Cash Reserves (£)"] = tbc.matrix.loc["BS_Asset_Cash"]
 
-    # Structure 3: BALANCE SHEET ACCRUALS EXPORT
+    # Structure 3: BALANCE SHEET ACCRUALS
     bs_export = pd.DataFrame(index=months_labels)
-    bs_export["Fixed Assets (£)"] = rolling_matrix.loc["BS_Asset_Fixed_Assets"] + 0.0
-    bs_export["Accumulated Depreciation (£)"] = rolling_matrix.loc["BS_Asset_Accumulated_Depreciation"] + 0.0
+    bs_export["Fixed Assets (£)"] = tbc.matrix.loc["BS_Asset_Fixed_Assets"]
+    bs_export["Accumulated Depreciation (£)"] = tbc.matrix.loc["BS_Asset_Accumulated_Depreciation"]
     bs_export["Net Book Value (£)"] = bs_export["Fixed Assets (£)"] + bs_export["Accumulated Depreciation (£)"]
-    bs_export["Cash Balances (£)"] = rolling_matrix.loc["BS_Asset_Cash"] + 0.0
-    bs_export["Long Term Debt (£)"] = (-rolling_matrix.loc["BS_Liability_Long_Term_Debt"]) + 0.0
-    bs_export["VAT Liability (£)"] = (-rolling_matrix.loc["BS_Liability_VAT_Payable"]) + 0.0
-    bs_export["Equity Capital (£)"] = (-rolling_matrix.loc["BS_Equity_Share_Capital"]) + 0.0
+    bs_export["Cash Balances (£)"] = tbc.matrix.loc["BS_Asset_Cash"]
+    bs_export["Long Term Debt (£)"] = -tbc.matrix.loc["BS_Liability_Long_Term_Debt"]
+    bs_export["VAT Liability (£)"] = -tbc.matrix.loc["BS_Liability_VAT_Payable"]
+    bs_export["Equity Capital (£)"] = -tbc.matrix.loc["BS_Equity_Share_Capital"]
 
-    # Write metrics to workspace files
+    # Export out matrices cleanly
     pl_export.to_csv("STRATA_Forecast_Ledger_Group.xlsx - Profit & Loss.csv")
     cf_export.to_csv("STRATA_Forecast_Ledger_Group.xlsx - Cash Flow Ledger.csv")
     bs_export.to_csv("STRATA_Forecast_Ledger_Group.xlsx - Balance Sheet Accruals.csv")
     
-    print("✨ Core Engine Update Successful. Balance sheet accumulators aligned.")
+    print("✨ Core Engine Matrix Restructured: Multi-period cash compounding active.")
 
 if __name__ == "__main__":
-    compile_three_way_forecast("saved_projects/Indoor-Padel-Pure-PDF-Baseline.json")
+    compile_three_way_forecast("saved_projects/Vanguard-Arena-Expansion.json")
