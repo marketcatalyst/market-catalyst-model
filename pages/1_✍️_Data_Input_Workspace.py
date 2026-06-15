@@ -29,7 +29,7 @@ st.markdown("---")
 # 🔮 OPTIONAL: INTELLIGENT ASSISTANT CONDUIT (EXPANDABLE)
 # =========================================================================
 with st.expander("✨ Open Intelligent Document Analysis Assistant", expanded=False):
-    st.markdown("Drop project notes or financial summaries here. The assistant will extract the parameters into your active workspace memory context.")
+    st.markdown("Drop project notes, balance sheet positions, or brief financial summaries here. The assistant will extract the parameters into your active workspace memory context.")
     
     if not gemini_key:
         st.warning("⚠️ Gemini API Key not detected in system environment variable configurations.")
@@ -64,7 +64,7 @@ with st.expander("✨ Open Intelligent Document Analysis Assistant", expanded=Fa
                     You are a financial parsing assistant. Extract data lines into strict JSON format with these exact buckets:
                     - "sales": Recurring operational inflows. Include "name", "amount" (annualized), and "vat" (0.20 or 0.0).
                     - "opex": Recurring operational overheads. Include "name", "amount" (annualized), and "vat" (0.20).
-                    - "capital": Non-recurring items. Include "name", "type" ("Fixed Asset Purchase", "Director / Equity Inflow", or "New Bank Loan Injection"), and "value" (total amount).
+                    - "capital": Non-recurring capital or asset rows. Include "name", "type" ("Fixed Asset Purchase", "Director / Equity Inflow", or "New Bank Loan Injection"), and "value" (total amount).
                     
                     Return ONLY valid raw JSON matching this schema exactly without markdown formatting wrappers:
                     {{"sales": [], "opex": [], "capital": []}}
@@ -83,7 +83,7 @@ with st.expander("✨ Open Intelligent Document Analysis Assistant", expanded=Fa
                         c.update({"month": 1, "parameter": 10.0 if c.get("type") == "Fixed Asset Purchase" else 0.0})
                         st.session_state.manual_capital_entries.append(c)
                         
-                    st.success("Analysis complete! Data rows successfully appended below. Review them in the tables below.")
+                    st.success("Analysis complete! Corporate data rows successfully appended below.")
                     st.rerun()
                 except Exception as ai_err:
                     st.error(f"Intelligent Parsing Fault: {str(ai_err)}")
@@ -114,13 +114,32 @@ with inc_col2:
             st.rerun()
 
 with inc_col3:
-    st.markdown("### 🏗️ Setup Costs & Funding")
-    c_name = st.text_input("Investment Item / Asset Name:", placeholder="e.g., Main Building Build", key="c_name")
-    c_type = st.selectbox("Classification Category:", ["Fixed Asset Purchase", "Director / Equity Inflow", "New Bank Loan Injection"])
+    st.markdown("### 🏛️ Capital Expenditure & Financing")
+    c_name = st.text_input("Asset Description / Capital Event:", placeholder="e.g., Core Court Infrastructure", key="c_name")
+    c_type_display = st.selectbox("Classification Category:", [
+        "New / Existing Fixed Asset CapEx", 
+        "Equity Capital / Share Premium Injection", 
+        "Commercial Debt / Facility Drawdown"
+    ])
     c_val = st.number_input("Transaction Value (£):", min_value=0.0, step=5000.0, key="c_val")
+    
     if st.button("➕ Add Capital Row", use_container_width=True):
         if c_name.strip():
-            st.session_state.manual_capital_entries.append({"name": c_name.strip(), "type": c_type, "value": float(c_val), "month": 1, "parameter": 10.0 if c_type == "Fixed Asset Purchase" else 0.0})
+            # Standardize structural backend keys to ensure complete backend engine alignment
+            backend_type_map = {
+                "New / Existing Fixed Asset CapEx": "Fixed Asset Purchase",
+                "Equity Capital / Share Premium Injection": "Director / Equity Inflow",
+                "Commercial Debt / Facility Drawdown": "New Bank Loan Injection"
+            }
+            mapped_type = backend_type_map[c_type_display]
+            
+            st.session_state.manual_capital_entries.append({
+                "name": c_name.strip(), 
+                "type": mapped_type, 
+                "value": float(c_val), 
+                "month": 1, 
+                "parameter": 10.0 if mapped_type == "Fixed Asset Purchase" else 0.0
+            })
             st.rerun()
 
 st.markdown("---")
@@ -151,7 +170,7 @@ st.markdown("---")
 # 📁 PANEL 4: LIVE MONITOR TABLES
 # =========================================================================
 st.subheader("📁 Active Workspace Data Repositories")
-tab1, tab2, tab3 = st.tabs(["📈 Income Streams", "💸 Running Overhead Costs", "🏗️ Setup & Injected Funds"])
+tab1, tab2, tab3 = st.tabs(["📈 Income Streams", "💸 Running Overhead Costs", "🏛️ Capital Expenditure & Capitalization Ledger"])
 
 with tab1:
     if st.session_state.manual_sales_entries:
@@ -174,7 +193,14 @@ with tab3:
         df_cap = pd.DataFrame(st.session_state.manual_capital_entries)
         available_cols = [c for c in ["name", "type", "value", "month"] if c in df_cap.columns]
         df_cap = df_cap[available_cols]
+        
+        # Humanize backend matrix labels inside the review data table smoothly
+        if not df_cap.empty:
+            df_cap["type"] = df_cap["type"].str.replace("Fixed Asset Purchase", "Fixed Asset CapEx")\
+                                           .str.replace("Director / Equity Inflow", "Equity Inflow")\
+                                           .str.replace("New Bank Loan Injection", "Debt Facility")
+        
         if len(df_cap.columns) == 4: df_cap.columns = ["Asset / Funding Source Name", "Structural Category", "Transaction Value (£)", "Target Month"]
         st.dataframe(df_cap.style.format({"Transaction Value (£)": "{:,.2f}"}), use_container_width=True)
         if st.button("🗑️ Clear Capital Rows", key="clear_c"): st.session_state.manual_capital_entries = []; st.rerun()
-    else: st.caption("No asset build costs configured.")
+    else: st.caption("No asset allocations or long-term funding entries configured.")
