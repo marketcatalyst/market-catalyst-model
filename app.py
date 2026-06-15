@@ -59,7 +59,7 @@ def render_landing_launchpad():
     st.markdown("---")
 
     st.markdown("### 👋 Welcome back, Market Catalyst")
-    st.markdown("Select an existing active project modeling workspace below to open your dashboard suite:")
+    st.markdown("To begin modeling your business scenario, you can either select an existing project template from the dropdown below or jump straight into a fresh workspace:")
 
     PROJECTS_DIR = "saved_projects"
     if not os.path.exists(PROJECTS_DIR):
@@ -80,7 +80,7 @@ def render_landing_launchpad():
         saved_files = ["Padel-Project-Standard-Baseline"]
 
     disabled_select = len(saved_files) == 0
-    dropdown_options = ["-- None Active --"] + saved_files
+    dropdown_options = ["-- None Active / Start Fresh --"] + saved_files
     current_selection = st.session_state["selected_project"]
 
     target_index = dropdown_options.index(current_selection) if current_selection in dropdown_options else 0
@@ -92,7 +92,7 @@ def render_landing_launchpad():
         disabled=disabled_select
     )
 
-    if selected_box != "-- None Active --" and not disabled_select:
+    if selected_box != "-- None Active / Start Fresh --" and not disabled_select:
         if st.session_state["selected_project"] != selected_box:
             st.session_state["selected_project"] = selected_box
             st.session_state["active_project_name"] = selected_box
@@ -102,14 +102,35 @@ def render_landing_launchpad():
             st.session_state.manual_sales_entries = payload.get("sales", [])
             st.session_state.manual_opex_entries = payload.get("opex", [])
             st.session_state.manual_capital_entries = payload.get("capital", [])
-            st.success(f"Context mapped to workspace: `{selected_box}`. Use the sidebar menu to view reports.")
+            st.success(f"📁 Workspace context mapped to: `{selected_box}`. Use the sidebar menu to navigate.")
             st.rerun()
 
     st.markdown("---")
+    
+    # --- ENCOURAGING ONBOARDING ACTION LOGIC ---
     if st.session_state.get("selected_project"):
-        st.info(f"📁 Project Context Loaded: `{st.session_state['selected_project']}`. Use the sidebar link to jump to your Data Input Workspace.")
+        st.info(f"📁 Active Scenario Loaded: `{st.session_state['selected_project']}`. Ready to review forecasts or tweak parameters.")
     else:
-        st.warning("⚠️ No active workspace loaded yet. Please select a project baseline above to unlock your data desks.")
+        st.markdown("### ✨ Ready to start fresh?")
+        st.markdown("Click the action button below to head straight into the manual data entry panels where we will construct your custom business matrix lines step-by-step.")
+        
+        # Friendly, high-visibility guidance redirection link
+        if st.button("✍️ Open Data Input Workspace", use_container_width=True):
+            st.switch_page(path_input_desk)
+
+    # --- 💡 ONSCREEN PROMPT / INTERACTIVE GUIDANCE SUITE ---
+    st.markdown("<br>", unsafe_allow_html=True)
+    with st.expander("💡 New to STRATA? Click here for a quick guidance walkthrough", expanded=False):
+        st.markdown("""
+        #### 🗺️ Navigating your Business Stress-Test
+        Don't worry about breaking the model—this framework is designed for exploration! Here is how your journey unfolds:
+        
+        * **Step 1: Data Input Workspace** ➔ This is where you outline your numbers. You'll input your basic income streams, recurring overhead costs, and large capital/financing events. 
+        * **Step 2: Financial Forecast Sheets** ➔ Once your lines are entered, head over here to see your Profit & Loss, compounding Cash flow trajectory, and corporate worth calculated across a 60-month horizon automatically.
+        * **Step 3: Multi-Variant Sandbox** ➔ Want to run a 'What-If' risk review? The sandbox allows you to alter your baseline parameters defensively without corrupting your master file.
+        
+        *Need immediate help? Look for the dynamic help tabs embedded at the top of each operational page.*
+        """)
 
 # --- 5. COMPILING THE DYNAMIC SIDEBAR NAVIGATION GATEWAY ---
 try:
@@ -150,19 +171,19 @@ if not st.session_state["authenticated"]:
         else:
             st.error("Authentication Fault: Invalid profile credentials.")
             
-    st.sidebar.warning("🔒 Security Intercept: Verification Required")
+    st.sidebar.info("🔑 Standing By // Verification Required")
     st.stop()
 
 # --- 7. GLOBAL SIDEBAR UTILITIES (AUTHENTICATED ONLY) ---
 active_target = st.session_state.get("selected_project", "")
 if active_target:
-    st.sidebar.markdown(f"**Active Workspace Context:**\n`{active_target}`")
+    st.sidebar.markdown(f"**📁 Active Workspace:**\n`{active_target}`")
     if st.sidebar.button("🔄 Clear & Switch Project", use_container_width=True):
         st.session_state["selected_project"] = ""
         st.session_state["active_project_name"] = ""
         st.rerun()
 else:
-    st.sidebar.warning("⚠️ System Standing By: Select Project Context")
+    st.sidebar.info("📁 Ready to Build // Awaiting Context")
 
 st.sidebar.markdown("---")
 
