@@ -71,13 +71,19 @@ path_compliance = locate_target_page("4_", "pages/4_🛡️_compliance.py")
 
 # --- 5. COMPILING THE SIDEBAR NAVIGATION OBJECT ---
 try:
+    # Initialize the specific page layout handles natively
+    page_input      = st.Page(path_input_desk, title="Data Input Workspace", icon="✍️")
+    page_sandbox    = st.Page(path_sandbox, title="Multi-Variant Sandbox", icon="🔮")
+    page_forecast   = st.Page(path_forecast, title="Financial Forecast Sheets", icon="📊")
+    page_compliance = st.Page(path_compliance, title="Compliance & Tax Portal", icon="🛡️")
+
     pg = st.navigation(
         {
             "Commercial Dashboards": [
-                st.Page(path_input_desk, title="Data Input Workspace", icon="✍️"),
-                st.Page(path_sandbox, title="Multi-Variant Sandbox", icon="🔮"),
-                st.Page(path_forecast, title="Financial Forecast Sheets", icon="📊"),
-                st.Page(path_compliance, title="Compliance & Tax Portal", icon="🛡️"),
+                page_input,
+                page_sandbox,
+                page_forecast,
+                page_compliance,
             ]
         }, 
         position="sidebar"
@@ -86,8 +92,8 @@ except Exception as e:
     st.error(f"Routing Fault: Streamlit engine could not map the dashboard page files. Details: {str(e)}")
     st.stop()
 
-# --- 6. CONDITIONAL RENDERING BLOCK ---
-# Show the workspace selector exclusively if no baseline profile project has been selected yet
+# --- 6. CONDITIONAL HOME DESK ROUTING LAYER ---
+# If a project hasn't been selected yet, force the viewport to act exclusively as the launchpad selector
 if not st.session_state.get("selected_project"):
     st.title("🛡️ STRATA // Financial Intelligence Portal")
     st.caption("Active Environment: Market Catalyst Management Matrix")
@@ -143,13 +149,15 @@ if not st.session_state.get("selected_project"):
     st.markdown("---")
     st.info("💡 Use the sidebar navigation drawer to hop across into your dynamic workspaces and financial forecast sheets seamlessly.")
 
-# --- 7. RUN EXECUTABLE SUB-PAGES CLEANLY ---
+# --- 7. EXECUTIVE ACTIVE PAGE RUNNER ---
 else:
-    # Add an immediate escape hatch in the sidebar to reset or change projects easily
-    st.sidebar.markdown("---")
+    # Append a convenient escape selector button at the top of the sidebar panel
+    st.sidebar.markdown(f"**Active File:** `{st.session_state['selected_project']}`")
     if st.sidebar.button("🔄 Switch Project Context", use_container_width=True):
         st.session_state["selected_project"] = ""
         st.session_state["active_project_name"] = ""
         st.rerun()
-
-pg.run()
+    st.sidebar.markdown("---")
+    
+    # Let the sub-page execute completely clean without welcome layouts leaking through
+    pg.run()
