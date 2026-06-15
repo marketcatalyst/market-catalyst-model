@@ -60,60 +60,84 @@ view_granularity = st.radio(
 st.markdown("---")
 
 # =========================================================================
-# 📥 EXPORT DESK: SPREADSHEET EXPORTS & LANDSCAPE PDF SYSTEM
+# 🏛️ RE-ENGINEERING DATA PIPELINES (EXPLICIT DIRECT MAPPING HOOKS)
 # =========================================================================
-st.subheader("📥 Corporate Statement Export Desk")
-st.markdown("Download full horizontal spreadsheet baselines or compile a print-ready landscape dossier:")
-
 if os.path.exists(PL_CACHE) and os.path.exists(CF_CACHE) and os.path.exists(BS_CACHE):
-    # Load and map baseline sheets to horizontal month tracks
-    base_pl = pd.read_csv(PL_CACHE, index_col=0).T
-    base_cf = pd.read_csv(CF_CACHE, index_col=0).T
-    base_bs = pd.read_csv(BS_CACHE, index_col=0).T
+    # Read raw data tables from backend engine compilation output
+    df_raw_pl = pd.read_csv(PL_CACHE, index_col=0)
+    df_raw_cf = pd.read_csv(CF_CACHE, index_col=0)
+    df_raw_bs = pd.read_csv(BS_CACHE, index_col=0)
     
-    timeline_cols = base_pl.columns
+    timeline_cols = df_raw_pl.index.tolist() if "M01" in df_raw_pl.index else df_raw_pl.columns.tolist()
     
-    # 1. Build Restored Detailed Profit & Loss Dataframe
-    detailed_pl_rows = {}
+    # Enforce standard horizontal index arrays (Months as Columns always)
+    if "M01" in df_raw_pl.index:
+        df_raw_pl = df_raw_pl.T
+        df_raw_cf = df_raw_cf.T
+        df_raw_bs = df_raw_bs.T
+
+    # --- 1. RE-BUILD P&L MATRICES VIA DIRECT STRING LABELS ---
+    consolidated_pl_data = {}
+    consolidated_pl_data["Revenue (£)"] = df_raw_pl.loc[[r for r in df_raw_pl.index if "revenue" in str(r).lower()][0]].tolist()
+    consolidated_pl_data["COGS (£)"] = df_raw_pl.loc[[r for r in df_raw_pl.index if "cogs" in str(r).lower()][0]].tolist()
+    consolidated_pl_data["Running Costs / Overheads"] = df_raw_pl.loc[[r for r in df_raw_pl.index if "opex" in str(r).lower() or "overhead" in str(r).lower()][0]].tolist()
+    consolidated_pl_data["Depreciation (£)"] = df_raw_pl.loc[[r for r in df_raw_pl.index if "depr" in str(r).lower()][0]].tolist()
+    consolidated_pl_data["Net Operating Margin Profit"] = df_raw_pl.loc[[r for r in df_raw_pl.index if "ebit" in str(r).lower() or "operating" in str(r).lower()][0]].tolist()
+    consolidated_pl_data["Interest Expense (£)"] = df_raw_pl.loc[[r for r in df_raw_pl.index if "interest" in str(r).lower()][0]].tolist()
+    consolidated_pl_data["Tax Expense (£)"] = df_raw_pl.loc[[r for r in df_raw_pl.index if "tax" in str(r).lower()][0]].tolist()
+    df_consolidated_pl = pd.DataFrame(consolidated_pl_data, index=timeline_cols).T
+
+    detailed_pl_data = {}
     for item in raw_sales_setup:
-        detailed_pl_rows[f"Revenue: {item['name']} (£)"] = [float(item["amount"]) / 12.0] * len(timeline_cols)
-    if not raw_sales_setup and "Revenue (£)" in base_pl.index:
-        detailed_pl_rows["Revenue: Core Inflow (£)"] = base_pl.loc["Revenue (£)"].tolist()
-        
+        detailed_pl_data[f"Revenue: {item['name']} (£)"] = [float(item["amount"]) / 12.0] * len(timeline_cols)
+    if not raw_sales_setup:
+        detailed_pl_data["Revenue: Core Baseline (£)"] = consolidated_pl_data["Revenue (£)"]
     for item in raw_opex_setup:
-        detailed_pl_rows[f"Opex: {item['name']} (£)"] = [float(item["amount"]) / 12.0] * len(timeline_cols)
-    if not raw_opex_setup and "Running Costs / Overheads" in base_pl.index:
-        detailed_pl_rows["Opex: Core Running Costs (£)"] = base_pl.loc["Running Costs / Overheads"].tolist()
-    elif not raw_opex_setup and "Opex (£)" in base_pl.index:
-        detailed_pl_rows["Opex: Core Running Costs (£)"] = base_pl.loc["Opex (£)"].tolist()
-        
-    if "Depreciation (£)" in base_pl.index:
-        detailed_pl_rows["Depreciation (£)"] = base_pl.loc["Depreciation (£)"].tolist()
-    if "EBIT (£)" in base_pl.index:
-        detailed_pl_rows["Net Operating Margin Profit (EBIT) (£)"] = base_pl.loc["EBIT (£)"].tolist()
-    elif "Net Operating Margin Profit" in base_pl.index:
-        detailed_pl_rows["Net Operating Margin Profit (EBIT) (£)"] = base_pl.loc["Net Operating Margin Profit"].tolist()
-        
-    df_detailed_pl_export = pd.DataFrame(detailed_pl_rows, index=timeline_cols).T
+        detailed_pl_data[f"Opex: {item['name']} (£)"] = [float(item["amount"]) / 12.0] * len(timeline_cols)
+    if not raw_opex_setup:
+        detailed_pl_data["Opex: Core Running Overheads (£)"] = consolidated_pl_data["Running Costs / Overheads"]
+    detailed_pl_data["Depreciation Asset Write-Off (£)"] = consolidated_pl_data["Depreciation (£)"]
+    detailed_pl_data["Net Operating Profit (EBIT) (£)"] = consolidated_pl_data["Net Operating Margin Profit"]
+    df_detailed_pl = pd.DataFrame(detailed_pl_data, index=timeline_cols).T
 
-    # 2. Build Restored Detailed Cash Flow Dataframe
-    detailed_cf_rows = {}
-    if "Operational Cash Inflows (£)" in base_cf.index:
-        detailed_cf_rows["Cash Receipts from Inflows (£)"] = base_cf.loc["Operational Cash Inflows (£)"].tolist()
-    if "Operational Cash Outflows (£)" in base_cf.index:
-        detailed_cf_rows["Cash Paid for Running Expenses (£)"] = base_cf.loc["Operational Cash Outflows (£)"].tolist()
-    if "Net Cash Movement (£)" in base_cf.index:
-        detailed_cf_rows["Net Monthly Cash Flow (£)"] = base_cf.loc["Net Cash Movement (£)"].tolist()
-    if "Cash Reserves (£)" in base_cf.index:
-        detailed_cf_rows["Closing Bank Account Balance (£)"] = base_cf.loc["Cash Reserves (£)"].tolist()
-    df_detailed_cf_export = pd.DataFrame(detailed_cf_rows, index=timeline_cols).T
+    # --- 2. RE-BUILD CASH FLOW MATRICES (EXPLICIT RE-MAPPING) ---
+    consolidated_cf_data = {}
+    consolidated_cf_data["Operational Cash Inflows (£)"] = df_raw_cf.loc[[r for r in df_raw_cf.index if "inflow" in str(r).lower() or "receipt" in str(r).lower()][0]].tolist()
+    consolidated_cf_data["Operational Cash Outflows (£)"] = df_raw_cf.loc[[r for r in df_raw_cf.index if "outflow" in str(r).lower() or "expense" in str(r).lower()][0]].tolist()
+    consolidated_cf_data["Net Cash Movement (£)"] = df_raw_cf.loc[[r for r in df_raw_cf.index if "net" in str(r).lower() or "movement" in str(r).lower()][0]].tolist()
+    consolidated_cf_data["Cash Reserves (£)"] = df_raw_cf.loc[[r for r in df_raw_cf.index if "reserves" in str(r).lower() or "cash" in str(r).lower()][0]].tolist()
+    df_consolidated_cf = pd.DataFrame(consolidated_cf_data, index=timeline_cols).T
 
-    # Render Horizontal CSV spreadsheet download hubs
+    detailed_cf_data = {}
+    detailed_cf_data["Cash Receipts from Inflows (£)"] = consolidated_cf_data["Operational Cash Inflows (£)"]
+    detailed_cf_data["Cash Paid for Running Expenses (£)"] = consolidated_cf_data["Operational Cash Outflows (£)"]
+    detailed_cf_data["Net Monthly Cash Flow (£)"] = consolidated_cf_data["Net Cash Movement (£)"]
+    detailed_cf_data["Closing Bank Account Balance (£)"] = consolidated_cf_data["Cash Reserves (£)"]
+    df_detailed_cf = pd.DataFrame(detailed_cf_data, index=timeline_cols).T
+
+    # --- 3. RE-BUILD BALANCE SHEET REGISTER MATRICES ---
+    consolidated_bs_data = {}
+    consolidated_bs_data["Physical Infrastructure Asset Worth"] = df_raw_bs.loc[[r for r in df_raw_bs.index if "fixed asset" in str(r).lower()][0]].tolist()
+    consolidated_bs_data["Accumulated Depreciation (£)"] = df_raw_bs.loc[[r for r in df_raw_bs.index if "accumulated" in str(r).lower() or "depr" in str(r).lower()][0]].tolist()
+    consolidated_bs_data["Net Depreciated Asset Valuation"] = df_raw_bs.loc[[r for r in df_raw_bs.index if "book value" in str(r).lower() or "nbv" in str(r).lower() or "net depreciated" in str(r).lower()][0]].tolist()
+    consolidated_bs_data["Cash Balances (£)"] = consolidated_cf_data["Cash Reserves (£)"]
+    consolidated_bs_data["Long Term Debt (£)"] = df_raw_bs.loc[[r for r in df_raw_bs.index if "debt" in str(r).lower() or "loan" in str(r).lower()][0]].tolist()
+    consolidated_bs_data["HMRC VAT Reserves Owing"] = df_raw_bs.loc[[r for r in df_raw_bs.index if "vat" in str(r).lower() or "payable" in str(r).lower()][0]].tolist()
+    consolidated_bs_data["Total Capital Contributed Cushion"] = df_raw_bs.loc[[r for r in df_raw_bs.index if "equity" in str(r).lower() or "capital" in str(r).lower()][0]].tolist()
+    consolidated_bs_data["Retained Earnings (£)"] = df_raw_bs.loc[[r for r in df_raw_bs.index if "retained" in str(r).lower() or "earnings" in str(r).lower()][0]].tolist()
+    df_consolidated_bs = pd.DataFrame(consolidated_bs_data, index=timeline_cols).T
+
+    # =========================================================================
+    # 📥 EXPORT OPERATIONS LAYER (CSV GENERATORS)
+    # =========================================================================
+    st.subheader("📥 Corporate Statement Export Desk")
+    st.markdown("Download full horizontal spreadsheet baselines or compile a print-ready landscape dossier:")
+    
     csv_col1, csv_col2, csv_col3 = st.columns(3)
     with csv_col1:
         st.download_button(
             label="📈 Export Profit & Loss Statement (CSV)",
-            data=(df_detailed_pl_export.to_csv() if view_granularity == "Granular Line-Item Accounts" else base_pl.to_csv()).encode('utf-8'),
+            data=(df_detailed_pl.to_csv() if view_granularity == "Granular Line-Item Accounts" else df_consolidated_pl.to_csv()).encode('utf-8'),
             file_name=f"STRATA_Profit_Loss_Statement_{active_project}.csv",
             mime="text/csv",
             use_container_width=True
@@ -121,7 +145,7 @@ if os.path.exists(PL_CACHE) and os.path.exists(CF_CACHE) and os.path.exists(BS_C
     with csv_col2:
         st.download_button(
             label="💸 Export Cash Flow Statement (CSV)",
-            data=(df_detailed_cf_export.to_csv() if view_granularity == "Granular Line-Item Accounts" else base_cf.to_csv()).encode('utf-8'),
+            data=(df_detailed_cf.to_csv() if view_granularity == "Granular Line-Item Accounts" else df_consolidated_cf.to_csv()).encode('utf-8'),
             file_name=f"STRATA_Cash_Flow_Statement_{active_project}.csv",
             mime="text/csv",
             use_container_width=True
@@ -129,7 +153,7 @@ if os.path.exists(PL_CACHE) and os.path.exists(CF_CACHE) and os.path.exists(BS_C
     with csv_col3:
         st.download_button(
             label="📋 Export Balance Sheet Register (CSV)",
-            data=base_bs.to_csv().encode('utf-8'),
+            data=df_consolidated_bs.to_csv().encode('utf-8'),
             file_name=f"STRATA_Balance_Sheet_Register_{active_project}.csv",
             mime="text/csv",
             use_container_width=True
@@ -137,21 +161,16 @@ if os.path.exists(PL_CACHE) and os.path.exists(CF_CACHE) and os.path.exists(BS_C
         
     st.markdown("<div style='padding-top: 10px;'></div>", unsafe_allow_html=True)
     
-    # 📄 Landscape PDF Generation Engine
+    # 📄 Landscape PDF Document Generator
     if st.button("📄 Compile Executive Landscape PDF Dossier Package", use_container_width=True):
         if not gemini_key:
             st.error("Missing Gemini API Token in system secrets config.")
         else:
             with st.spinner("Executing cognitive synthesis and landscape typeset compilation..."):
                 try:
-                    # Find baseline rows safely via dynamic string match filters
-                    rev_row = [r for r in base_pl.index if "revenue" in str(r).lower()][0]
-                    ebit_row = [r for r in base_pl.index if "ebit" in str(r).lower() or "operating" in str(r).lower()][0]
-                    cash_row = "Cash Reserves (£)" if "Cash Reserves (£)" in base_cf.index else base_cf.index[3]
-                    
-                    tot_turnover = float(base_pl.loc[rev_row].sum())
-                    tot_margin = float(base_pl.loc[ebit_row].sum())
-                    final_cash = float(base_cf.loc[cash_row].iloc[-1])
+                    tot_turnover = float(df_consolidated_pl.loc["Revenue (£)"].sum())
+                    tot_margin = float(df_consolidated_pl.loc["Net Operating Margin Profit"].sum())
+                    final_cash = float(df_consolidated_cf.loc["Cash Reserves (£)"].iloc[-1])
                     
                     genai.configure(api_key=gemini_key)
                     model = genai.GenerativeModel(model_name="models/gemini-2.5-flash")
@@ -186,7 +205,7 @@ if os.path.exists(PL_CACHE) and os.path.exists(CF_CACHE) and os.path.exists(BS_C
                     
                     story = []
                     
-                    # --- PAGE 1: EXECUTIVE BRIEFING ---
+                    # --- PAGE 1: BRIEFING ---
                     story.append(Paragraph(f"STRATA // Corporate Financial Briefing Analysis Pack", title_style))
                     story.append(Paragraph(f"Scenario Workspace Analysis Dossier: {active_project}", styles['Normal']))
                     story.append(Spacer(1, 10))
@@ -210,7 +229,7 @@ if os.path.exists(PL_CACHE) and os.path.exists(CF_CACHE) and os.path.exists(BS_C
                     ]))
                     story.append(t_summary)
                     
-                    # --- PAGE 2: HORIZONTAL PROFIT & LOSS BREAKDOWN ---
+                    # --- PAGE 2: INCOME MATRIX ---
                     story.append(PageBreak())
                     story.append(Paragraph("📈 Multi-Period Income Statement (Profit & Loss Model)", title_style))
                     story.append(Spacer(1, 10))
@@ -219,7 +238,7 @@ if os.path.exists(PL_CACHE) and os.path.exists(CF_CACHE) and os.path.exists(BS_C
                     pl_pdf_headers = [Paragraph("Account Heading", table_header_style)] + [Paragraph(m, table_header_style) for m in y1_months]
                     pl_pdf_rows = [pl_pdf_headers]
                     
-                    target_pl_source = df_detailed_pl_export if view_granularity == "Granular Line-Item Accounts" else base_pl
+                    target_pl_source = df_detailed_pl if view_granularity == "Granular Line-Item Accounts" else df_consolidated_pl
                     for acct_name in target_pl_source.index:
                         row_cells = [Paragraph(str(acct_name), table_cell_style)]
                         for m in y1_months:
@@ -237,7 +256,7 @@ if os.path.exists(PL_CACHE) and os.path.exists(CF_CACHE) and os.path.exists(BS_C
                     ]))
                     story.append(t_pl)
                     
-                    # --- PAGE 3: FIXED HORIZONTAL COMPOUNDING CASH PACK ---
+                    # --- PAGE 3: CASH FLOW & WORTH REGISTERS ---
                     story.append(PageBreak())
                     story.append(Paragraph("💸 Compounding Cash Ledger Horizon & Balance Sheet Registry", title_style))
                     story.append(Spacer(1, 10))
@@ -245,19 +264,12 @@ if os.path.exists(PL_CACHE) and os.path.exists(CF_CACHE) and os.path.exists(BS_C
                     cf_pdf_headers = [Paragraph("Cash Flow & Account Headings", table_header_style)] + [Paragraph(m, table_header_style) for m in y1_months]
                     cf_pdf_rows = [cf_pdf_headers]
                     
-                    if view_granularity == "Consolidated Account Buckets":
-                        # Standard View Extraction Mapping Rules
-                        for acct_name in base_cf.index:
-                            row_cells = [Paragraph(str(acct_name), table_cell_style)]
-                            for m in y1_months:
-                                row_cells.append(Paragraph(f"{base_cf.at[acct_name, m]:,.0f}", table_cell_style))
-                            cf_pdf_rows.append(row_cells)
-                    else:
-                        # FIXED LINE EXTRACTION HOOKS: Bind string dictionary keys to eradicate layout index drift completely
-                        cf_pdf_rows.append([Paragraph("Cash Receipts from Inflows (£)", table_cell_style)] + [Paragraph(f"{df_detailed_cf_export.at['Cash Receipts from Inflows (£)', m]:,.0f}", table_cell_style) for m in y1_months])
-                        cf_pdf_rows.append([Paragraph("Cash Paid for Running Expenses (£)", table_cell_style)] + [Paragraph(f"{df_detailed_cf_export.at['Cash Paid for Running Expenses (£)', m]:,.0f}", table_cell_style) for m in y1_months])
-                        cf_pdf_rows.append([Paragraph("Net Monthly Cash Flow (£)", table_cell_style)] + [Paragraph(f"{df_detailed_cf_export.at['Net Monthly Cash Flow (£)', m]:,.0f}", table_cell_style) for m in y1_months])
-                        cf_pdf_rows.append([Paragraph("Closing Bank Account Balance (£)", table_cell_style)] + [Paragraph(f"{df_detailed_cf_export.at['Closing Bank Account Balance (£)', m]:,.0f}", table_cell_style) for m in y1_months])
+                    target_cf_source = df_detailed_cf if view_granularity == "Granular Line-Item Accounts" else df_consolidated_cf
+                    for acct_name in target_cf_source.index:
+                        row_cells = [Paragraph(str(acct_name), table_cell_style)]
+                        for m in y1_months:
+                            row_cells.append(Paragraph(f"{target_cf_source.at[acct_name, m]:,.0f}", table_cell_style))
+                        cf_pdf_rows.append(row_cells)
                         
                     t_cf = Table(cf_pdf_rows, colWidths=[142] + [49]*12)
                     t_cf.setStyle(TableStyle([
@@ -283,74 +295,53 @@ if os.path.exists(PL_CACHE) and os.path.exists(CF_CACHE) and os.path.exists(BS_C
             mime="application/pdf",
             use_container_width=True
         )
+
+    st.markdown("---")
+
+    # =========================================================================
+    # 📊 ON-SCREEN USER INTERFACE DISPLAYS (CLEAN, BINDED STRINGS)
+    # =========================================================================
+    tab1, tab2, tab3 = st.tabs([
+        "📈 Income Statement (P&L)", 
+        "💸 Cash Flow Statement", 
+        "📋 Balance Sheet Register"
+    ])
+
+    # --- TAB 1: PROFIT & LOSS ---
+    with tab1:
+        st.subheader("📈 Income & Earnings Performance")
+        st.markdown("💡 *Scroll horizontally to trace timelines across M01 through M60:*")
+        if view_granularity == "Consolidated Account Buckets":
+            st.dataframe(df_consolidated_pl.style.format("{:,.2f}"), use_container_width=False)
+        else:
+            st.dataframe(df_detailed_pl.style.format("{:,.2f}"), use_container_width=False)
+        
+        tot_rev = float(df_consolidated_pl.loc["Revenue (£)"].sum())
+        tot_margin = float(df_consolidated_pl.loc["Net Operating Margin Profit"].sum())
+        
+        st.markdown("#### 🎯 Performance Summaries (60-Month Total Run)")
+        col1, col2 = st.columns(2)
+        with col1: st.metric("Total Project Turnover (60M)", f"£{tot_rev:,.2f}")
+        with col2: st.metric("Accumulated Net Profit Margin (60M)", f"£{tot_margin:,.2f}")
+
+    # --- TAB 2: CASH FLOW STATEMENT ---
+    with tab2:
+        st.subheader("💸 Cash Flow Ledger Timeline")
+        st.markdown("💡 *Scroll horizontally to track liquid cash movements over 60 months:*")
+        if view_granularity == "Consolidated Account Buckets":
+            st.dataframe(df_consolidated_cf.style.format("{:,.2f}"), use_container_width=False)
+        else:
+            st.dataframe(df_detailed_cf.style.format("{:,.2f}"), use_container_width=False)
+        
+        st.markdown("#### 📈 Compounding Cash Horizon Trajectory Curve")
+        st.line_chart(df_consolidated_cf.loc["Cash Reserves (£)"], use_container_width=True)
+
+    # --- TAB 3: BALANCE SHEET REGISTER ---
+    with tab3:
+        st.subheader("📋 Balance Sheet Position Accruals")
+        st.markdown("💡 *Scroll horizontally to monitor balanced asset metrics across timelines:*")
+        st.dataframe(df_consolidated_bs.style.format("{:,.2f}"), use_container_width=False)
+        st.success("🔒 System Integrity Flag: Company worth register completely reconciled and in balance.")
+
 else:
-    st.button("📄 Ledger Framework Matrix Offline", disabled=True, use_container_width=True)
-
-st.markdown("---")
-
-# Tab groupings
-tab1, tab2, tab3 = st.tabs([
-    "📈 Income Statement (P&L)", 
-    "💸 Cash Flow Statement", 
-    "📋 Balance Sheet Register"
-])
-
-# =========================================================================
-# 📈 TAB 1: INCOME STATEMENT (P&L)
-# =========================================================================
-with tab1:
-    st.subheader("📈 Income & Earnings Performance")
-    if os.path.exists(PL_CACHE):
-        try:
-            st.markdown("💡 *Scroll horizontally to trace timelines across M01 through M60:*")
-            if view_granularity == "Consolidated Account Buckets":
-                display_pl = base_pl.copy()
-                display_pl.index = ["Revenue (£)", "COGS (£)", "Running Costs / Overheads", "Depreciation (£)", "Net Operating Margin Profit", "Interest Expense (£)", "Tax Expense (£)"]
-                st.dataframe(display_pl.style.format("{:,.2f}"), use_container_width=False)
-            else:
-                st.dataframe(df_detailed_pl_export.style.format("{:,.2f}"), use_container_width=False)
-            
-            rev_key = [r for r in base_pl.index if "revenue" in str(r).lower() or "inflow" in str(r).lower()][0]
-            ebit_key = [r for r in base_pl.index if "ebit" in str(r).lower() or "operating" in str(r).lower() or "margin" in str(r).lower()][0]
-            
-            tot_rev = float(base_pl.loc[rev_key].sum())
-            tot_margin = float(base_pl.loc[ebit_key].sum())
-            
-            st.markdown("#### 🎯 Performance Summaries (60-Month Total Run)")
-            col1, col2 = st.columns(2)
-            with col1: st.metric("Total Project Turnover (60M)", f"£{tot_rev:,.2f}")
-            with col2: st.metric("Accumulated Net Profit Margin (60M)", f"£{tot_margin:,.2f}")
-        except Exception as e: st.error(f"Error rendering Income statement dataset: {str(e)}")
-
-# =========================================================================
-# 💸 TAB 2: CASH FLOW STATEMENT
-# =========================================================================
-with tab2:
-    st.subheader("💸 Cash Flow Ledger Timeline")
-    if os.path.exists(CF_CACHE):
-        try:
-            st.markdown("💡 *Scroll horizontally to track liquid cash movements over 60 months:*")
-            if view_granularity == "Consolidated Account Buckets":
-                st.dataframe(base_cf.style.format("{:,.2f}"), use_container_width=False)
-            else:
-                st.dataframe(df_detailed_cf_export.style.format("{:,.2f}"), use_container_width=False)
-            
-            st.markdown("#### 📈 Compounding Cash Horizon Trajectory Curve")
-            cash_row_key = [idx for idx in base_cf.index if "reserves" in str(idx).lower() or "cash" in str(idx).lower()]
-            if cash_row_key:
-                st.line_chart(base_cf.loc[cash_row_key[0]], use_container_width=True)
-        except Exception as e: st.error(f"Error rendering Bank Tracker dataset: {str(e)}")
-
-# =========================================================================
-# 📋 TAB 3: BALANCE SHEET REGISTER
-# =========================================================================
-with tab3:
-    st.subheader("📋 Balance Sheet Position Accruals")
-    if os.path.exists(BS_CACHE):
-        try:
-            st.markdown("💡 *Scroll horizontally to monitor balanced asset metrics across timelines:*")
-            display_bs = base_bs.copy()
-            display_bs.index = ["Physical Infrastructure Asset Worth", "Accumulated Depreciation (£)", "Net Depreciated Asset Valuation", "Cash Balances (£)", "Long Term Debt (£)", "HMRC VAT Reserves Owing", "Total Capital Contributed Cushion", "Retained Earnings (£)"]
-            st.dataframe(display_bs.style.format("{:,.2f}"), use_container_width=False)
-            st.success("🔒 System Integrity Flag: Company worth register completely reconciled and in balance.")
-        except Exception as e: st.error(f"Error rendering Company Worth dataset: {str(e)}")
+    st.info("💡 Awaiting initialization vectors from your active input workspace.")
