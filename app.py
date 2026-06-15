@@ -71,7 +71,6 @@ path_compliance = locate_target_page("4_", "pages/4_🛡️_compliance.py")
 
 # --- 5. COMPILING THE SIDEBAR NAVIGATION OBJECT ---
 try:
-    # Initialize the specific page layout handles natively
     page_input      = st.Page(path_input_desk, title="Data Input Workspace", icon="✍️")
     page_sandbox    = st.Page(path_sandbox, title="Multi-Variant Sandbox", icon="🔮")
     page_forecast   = st.Page(path_forecast, title="Financial Forecast Sheets", icon="📊")
@@ -93,7 +92,7 @@ except Exception as e:
     st.stop()
 
 # --- 6. CONDITIONAL HOME DESK ROUTING LAYER ---
-# If a project hasn't been selected yet, force the viewport to act exclusively as the launchpad selector
+# Show the workspace selector exclusively if no baseline profile project has been selected yet
 if not st.session_state.get("selected_project"):
     st.title("🛡️ STRATA // Financial Intelligence Portal")
     st.caption("Active Environment: Market Catalyst Management Matrix")
