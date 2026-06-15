@@ -166,7 +166,7 @@ with save_col2:
 st.markdown("---")
 
 # =========================================================================
-# 📁 PANEL 4: LIVE MONITOR TABLES
+# 📁 PANEL 4: LIVE MONITOR TABLES (INDEX LABELS HIDDEN)
 # =========================================================================
 st.subheader("📁 Active Workspace Data Repositories")
 tab1, tab2, tab3 = st.tabs(["📈 Income Streams", "💸 Overhead Costs", "🏛️ Cap-Ex & Capitalization Ledger"])
@@ -174,16 +174,19 @@ tab1, tab2, tab3 = st.tabs(["📈 Income Streams", "💸 Overhead Costs", "🏛�
 with tab1:
     if st.session_state.manual_sales_entries:
         df_sales = pd.DataFrame(st.session_state.manual_sales_entries)
-        if len(df_sales.columns) == 3: df_sales.columns = ["Revenue Stream Name", "Annual Gross Amount (£)", "VAT Rate Fraction"]
-        st.dataframe(df_sales.style.format({"Annual Gross Amount (£)": "{:,.2f}"}), use_container_width=True)
+        if len(df_sales.columns) == 3: 
+            df_sales.columns = ["Revenue Stream Name", "Annual Gross Amount (£)", "VAT Rate Fraction"]
+        # hide_index() prevents row 0 from rendering to ensure a smooth user layout
+        st.dataframe(df_sales.style.format({"Annual Gross Amount (£)": "{:,.2f}"}).hide(axis="index"), use_container_width=True)
         if st.button("🗑️ Clear Income Rows", key="clear_s"): st.session_state.manual_sales_entries = []; st.rerun()
     else: st.caption("No revenue lines configured.")
 
 with tab2:
     if st.session_state.manual_opex_entries:
         df_opex = pd.DataFrame(st.session_state.manual_opex_entries)
-        if len(df_opex.columns) == 3: df_opex.columns = ["Overhead Cost Name", "Annual Running Rate (£)", "VAT Rate Fraction"]
-        st.dataframe(df_opex.style.format({"Annual Running Rate (£)": "{:,.2f}"}), use_container_width=True)
+        if len(df_opex.columns) == 3: 
+            df_opex.columns = ["Overhead Cost Name", "Annual Running Rate (£)", "VAT Rate Fraction"]
+        st.dataframe(df_opex.style.format({"Annual Running Rate (£)": "{:,.2f}"}).hide(axis="index"), use_container_width=True)
         if st.button("🗑️ Clear Overhead Rows", key="clear_o"): st.session_state.manual_opex_entries = []; st.rerun()
     else: st.caption("No operational overhead lines configured.")
 
@@ -198,7 +201,8 @@ with tab3:
                                            .str.replace("Director / Equity Inflow", "Equity Inflow")\
                                            .str.replace("New Bank Loan Injection", "Debt Facility")
         
-        if len(df_cap.columns) == 4: df_cap.columns = ["Asset / Funding Source Name", "Structural Category", "Transaction Value (£)", "Target Month"]
-        st.dataframe(df_cap.style.format({"Transaction Value (£)": "{:,.2f}"}), use_container_width=True)
+        if len(df_cap.columns) == 4: 
+            df_cap.columns = ["Asset / Funding Source Name", "Structural Category", "Transaction Value (£)", "Target Month"]
+        st.dataframe(df_cap.style.format({"Transaction Value (£)": "{:,.2f}"}).hide(axis="index"), use_container_width=True)
         if st.button("🗑️ Clear Capital Rows", key="clear_c"): st.session_state.manual_capital_entries = []; st.rerun()
     else: st.caption("No asset allocations or long-term funding entries configured.")
