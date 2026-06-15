@@ -100,7 +100,7 @@ if os.path.exists(PL_CACHE) and os.path.exists(CF_CACHE) and os.path.exists(BS_C
     detailed_pl_data["Net Operating Profit (EBIT) (£)"] = consolidated_pl_data["Net Operating Margin Profit"]
     df_detailed_pl = pd.DataFrame(detailed_pl_data, index=timeline_cols).T
 
-    # --- 2. RE-BUILD CASH FLOW MATRICES (EXPLICIT RE-MAPPING) ---
+    # --- 2. RE-BUILD CASH FLOW MATRICES (EXPLICIT RE-MAPPING TO UNIFORM KEYS) ---
     consolidated_cf_data = {}
     consolidated_cf_data["Operational Cash Inflows (£)"] = df_raw_cf.loc[[r for r in df_raw_cf.index if "inflow" in str(r).lower() or "receipt" in str(r).lower()][0]].tolist()
     consolidated_cf_data["Operational Cash Outflows (£)"] = df_raw_cf.loc[[r for r in df_raw_cf.index if "outflow" in str(r).lower() or "expense" in str(r).lower()][0]].tolist()
@@ -111,8 +111,8 @@ if os.path.exists(PL_CACHE) and os.path.exists(CF_CACHE) and os.path.exists(BS_C
     detailed_cf_data = {}
     detailed_cf_data["Cash Receipts from Inflows (£)"] = consolidated_cf_data["Operational Cash Inflows (£)"]
     detailed_cf_data["Cash Paid for Running Expenses (£)"] = consolidated_cf_data["Operational Cash Outflows (£)"]
-    detailed_cf_data["Net Monthly Cash Flow (£)"] = consolidated_cf_data["Net Cash Movement (£)"]
-    detailed_cf_data["Closing Bank Account Balance (£)"] = consolidated_cf_data["Cash Reserves (£)"]
+    detailed_cf_data["Net Cash Movement (£)"] = consolidated_cf_data["Net Cash Movement (£)"]
+    detailed_cf_data["Cash Reserves (£)"] = consolidated_cf_data["Cash Reserves (£)"]  # Normalized key string name locked
     df_detailed_cf = pd.DataFrame(detailed_cf_data, index=timeline_cols).T
 
     # --- 3. RE-BUILD BALANCE SHEET REGISTER MATRICES ---
@@ -299,7 +299,7 @@ if os.path.exists(PL_CACHE) and os.path.exists(CF_CACHE) and os.path.exists(BS_C
     st.markdown("---")
 
     # =========================================================================
-    # 📊 ON-SCREEN USER INTERFACE DISPLAYS (CLEAN, BINDED STRINGS)
+    # 📊 ON-SCREEN USER INTERFACE DISPLAYS
     # =========================================================================
     tab1, tab2, tab3 = st.tabs([
         "📈 Income Statement (P&L)", 
@@ -334,7 +334,9 @@ if os.path.exists(PL_CACHE) and os.path.exists(CF_CACHE) and os.path.exists(BS_C
             st.dataframe(df_detailed_cf.style.format("{:,.2f}"), use_container_width=False)
         
         st.markdown("#### 📈 Compounding Cash Horizon Trajectory Curve")
-        st.line_chart(df_consolidated_cf.loc["Cash Reserves (£)"], use_container_width=True)
+        # Fixed: Read the explicitly shared key 'Cash Reserves (£)' dynamically out of the active dataframe view state
+        target_chart_source = df_detailed_cf if view_granularity == "Granular Line-Item Accounts" else df_consolidated_cf
+        st.line_chart(target_chart_source.loc["Cash Reserves (£)"], use_container_width=True)
 
     # --- TAB 3: BALANCE SHEET REGISTER ---
     with tab3:
