@@ -66,13 +66,14 @@ with rep_col2:
             else:
                 with st.spinner("Executing cognitive synthesis and typeset compilation..."):
                     try:
+                        # Direct correction loader
                         pl_df = pd.read_csv(PL_CACHE, index_col=0)
+                        if "M01" in pl_df.index: pl_df = pl_df.T
                         cf_df = pd.read_csv(CF_CACHE, index_col=0)
-                        bs_df = pd.read_csv(BS_CACHE, index_col=0)
+                        if "M01" in cf_df.index: cf_df = cf_df.T
                         
-                        # Aggressive general search strings for PDF payload mapping
-                        rev_idx = [idx for idx in pl_df.index if "rev" in str(idx).lower()]
-                        ebit_idx = [idx for idx in pl_df.index if "ebit" in str(idx).lower() or "margin" in str(idx).lower()]
+                        rev_idx = [idx for idx in pl_df.index if "revenue" in str(idx).lower()]
+                        ebit_idx = [idx for idx in pl_df.index if "ebit" in str(idx).lower() or "operating" in str(idx).lower()]
                         cash_idx = [idx for idx in cf_df.index if "cash" in str(idx).lower() or "reserve" in str(idx).lower()]
                         
                         tot_turnover = float(pl_df.loc[rev_idx[0]].sum()) if rev_idx else 0.0
@@ -180,15 +181,11 @@ with tab1:
     
     if os.path.exists(PL_CACHE):
         try:
+            # Read and immediately normalize layout if transposed on disk
             pl_df = pd.read_csv(PL_CACHE, index_col=0)
-            
-            # 🔍 --- SYSTEM INTEGRITY DIAGNOSTIC DETECTOR ---
-            # Explicitly outputs raw row headers to screen to trace formatting issues instantly
-            st.sidebar.markdown("### 🗂️ System Data Row Debugger")
-            st.sidebar.write("Actual rows found in file index:")
-            st.sidebar.json(list(pl_df.index))
-            
-            # Comprehensive case-insensitive search loop for totals calculation functions
+            if "M01" in pl_df.index:
+                pl_df = pl_df.T
+                
             rev_row_key = [idx for idx in pl_df.index if "revenue" in str(idx).lower()]
             ebit_row_key = [idx for idx in pl_df.index if "ebit" in str(idx).lower() or "operating" in str(idx).lower()]
             
@@ -198,7 +195,6 @@ with tab1:
             if view_granularity == "Consolidated Account Buckets":
                 st.markdown("Displaying aggregated, executive-level corporate operational totals:")
                 display_pl = pl_df.copy()
-                # Clean labels on screen safely using string containment replacements
                 new_indices = []
                 for idx in display_pl.index:
                     lbl = str(idx)
@@ -234,7 +230,7 @@ with tab1:
                 df_granular_pl = pd.DataFrame(granular_rows, index=timeline_cols).T
                 st.dataframe(df_granular_pl.style.format("{:,.2f}"), use_container_width=True)
             
-            # --- SUMMARY METRICS CARDS WITH CASE-INSENSITIVE TARGETING ---
+            # --- POPULATED CARDS ---
             st.markdown("#### 🎯 Performance Summaries (60-Month Total Run)")
             col1, col2 = st.columns(2)
             with col1: st.metric("Total Project Turnover (60M)", f"£{total_rev:,.2f}")
@@ -253,6 +249,9 @@ with tab2:
     if os.path.exists(CF_CACHE):
         try:
             cf_df = pd.read_csv(CF_CACHE, index_col=0)
+            if "M01" in cf_df.index:
+                cf_df = cf_df.T
+                
             st.dataframe(cf_df.T.style.format("{:,.2f}"), use_container_width=True)
             
             st.markdown("#### 📈 Compounding Cash Horizon Trajectory Curve")
@@ -272,9 +271,10 @@ with tab3:
     if os.path.exists(BS_CACHE):
         try:
             bs_df = pd.read_csv(BS_CACHE, index_col=0)
+            if "M01" in bs_df.index:
+                bs_df = bs_df.T
+                
             display_bs = bs_df.copy()
-            
-            # Map structural balance sheet rows flexibly matching lowercase containment keys
             new_bs_indices = []
             for idx in display_bs.index:
                 lbl = str(idx)
