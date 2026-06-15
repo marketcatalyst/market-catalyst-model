@@ -111,7 +111,7 @@ def render_landing_launchpad():
     else:
         st.warning("⚠️ No active workspace loaded yet. Please select a project baseline above to unlock your data desks.")
 
-# --- 5. COMPILING THE SIDEBAR NAVIGATION GATEWAY ---
+# --- 5. COMPILING THE DYNAMIC SIDEBAR NAVIGATION GATEWAY ---
 try:
     page_launchpad  = st.Page(render_landing_launchpad, title="Project Setup Hub", icon="🛡️")
     page_input      = st.Page(path_input_desk, title="Data Input Workspace", icon="✍️")
@@ -119,19 +119,22 @@ try:
     page_forecast   = st.Page(path_forecast, title="Financial Forecast Sheets", icon="📊")
     page_compliance = st.Page(path_compliance, title="Compliance & Tax Portal", icon="🛡️")
 
-    # Group layout entries inside the system router structure
-    pg = st.navigation(
-        {
+    if not st.session_state["authenticated"]:
+        sidebar_mapping = {
+            "Workspace Gateway": [page_launchpad]
+        }
+    else:
+        sidebar_mapping = {
             "Workspace Manager": [page_launchpad],
             "Financial Forecasting Suite": [page_input, page_sandbox, page_forecast, page_compliance]
-        }, 
-        position="sidebar"
-    )
+        }
+
+    pg = st.navigation(sidebar_mapping, position="sidebar")
 except Exception as e:
     st.error(f"Routing Fault: Streamlit engine could not map the dashboard page files. Details: {str(e)}")
     st.stop()
 
-# --- 6. OVERRIDING SECURITY GATEKEEPER INTERCEPT ---
+# --- 6. SECURITY GATEKEEPER INTERCEPT ---
 if not st.session_state["authenticated"]:
     st.title("🔒 STRATA Security Access Gateway")
     st.caption("Enterprise Workspace Security Engine & Scenario Access Control Gateway")
@@ -146,12 +149,14 @@ if not st.session_state["authenticated"]:
             st.rerun()
         else:
             st.error("Authentication Fault: Invalid profile credentials.")
-    # Stop layout progression here until keys are validated, without choking the structural setup above
+            
+    st.sidebar.warning("🔒 Security Intercept: Verification Required")
     st.stop()
 
 # --- 7. GLOBAL SIDEBAR UTILITIES (AUTHENTICATED ONLY) ---
-if st.session_state.get("selected_project"):
-    st.sidebar.markdown(f"**Active Workspace Context:**\n`{st.session_state['selected_project']}`")
+active_target = st.session_state.get("selected_project", "")
+if active_target:
+    st.sidebar.markdown(f"**Active Workspace Context:**\n`{active_target}`")
     if st.sidebar.button("🔄 Clear & Switch Project", use_container_width=True):
         st.session_state["selected_project"] = ""
         st.session_state["active_project_name"] = ""
