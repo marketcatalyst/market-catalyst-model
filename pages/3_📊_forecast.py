@@ -111,13 +111,10 @@ with rep_col2:
                         
                         story = []
                         
-                        # ---------------------------------------------------------
-                        # PAGE 1: STRATEGIC VISION & CORE FRAMEWORK
-                        # ---------------------------------------------------------
+                        # PAGE 1: SUMMARY
                         story.append(Paragraph(f"STRATA // Corporate Financial Briefing", title_style))
                         story.append(Paragraph(f"Scenario Workspace Analysis Dossier: {active_project}", styles['Normal']))
                         story.append(Spacer(1, 15))
-                        
                         story.append(Paragraph("Executive Summary & Strategic Review", h2_style))
                         story.append(Paragraph(ai_narrative, body_style))
                         story.append(Spacer(1, 15))
@@ -128,7 +125,6 @@ with rep_col2:
                             [Paragraph("Accumulated Operating Profit (EBIT)", table_cell_style), Paragraph(f"£{tot_margin:,.2f}", table_cell_style)],
                             [Paragraph("Year 5 Projected Cash Position", table_cell_style), Paragraph(f"£{final_cash:,.2f}", table_cell_style)]
                         ]
-                        
                         t_summary = Table(summary_data, colWidths=[240, 240])
                         t_summary.setStyle(TableStyle([
                             ('BACKGROUND', (0,0), (1,0), colors.HexColor("#1A365D")),
@@ -139,9 +135,7 @@ with rep_col2:
                         ]))
                         story.append(t_summary)
                         
-                        # ---------------------------------------------------------
-                        # PAGE 2: COMPREHENSIVE PROFIT & LOSS LEDGER OVERVIEW
-                        # ---------------------------------------------------------
+                        # PAGE 2: P&L LEDGER
                         story.append(PageBreak())
                         story.append(Paragraph("📈 Multi-Period Income Statement (Profit & Loss)", title_style))
                         story.append(Paragraph("Chronological operational run-rates extracted across target periods:", styles['Normal']))
@@ -150,17 +144,15 @@ with rep_col2:
                         pl_headers = [Paragraph("Period", table_header_style), Paragraph("Revenue (£)", table_header_style), Paragraph("Opex (£)", table_header_style), Paragraph("EBIT (£)", table_header_style)]
                         pl_table_rows = [pl_headers]
                         
-                        # Sample down to 24 month key milestones to fit elegant vertical space
                         for month_label, row in pl_df.iterrows():
                             m_num = int(month_label.replace("M", ""))
-                            if m_num <= 24 or m_num % 12 == 0:  # Present Year 1-2 granularly, then annual milestones
+                            if m_num <= 24 or m_num % 12 == 0:
                                 pl_table_rows.append([
                                     Paragraph(str(month_label), table_cell_style),
                                     Paragraph(f"{row.iloc[0]:,.2f}", table_cell_style),
                                     Paragraph(f"{row.iloc[2]:,.2f}", table_cell_style),
                                     Paragraph(f"{row.iloc[4]:,.2f}", table_cell_style)
                                 ])
-                                
                         t_pl = Table(pl_table_rows, colWidths=[80, 130, 130, 140])
                         t_pl.setStyle(TableStyle([
                             ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#1A365D")),
@@ -171,20 +163,13 @@ with rep_col2:
                         ]))
                         story.append(t_pl)
                         
-                        # ---------------------------------------------------------
-                        # PAGE 3: COMPOUNDING CASH PROFILE & CORPORATE BALANCES
-                        # ---------------------------------------------------------
+                        # PAGE 3: INTEGRATED BS & CF
                         story.append(PageBreak())
                         story.append(Paragraph("📋 Balance Sheet & Compounding Bank Account Tracker", title_style))
                         story.append(Paragraph("Integrated capital registers and liquid reserve horizons:", styles['Normal']))
                         story.append(Spacer(1, 15))
                         
-                        bs_headers = [
-                            Paragraph("Period", table_header_style), 
-                            Paragraph("Cash Balance (£)", table_header_style), 
-                            Paragraph("VAT Owed (£)", table_header_style), 
-                            Paragraph("Retained Earnings (£)", table_header_style)
-                        ]
+                        bs_headers = [Paragraph("Period", table_header_style), Paragraph("Cash Balance (£)", table_header_style), Paragraph("VAT Owed (£)", table_header_style), Paragraph("Retained Earnings (£)", table_header_style)]
                         bs_table_rows = [bs_headers]
                         
                         for month_label, row in cf_df.iterrows():
@@ -193,11 +178,10 @@ with rep_col2:
                                 current_bs_row = bs_df.loc[month_label]
                                 bs_table_rows.append([
                                     Paragraph(str(month_label), table_cell_style),
-                                    Paragraph(f"{row.iloc[3]:,.2f}", table_cell_style),   # Cash Reserves column
-                                    Paragraph(f"{current_bs_row.iloc[5]:,.2f}", table_cell_style), # VAT Liability
-                                    Paragraph(f"{current_bs_row.iloc[7]:,.2f}", table_cell_style)  # Retained Earnings
+                                    Paragraph(f"{row.iloc[3]:,.2f}", table_cell_style),
+                                    Paragraph(f"{current_bs_row.iloc[5]:,.2f}", table_cell_style),
+                                    Paragraph(f"{current_bs_row.iloc[7]:,.2f}", table_cell_style)
                                 ])
-                                
                         t_bs = Table(bs_table_rows, colWidths=[80, 130, 130, 140])
                         t_bs.setStyle(TableStyle([
                             ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#1A365D")),
@@ -208,11 +192,8 @@ with rep_col2:
                         ]))
                         story.append(t_bs)
                         
-                        # Build document story structure out to byte buffer array
                         doc.build(story)
-                        pdf_data = pdf_buffer.getvalue()
-                        
-                        st.session_state["compiled_pdf_bytes"] = pdf_data
+                        st.session_state["compiled_pdf_bytes"] = pdf_buffer.getvalue()
                         st.success("🚀 Multi-Page Operational Ledger Pack successfully compiled! Hit download below.")
                     except Exception as pdf_err:
                         st.error(f"Compilation pipeline fault: {str(pdf_err)}")
@@ -238,15 +219,13 @@ tab1, tab2, tab3 = st.tabs([
 ])
 
 # =========================================================================
-# 📈 TAB 1: INCOME & EARNINGS PERFORMANCE (PROFIT & LOSS)
+# 📈 TAB 1: INCOME & EARNINGS PERFORMANCE (PROFIT & LOSS + CSV LINK)
 # =========================================================================
 with tab1:
     st.subheader("📈 Income & Earnings Run-Rates")
-    
     if os.path.exists(PL_CACHE):
         try:
             pl_df = pd.read_csv(PL_CACHE, index_col=0)
-            
             rev_row_key = [idx for idx in pl_df.columns if "revenue" in str(idx).lower()]
             ebit_row_key = [idx for idx in pl_df.columns if "ebit" in str(idx).lower() or "operating" in str(idx).lower()]
             
@@ -256,63 +235,78 @@ with tab1:
             if view_granularity == "Consolidated Account Buckets":
                 st.markdown("Displaying vertical corporate operational metrics over time:")
                 display_pl = pl_df.copy()
-                display_pl.columns = [
-                    "Revenue (£)", "COGS (£)", "Running Costs / Overheads", 
-                    "Depreciation (£)", "Net Operating Margin Profit", 
-                    "Interest Expense (£)", "Tax Expense (£)"
-                ]
+                display_pl.columns = ["Revenue (£)", "COGS (£)", "Running Costs / Overheads", "Depreciation (£)", "Net Operating Margin Profit", "Interest Expense (£)", "Tax Expense (£)"]
                 st.dataframe(display_pl.style.format("{:,.2f}"), use_container_width=True)
             else:
                 st.markdown("De-consolidated timeline view tracking structural line accounts:")
                 st.dataframe(pl_df.style.format("{:,.2f}"), use_container_width=True)
             
+            # --- INLINE REVENUE EXPORT INTERCEPT ---
+            csv_pl = pl_df.to_csv().encode('utf-8')
+            st.download_button(
+                label="📥 Download Profit & Loss Baseline Matrix (CSV)",
+                data=csv_pl,
+                file_name=f"STRATA_Profit_and_Loss_{active_project}.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
+            
             st.markdown("#### 🎯 Performance Summaries (60-Month Total Run)")
             col1, col2 = st.columns(2)
             with col1: st.metric("Total Project Turnover (60M)", f"£{total_rev:,.2f}")
             with col2: st.metric("Accumulated Net Profit Margin (60M)", f"£{total_margin:,.2f}")
-                
         except Exception as e: st.error(f"Error rendering Income statement dataset: {str(e)}")
     else: st.info("💡 Awaiting initialization vectors from your active workspace.")
 
 # =========================================================================
-# 💸 TAB 2: BANK ACCOUNT TRACKER (CASH FLOW)
+# 💸 TAB 2: BANK ACCOUNT TRACKER (CASH FLOW + CSV LINK)
 # =========================================================================
 with tab2:
     st.subheader("💸 Real Bank Account Ledger Profile")
     st.markdown("Tracks the physical liquid cash cushion sitting inside the bank vaults over our 60-month horizon.")
-    
     if os.path.exists(CF_CACHE):
         try:
             cf_df = pd.read_csv(CF_CACHE, index_col=0)
             st.dataframe(cf_df.style.format("{:,.2f}"), use_container_width=True)
             
+            # --- INLINE CASH FLOW EXPORT INTERCEPT ---
+            csv_cf = cf_df.to_csv().encode('utf-8')
+            st.download_button(
+                label="📥 Download Cash Runway Tracker Matrix (CSV)",
+                data=csv_cf,
+                file_name=f"STRATA_Cash_Flow_{active_project}.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
+            
             st.markdown("#### 📈 Compounding Cash Horizon Trajectory Curve")
             cash_row_key = [idx for idx in cf_df.columns if "reserves" in str(idx).lower() or "cash" in str(idx).lower()]
-            if cash_row_key:
-                st.line_chart(cf_df[cash_row_key[0]], use_container_width=True)
+            if cash_row_key: st.line_chart(cf_df[cash_row_key[0]], use_container_width=True)
         except Exception as e: st.error(f"Error rendering Bank Tracker dataset: {str(e)}")
     else: st.info("💡 Awaiting initialization vectors from your active workspace.")
 
 # =========================================================================
-# 📋 TAB 3: COMPANY WORTH REGISTER (BALANCE SHEET)
+# 📋 TAB 3: COMPANY WORTH REGISTER (BALANCE SHEET + CSV LINK)
 # =========================================================================
 with tab3:
     st.subheader("📋 Core Company Worth Register")
     st.markdown("What the project owns (Assets) vs. exactly what it owes (Liabilities and Reserves).")
-    
     if os.path.exists(BS_CACHE):
         try:
             bs_df = pd.read_csv(BS_CACHE, index_col=0)
             display_bs = bs_df.copy()
-            
-            display_bs.columns = [
-                "Physical Infrastructure Asset Worth", "Accumulated Depreciation (£)",
-                "Net Depreciated Asset Valuation", "Cash Balances (£)",
-                "Long Term Debt (£)", "HMRC VAT Reserves Owing",
-                "Total Capital Contributed Cushion", "Retained Earnings (£)"
-            ]
-            
+            display_bs.columns = ["Physical Infrastructure Asset Worth", "Accumulated Depreciation (£)", "Net Depreciated Asset Valuation", "Cash Balances (£)", "Long Term Debt (£)", "HMRC VAT Reserves Owing", "Total Capital Contributed Cushion", "Retained Earnings (£)"]
             st.dataframe(display_bs.style.format("{:,.2f}"), use_container_width=True)
+            
+            # --- INLINE BALANCE SHEET EXPORT INTERCEPT ---
+            csv_bs = bs_df.to_csv().encode('utf-8')
+            st.download_button(
+                label="📥 Download Company Worth Statement Register (CSV)",
+                data=csv_bs,
+                file_name=f"STRATA_Balance_Sheet_{active_project}.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
             st.success("🔒 System Integrity Flag: Company worth register completely reconciled and in balance.")
         except Exception as e: st.error(f"Error rendering Company Worth dataset: {str(e)}")
     else: st.info("💡 Awaiting initialization vectors from your active workspace.")
