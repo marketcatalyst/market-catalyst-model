@@ -333,9 +333,13 @@ if os.path.exists(PL_CACHE) and os.path.exists(CF_CACHE) and os.path.exists(BS_C
         st.dataframe(target_view_source.style.format("{:,.2f}"), use_container_width=False)
         
         st.markdown("#### 📈 Compounding Cash Horizon Trajectory Curve")
-        # Transpose explicitly inside the line chart parameter block to isolate chart engine values from the layout state
-        chart_data = target_view_source.loc[["Cash Reserves (£)"]].T
-        st.line_chart(chart_data, use_container_width=True)
+        # Explicit deterministic extraction mapping to prevent matrix-shape collapse inside the visualization engine
+        chart_df = pd.DataFrame(
+            data=target_view_source.loc["Cash Reserves (£)"].values,
+            index=target_view_source.columns,
+            columns=["Cash Reserves (£)"]
+        )
+        st.line_chart(chart_df, use_container_width=True)
 
     # --- TAB 3: BALANCE SHEET REGISTER ---
     with tab3:
