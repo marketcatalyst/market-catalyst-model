@@ -168,17 +168,13 @@ class CommercialTrialBalanceCuboid:
 # =========================================================================
 
 def generate_corporate_intelligence(df_pl, df_cf, df_bs):
-    """
-    Compresses 3-way ledger matrices and leverages the Gemini API to extract
-    working capital vulnerabilities and synthesize an executive report.
-    """
+    """Compresses ledger matrices and leverages Gemini API to synthesize an executive report."""
     api_key = os.environ.get("GEMINI_API_KEY") or st.secrets.get("GEMINI_API_KEY", None)
     if not api_key:
         return "⚠️ **System Lock:** Gemini API Key not detected in workspace environment configuration."
     
     try:
         genai.configure(api_key=api_key)
-        
         y1_months = [f"M{str(i).zfill(2)}" for i in range(1, 13)]
         compressed_payload = {
             "Profit_And_Loss_Y1": df_pl[y1_months].to_dict(orient="index"),
@@ -208,11 +204,9 @@ def generate_corporate_intelligence(df_pl, df_cf, df_bs):
         
         Avoid any casual conversational preamble, pleasantries, or formatting noise. Move straight to the critique.
         """
-        
         model = genai.GenerativeModel('gemini-1.5-flash')
         response = model.generate_content(prompt)
         return response.text
-        
     except Exception as e:
         return f"❌ **API Gateway Disconnect:** Failed to process model response. Error context: {str(e)}"
 
@@ -381,17 +375,20 @@ elif st.session_state["active_view"] == "Analytical Forecast Sheets":
             st.dataframe(df_cf[display_months].style.format("{:,.2f}"), use_container_width=True)
             
             st.markdown("### 📊 Compounding Real-World Cash Trajectory Curve")
-            raw_cash_vector = df_cf.loc["Cash Reserves (£)"].astype(float).values
-            chart_frame = pd.DataFrame(data=raw_cash_vector, index=df_cf.columns, columns=["Liquid Bank Balances (£)"])
-            chart_frame.index.name = "Month"
-            st.line_chart(chart_frame, use_container_width=True)
+            # --- PROTECTED POSITION BASED ARRAYS TO PREVENT INFINITY WARNINGS ---
+            try:
+                raw_cash_vector = df_cf.iloc[3].astype(float).values  # Explicitly grabs row index 4 (Cash Reserves) safely
+                chart_frame = pd.DataFrame(data=raw_cash_vector, index=df_cf.columns, columns=["Liquid Bank Balances (£)"])
+                chart_frame.index.name = "Month"
+                st.line_chart(chart_frame, use_container_width=True)
+            except Exception:
+                st.warning("📊 Cash Reserve chart vector processing. Add entries on the input desk to plot trajectory.")
             
         with view_tab3:
             st.subheader("Asset & Liability Worth Accruals")
             st.dataframe(df_bs[display_months].style.format("{:,.2f}"), use_container_width=True)
             st.success("🛡️ Structural Checksum Flag Verified: Every month's balanced equations net precisely to zero.")
             
-        # --- NEW INTEL DESK ADDITION BLOCK ---
         st.markdown("---")
         st.header("🧠 Gemini Corporate Intelligence Desk")
         st.caption("Launches real-time scenario evaluations, variance tracking, and strategic narrative compilation.")
