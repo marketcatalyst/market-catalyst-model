@@ -93,16 +93,18 @@ def compile_three_way_forecast(project_json_path):
                 elif t_type == "New / Existing Fixed Asset CapEx":
                     tbc.post_journal(m_label, "BS_Asset_Fixed_Assets", "BS_Asset_Cash", val)
 
-        # 2. Process Active Trading Revenues
+        # 2. Process Active Trading Revenues (With Balanced Net/VAT Flows)
         if m_idx >= start_month:
             for sale in project_data.get("sales", []):
                 annual_amt = float(sale.get("amount", 0.0))
                 monthly_revenue = annual_amt / 12.0
                 vat_rate = float(sale.get("vat", 0.20))
                 
+                # Credit Revenue P&L, Debit Cash with the clean Net baseline
                 tbc.post_journal(m_label, "BS_Asset_Cash", "PL_Revenue_Gross", monthly_revenue)
                 if vat_rate > 0:
                     vat_outflow = monthly_revenue * vat_rate
+                    # Collect VAT cash immediately into the bank, balancing the liability ledger
                     tbc.post_journal(m_label, "BS_Asset_Cash", "BS_Liability_VAT_Payable", vat_outflow)
 
         # 3. Process Active Operating Overheads
@@ -124,15 +126,11 @@ def compile_three_way_forecast(project_json_path):
     # -------------------------------------------------------------------------
     # TRANSLATION LAYER: PROGRESSIVE CHRONOLOGICAL CUMULATIVE ACCUMULATOR
     # -------------------------------------------------------------------------
-    # Re-engineered to eliminate shallow-copy row tracking drops completely
     cumulative_matrix = pd.DataFrame(0.0, index=tbc.accounts, columns=months_labels)
-    
-    # Initialize a tracking dictionary to hold absolute historical values alive
     running_balances = {acct: 0.0 for acct in tbc.accounts if acct.startswith("BS_")}
     
     for m_label in months_labels:
         for acct in running_balances.keys():
-            # Add the current month's transaction movement to the running total
             running_balances[acct] += tbc.matrix.at[acct, m_label]
             cumulative_matrix.at[acct, m_label] = running_balances[acct]
 
@@ -161,11 +159,15 @@ def compile_three_way_forecast(project_json_path):
     pl_export["Interest Expense (£)"] = tbc.matrix.loc["PL_Expense_Interest"]
     pl_export["Tax Expense (£)"] = tbc.matrix.loc["PL_Expense_Taxation"]
     
-    # Structure 2: COMPOUNDING CASH FLOW LEDGER
+    # Structure 2: REAL COMPOUNDING CASH FLOW LEDGER (FIXED LOGIC LINKS)
     cf_export = pd.DataFrame(index=months_labels)
-    cf_export["Operational Cash Inflows (£)"] = pl_export["Revenue (£)"]
+    
+    # Inflows track total cash entering the bank (Net Revenue + Collected VAT)
+    cf_export["Operational Cash Inflows (£)"] = pl_export["Revenue (£)"] + tbc.matrix.loc["BS_Liability_VAT_Payable"]
     cf_export["Operational Cash Outflows (£)"] = pl_export["Opex (£)"]
-    cf_export["Net Cash Movement (£)"] = cf_export["Operational Cash Inflows (£)"] - cf_export["Operational Cash Outflows (£)"]
+    
+    # Extract the true net transaction movement from the physical cash account delta
+    cf_export["Net Cash Movement (£)"] = tbc.matrix.loc["BS_Asset_Cash"]
     cf_export["Cash Reserves (£)"] = cumulative_matrix.loc["BS_Asset_Cash"]
 
     # Structure 3: BALANCE SHEET ACCRUALS
@@ -184,7 +186,7 @@ def compile_three_way_forecast(project_json_path):
     cf_export.to_csv("STRATA_Forecast_Ledger_Group.xlsx - Cash Flow Ledger.csv")
     bs_export.to_csv("STRATA_Forecast_Ledger_Group.xlsx - Balance Sheet Accruals.csv")
     
-    print("✨ Core Engine Matrix Realigned. Retained earnings balances cleanly structured.")
+    print("✨ Core Engine Matrix Realigned. True cash and gross receipts fully locked.")
 
 if __name__ == "__main__":
     compile_three_way_forecast("saved_projects/Vanguard-Arena-Expansion.json")
