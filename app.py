@@ -10,6 +10,7 @@ import io
 from fpdf import FPDF
 import psycopg2
 from psycopg2.extras import RealDictCursor
+import re
 
 # =========================================================================
 # 💾 PERSISTENCE CONTROL LAYER: SERVERLESS NEON POSTGRES PIPELINE
@@ -441,18 +442,18 @@ def generate_corporate_intelligence(df_pl, df_cf, df_bs, range_labels):
         ### 🚨 Liquidity Bottlenecks & Credit Vector Risks
         ### 🏛️ Strategic Recommendations for Capital Reservation
         """
-        model = genai.GenerativeModel('models/gemini-2.5-flash')
+        model = genai.GenerativeModel('models/gemini-1.5-flash')
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
         return f"❌ **Gateway Disconnect:** {str(e)}"
 
 # =========================================================================
-# 🎛️ INTELLIGENT GEMINI MULTIMODAL INGESTION CORE
+# 🎛️ REFACTORED: ROBUST REGEX-DRIVEN GEMINI MULTIMODAL INGESTION
 # =========================================================================
 
 def process_file_ingestion_callback():
-    """Reads unstructured text, spreadsheets or files and pipes them through the Gemini OCR engine."""
+    """Reads unstructured file text and pulls a cleanly regex-isolated JSON array loop from Gemini."""
     uploaded_file = st.session_state.get("file_ingestion_key")
     if uploaded_file is not None:
         origin_tag = f"AI Ingested: {uploaded_file.name}"
@@ -465,7 +466,6 @@ def process_file_ingestion_callback():
 
         try:
             file_ext = uploaded_file.name.split(".")[-1].lower()
-            
             if file_ext in ["csv", "xlsx"]:
                 if file_ext == "csv":
                     doc_payload = pd.read_csv(uploaded_file).to_string()
@@ -491,11 +491,18 @@ def process_file_ingestion_callback():
             
             Allowed vector_type configurations: 'sales', 'opex', 'payroll'.
             Allowed seasonality configurations: 'Flat_Linear', 'Winter_Peak', 'Summer_Peak'.
-            Output raw valid JSON only. Do not contain Markdown syntax formatting tick marks.
+            Output raw valid JSON only. Do not wrap with markdown code fences like ```json.
             """
             
             ai_response = model.generate_content(ai_prompt).text
-            clean_json = ai_response.replace("```json", "").replace("```", "").strip()
+            
+            # Resilient Regex Isolation: Extracts everything strictly enclosed between the outer square brackets [...]
+            match = re.search(r'\[.*\]', ai_response, re.DOTALL)
+            if not match:
+                st.sidebar.error("❌ Ingestion Error: Gemini output structure did not contain a clear list array.")
+                return
+                
+            clean_json = match.group(0).strip()
             parsed_vectors = json.loads(clean_json)
             
             for vec in parsed_vectors:
