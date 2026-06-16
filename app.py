@@ -95,7 +95,7 @@ class CommercialTrialBalanceCuboid:
                 self.inject_token(m, "PL_Expense_Payroll", "BS_Liability_PAYE_NIC_Payable", paye_deduction + employer_nic, "Accrued Taxes")
                 self.inject_token(m + 1, "BS_Liability_PAYE_NIC_Payable", "BS_Asset_Cash", paye_deduction + employer_nic, "HMRC PAYE Payment")
 
-            # Fixed Asset Depreciation
+            # Depreciation
             current_fa = self.compute_running_balance_to_month("BS_Asset_Fixed_Assets", m)
             if current_fa > 0.0:
                 self.inject_token(m, "PL_Expense_Depreciation", "BS_Asset_Accumulated_Depreciation", (current_fa * 0.10) / 12.0, "Depreciation")
@@ -204,8 +204,8 @@ def generate_corporate_intelligence(df_pl, df_cf, df_bs):
         
         Avoid any casual conversational preamble, pleasantries, or formatting noise. Move straight to the critique.
         """
-        # --- FIXED EXPLICIT IDENTIFIER TO RESOLVE 404 GATEWAY ERRORS ---
-        model = genai.GenerativeModel('models/gemini-1.5-flash')
+        # --- MODERN ACTIVE GENERATION MODEL POINTER ---
+        model = genai.GenerativeModel('gemini-2.5-flash')
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
@@ -236,7 +236,6 @@ if "active_data" not in st.session_state:
 if "authenticated" not in st.session_state:
     st.session_state["authenticated"] = False
 
-# --- SCREEN GATE: SECURE DOCKING RECONCILIATION ---
 if not st.session_state["authenticated"]:
     st.title("🔐 STRATA // Corporate Gateway")
     st.caption("Access restricted to authorised team personnel. Enter your credentials to verify your workspace session.")
@@ -259,7 +258,6 @@ if not st.session_state["authenticated"]:
                 
     st.stop()
 
-# --- POST AUTHENTICATION: RUN COHERENT WORKSPACE ---
 if "active_view" not in st.session_state:
     st.session_state["active_view"] = "Data Workspace"
 
@@ -434,4 +432,5 @@ elif st.session_state["active_view"] == "Analytical Forecast Sheets":
                 st.markdown(intel_report)
             
     except Exception as err:
-        st.error(f"Execution Error inside core transactional engine: {str(err)}")
+        st.error(f"Execution Error inside core transactional engine: {str(err)}")   
+ 
