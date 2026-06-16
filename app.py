@@ -8,6 +8,140 @@ from pathlib import Path
 import google.generativeai as genai
 import io
 from fpdf import FPDF
+import psycopg2
+from psycopg2.extras import RealDictCursor
+
+# =========================================================================
+# 💾 PERSISTENCE CONTROL LAYER: SERVERLESS NEON POSTGRES PIPELINE
+# =========================================================================
+
+def get_database_connection():
+    """Establishes a connection thread looking for both URL and CONNECTION_STRING targets."""
+    # Read either standard environment tokens or your explicit local TOML configuration key
+    db_url = (os.environ.get("DATABASE_URL") or 
+              st.secrets.get("DATABASE_URL", None) or 
+              st.secrets.get("CONNECTION_STRING", None))
+              
+    if not db_url:
+        return None
+    try:
+        # Connect natively utilizing psycopg2 configurations required by Neon
+        return psycopg2.connect(db_url)
+    except Exception:
+        return None
+
+def execute_database_handshake():
+    """Initializes the relational project table schema on the active Neon cluster database."""
+    conn = get_database_connection()
+    if conn:
+        try:
+            with conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        CREATE TABLE IF NOT EXISTS strata_projects (
+                            project_id SERIAL PRIMARY KEY,
+                            project_name VARCHAR(255) UNIQUE NOT NULL,
+                            payload_data TEXT NOT NULL,
+                            last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        );
+                    """)
+            conn.close()
+        except Exception:
+            pass
+
+def extract_project_directory_list():
+    """Queries and compiles all saved scenario indexes from active relational records."""
+    conn = get_database_connection()
+    if conn:
+        try:
+            with conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    cur.execute("SELECT project_name FROM strata_projects ORDER BY project_name ASC;")
+                    rows = cur.fetchall()
+            conn.close()
+            return [r['project_name'] for r in rows]
+        except Exception:
+            pass
+            
+    # Local Fail-Safe System File Fallback Storage Routing
+    registry_path = Path("strata_workspace_registry.json")
+    if not registry_path.exists():
+        with open(registry_path, "w") as f:
+            json.dump({}, f)
+        return []
+    try:
+        with open(registry_path, "r") as f:
+            data = json.load(f)
+            return sorted(list(data.keys()))
+    except Exception:
+        return []
+
+def commit_project_payload_to_storage(project_name, sales, opex, payroll, capital):
+    """Commits compressed scenario structures safely into Neon relational database records."""
+    payload_string = json.dumps({
+        "sales": sales, "opex": opex, "payroll": payroll, "capital": capital
+    })
+    
+    conn = get_database_connection()
+    if conn:
+        try:
+            with conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        INSERT INTO strata_projects (project_name, payload_data, last_updated)
+                        VALUES (%s, %s, CURRENT_TIMESTAMP)
+                        ON CONFLICT (project_name) DO UPDATE 
+                        SET payload_data = EXCLUDED.payload_data, last_updated = CURRENT_TIMESTAMP;
+                    """, (project_name, payload_string))
+            conn.close()
+            return True
+        except Exception:
+            pass
+            
+    # Local Storage Backup Commit Sequence
+    registry_path = Path("strata_workspace_registry.json")
+    data = {}
+    if registry_path.exists():
+        try:
+            with open(registry_path, "r") as f:
+                data = json.load(f)
+        except Exception:
+            data = {}
+    data[project_name] = {
+        "sales": sales, "opex": opex, "payroll": payroll, "capital": capital
+    }
+    with open(registry_path, "w") as f:
+        json.dump(data, f, indent=2)
+    return True
+
+def pull_project_payload_from_storage(project_name):
+    """Retrieves and unpacks explicit row text strings straight from database matrices."""
+    conn = get_database_connection()
+    if conn:
+        try:
+            with conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    cur.execute("SELECT payload_data FROM strata_projects WHERE project_name = %s;", (project_name,))
+                    row = cur.fetchone()
+            conn.close()
+            if row:
+                return json.loads(row['payload_data'])
+        except Exception:
+            pass
+            
+    # Local Backup Routing Pull Sequence
+    registry_path = Path("strata_workspace_registry.json")
+    if registry_path.exists():
+        try:
+            with open(registry_path, "r") as f:
+                data = json.load(f)
+                return data.get(project_name, None)
+        except Exception:
+            return None
+    return None
+
+# Execute structural handshake on runtime startup initialization
+execute_database_handshake()
 
 # =========================================================================
 # 🏛️ CORE ENGINE: MULTI-YEAR GRANULAR TRANSITIONAL VECTOR LEDGER
@@ -279,7 +413,7 @@ def generate_corporate_intelligence(df_pl, df_cf, df_bs, range_labels):
         ### 🚨 Liquidity Bottlenecks & Credit Vector Risks
         ### 🏛️ Strategic Recommendations for Capital Reservation
         """
-        model = genai.GenerativeModel('models/gemini-2.5-flash')
+        model = genai.GenerativeModel('models/gemini-1.5-flash')
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
@@ -313,6 +447,9 @@ if "authenticated" not in st.session_state:
 if "cached_report" not in st.session_state:
     st.session_state["cached_report"] = ""
 
+if "active_project_name" not in st.session_state:
+    st.session_state["active_project_name"] = "Unsaved_Draft_Scenario"
+
 if not st.session_state["authenticated"]:
     st.title("🔐 STRATA // Corporate Gateway")
     with st.form("login_form"):
@@ -331,9 +468,59 @@ if st.sidebar.button("Log Out"):
     st.session_state["authenticated"] = False
     st.rerun()
 
+# =========================================================================
+# 💾 THE PROJECT DIRECTORY & PERSISTENCE MANAGEMENT DOCK
+# =========================================================================
+st.markdown("### 🗂️ Neon Serverless Project Registry Persistence")
+proj_col1, proj_col2, proj_col3 = st.columns([4, 4, 3])
+
+with proj_col1:
+    available_projects = extract_project_directory_list()
+    selected_option = st.selectbox(
+        "Load Saved Forecast Project Model:",
+        options=["-- Select Saved Model Blueprint --"] + available_projects
+    )
+    if selected_option != "-- Select Saved Model Blueprint --":
+        loaded_payload = pull_project_payload_from_storage(selected_option)
+        if loaded_payload:
+            st.session_state["active_data"] = loaded_payload
+            st.session_state["active_project_name"] = selected_option
+            st.toast(f"✅ Loaded Blueprint: '{selected_option}' from Neon cluster.")
+            st.rerun()
+
+with proj_col2:
+    save_input_name = st.text_input("Name Active Project State:", value=st.session_state["active_project_name"])
+    if st.button("💾 Commit Active State to Storage", use_container_width=True):
+        if save_input_name.strip() and save_input_name != "Unsaved_Draft_Scenario":
+            commit_project_payload_to_storage(
+                save_input_name.strip(),
+                st.session_state["active_data"]["sales"],
+                st.session_state["active_data"]["opex"],
+                st.session_state["active_data"]["payroll"],
+                st.session_state["active_data"]["capital"]
+            )
+            st.session_state["active_project_name"] = save_input_name.strip()
+            st.success(f"Locked configuration packet: '{save_input_name}' to SQL records.")
+            st.rerun()
+        else:
+            st.warning("⚠️ Provide a distinct scenario identifier name before committing.")
+
+with proj_col3:
+    st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
+    if st.button("➕ Initialize Clean Canvas", type="secondary", use_container_width=True):
+        st.session_state["active_data"] = {"sales": [], "opex": [], "payroll": [], "capital": []}
+        st.session_state["active_project_name"] = "Unsaved_Draft_Scenario"
+        st.toast("🧹 Workspace canvas flushed to clean double-entry state.")
+        st.rerun()
+
+st.markdown("---")
+
+# =========================================================================
+# RUN DATA PARAMETERS DESK
+# =========================================================================
 if nav_choice == "Data Workspace":
     st.title("✍️ Vector Parameter Input Desk")
-    st.caption("Configure granular operational parameters and seasonality structures below.")
+    st.caption(f"Currently tracking workspace blueprint: `{st.session_state['active_project_name']}`")
     st.markdown("---")
     
     tab1, tab2, tab3, tab4 = st.tabs(["📈 Revenue Waves", "💸 Expenses", "👥 Payroll", "🏛️ Funding"])
@@ -468,7 +655,6 @@ elif nav_choice == "Analytical Forecast Sheets":
     exp_col1, exp_col2 = st.columns(2)
     with exp_col1:
         excel_buffer = io.BytesIO()
-        # --- FIXED DYNAMIC TAB ROUTING SYNTAX LOOP ---
         with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
             df_pl[range_labels].to_excel(writer, sheet_name='Granular P&L Forecast')
             df_cf[range_labels].to_excel(writer, sheet_name='Cash Flow Horizon')
