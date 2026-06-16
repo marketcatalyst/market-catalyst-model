@@ -433,4 +433,4 @@ elif st.session_state["active_view"] == "Analytical Forecast Sheets":
                 st.markdown(intel_report)
             
     except Exception as err:
-        st.error(f"Execution Error inside
+        st.error(f"Execution Error inside core transactional engine: {str(err)}")
