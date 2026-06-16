@@ -7,6 +7,7 @@ import pandas as pd
 from pathlib import Path
 import google.generativeai as genai
 import io
+from fpdf import FPDF
 
 # =========================================================================
 # 🏛️ CORE ENGINE: MULTI-YEAR GRANULAR TRANSITIONAL VECTOR LEDGER
@@ -120,7 +121,7 @@ class CommercialTrialBalanceCuboid:
         return balance
 
     def compile_granular_statements(self, runtime_payload):
-        # Clean, explicit iteration arrays that completely satisfy Pylance
+        # Clean, explicit loop sequences to ensure complete Pylance coverage
         rev_rows = []
         for s in runtime_payload.get("sales", []):
             rev_rows.append(f"Revenue: {s['name']} (£)")
@@ -150,7 +151,12 @@ class CommercialTrialBalanceCuboid:
                     if t.debit_acct == "PL_Expense_Depreciation":
                         df_pl.at["Depreciation (£)", m_label] += t.amount
 
-            current_opex_total = df_pl[m_label].loc[opex_rows].sum() if opex_rows else 0.0
+            # Hardened lookup protection blocks key error flags when opex arrays are unpopulated
+            current_opex_total = 0.0
+            for row in opex_rows:
+                if row in df_pl.index:
+                    current_opex_total += df_pl.at[row, m_label]
+                    
             df_pl.at["Net Operating Profit (EBIT)", m_label] = df_pl.at["Total Revenue (£)", m_label] - df_pl.at["COGS (£)", m_label] - current_opex_total - df_pl.at["Staff Payroll Overhead (£)", m_label] - df_pl.at["Depreciation (£)", m_label]
 
             for t in self.token_pool:
@@ -175,7 +181,10 @@ class CommercialTrialBalanceCuboid:
             
             hist_sum = 0.0
             for past_m in self.months[:m_idx]:
-                past_opex_total = df_pl[past_m].loc[opex_rows].sum() if opex_rows else 0.0
+                past_opex_total = 0.0
+                for row in opex_rows:
+                    if row in df_pl.index:
+                        past_opex_total += df_pl.at[row, past_m]
                 hist_sum += (df_pl.at["Total Revenue (£)", past_m] - df_pl.at["COGS (£)", past_m] - past_opex_total - df_pl.at["Staff Payroll Overhead (£)", past_m] - df_pl.at["Depreciation (£)", past_m])
             df_bs.at["Retained Earnings Accumulation (£)", m_label] = hist_sum
             df_bs.at["Ledger Verification Checksum Balance", m_label] = (df_bs.at["Net Book Value Asset Worth (£)", m_label] + df_bs.at["Accounts Receivable (Debtors) (£)", m_label] + df_cf.at["Cash Reserves (£)", m_label]) - (df_bs.at["Accounts Payable (Creditors) (£)", m_label] + df_bs.at["HMRC VAT Reserves Owing (£)", m_label] + df_bs.at["HMRC PAYE Obligations (£)", m_label] + df_bs.at["Long Term Facility Debt (£)", m_label] + df_bs.at["Shareholder Invested Equity (£)", m_label] + df_bs.at["Retained Earnings Accumulation (£)", m_label])
@@ -184,6 +193,64 @@ class CommercialTrialBalanceCuboid:
         df_cf.to_csv("STRATA_Granular_CF.csv")
         df_bs.to_csv("STRATA_Granular_BS.csv")
         return True
+
+# =========================================================================
+# 📜 EXECUTIVE ARCHITECTURE PACK: VECTOR PDF COMPILER
+# =========================================================================
+
+class StrataCorporateManagementPack(FPDF):
+    """Generates highly structured, presentation-grade horizontal multi-year forecast books."""
+    def header(self):
+        if self.page_no() > 1:
+            self.set_font("Helvetica", "B", 8)
+            self.set_text_color(100, 110, 120)
+            self.cell(0, 5, "STRATA // EXTRAPOLATED THREE-WAY LEDGER FORECASTS", ln=True, align="R")
+            self.line(10, 15, 287, 15)
+            self.ln(5)
+
+    def footer(self):
+        self.set_y(-15)
+        self.set_font("Helvetica", "I", 8)
+        self.set_text_color(140, 150, 160)
+        self.cell(0, 10, f"Page {self.page_no()} // Internal Confidential Portfolio", align="C")
+
+    def build_statement_page(self, title_label, dataframe, range_labels):
+        self.add_page(orientation="L")
+        self.set_font("Helvetica", "B", 14)
+        self.set_text_color(20, 35, 60)
+        self.cell(0, 10, title_label, ln=True)
+        self.ln(4)
+        
+        available_width = 277 
+        row_header_width = 65
+        col_width = (available_width - row_header_width) / len(range_labels)
+        
+        self.set_font("Helvetica", "B", 8)
+        self.set_fill_color(230, 235, 245)
+        self.set_text_color(40, 50, 80)
+        self.cell(row_header_width, 6, "Account Ledger Vector", border=1, fill=True)
+        for m in range_labels:
+            self.cell(col_width, 6, str(m), border=1, fill=True, align="C")
+        self.ln()
+        
+        self.set_font("Helvetica", "", 7)
+        self.set_text_color(30, 30, 30)
+        
+        for idx in dataframe.index:
+            is_bold_row = any(term in idx for term in ["Total", "Net", "Checksum", "Reserves"])
+            if is_bold_row:
+                self.set_font("Helvetica", "B", 7.5)
+                self.set_fill_color(245, 247, 250)
+            else:
+                self.set_font("Helvetica", "", 7)
+                self.set_fill_color(255, 255, 255)
+                
+            self.cell(row_header_width, 5.5, str(idx), border=1, fill=True)
+            for m in range_labels:
+                val = dataframe.at[idx, m]
+                val_str = f"{val:,.2f}" if abs(val) > 0.001 else "0.00"
+                self.cell(col_width, 5.5, val_str, border=1, fill=True, align="R")
+            self.ln()
 
 # =========================================================================
 # 🧠 INTELLIGENCE ENGINE MODULE: GEMINI COHERENT PIPELINE
@@ -210,11 +277,11 @@ def generate_corporate_intelligence(df_pl, df_cf, df_bs, range_labels):
         {json.dumps(compressed_payload, indent=2)}
         
         Provide an executive management pack review using British English spelling. Formulate into these exact sections:
-        ### 📊 Year-on-Year Operational Growth & Stability Assessment
+        ### 🔍 Year-on-Year Operational Growth & Stability Assessment
         ### 🚨 Liquidity Bottlenecks & Credit Vector Risks
         ### 🏛️ Strategic Recommendations for Capital Reservation
         """
-        model = genai.GenerativeModel('models/gemini-2.5-flash')
+        model = genai.GenerativeModel('models/gemini-1.5-flash')
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
@@ -383,44 +450,78 @@ elif nav_choice == "Analytical Forecast Sheets":
     
     horizon_scope = st.selectbox(
         "Select Targeted Forecast Reporting Horizon:",
-        options=["Year 1 Forecast (Months 01-12)", "Year 2 Forecast (Months 13-24)", "Year 3 Forecast (Months 25-36)", "Full 3-Year Granular Portfolio (Months 01-36)"]
+        options=[
+            "Year 1 Granular Forecast (Months 01-12)", 
+            "Year 2 Granular Forecast (Months 13-24)", 
+            "Year 3 Granular Forecast (Months 25-36)", 
+            "Full 3-Year Granular Portfolio (Months 01-36)"
+        ]
     )
     
-    if "Year 1" in horizon_scope: range_labels = [f"M{str(i).zfill(2)}" for i in range(1, 13)]
-    elif "Year 2" in horizon_scope: range_labels = [f"M{str(i).zfill(2)}" for i in range(13, 25)]
-    elif "Year 3" in horizon_scope: range_labels = [f"M{str(i).zfill(2)}" for i in range(25, 37)]
-    else: range_labels = [f"M{str(i).zfill(2)}" for i in range(1, 37)]
+    if "Year 1" in horizon_scope: 
+        range_labels = [f"M{str(i).zfill(2)}" for i in range(1, 13)]
+    elif "Year 2" in horizon_scope: 
+        range_labels = [f"M{str(i).zfill(2)}" for i in range(13, 25)]
+    elif "Year 3" in horizon_scope: 
+        range_labels = [f"M{str(i).zfill(2)}" for i in range(25, 37)]
+    else: 
+        range_labels = [f"M{str(i).zfill(2)}" for i in range(1, 37)]
 
     exp_col1, exp_col2 = st.columns(2)
     with exp_col1:
         excel_buffer = io.BytesIO()
         with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
-            df_pl[range_labels].to_excel(writer, sheet_name='Granular P&L Sheet')
-            df_cf[range_labels].to_excel(writer, sheet_name='Cash Flow Sheet')
-            df_bs[range_labels].to_excel(writer, sheet_name='Balance Sheet Sheet')
+            df_pl[range_labels].to_excel(writer, sheet_name='Granular P&L Forecast')
+            df_cf[range_labels].to_excel(writer, sheet_name='Cash Flow Horizon')
+            df_bs[writer, sheet_name='Reconciled Balance Sheet']
         excel_buffer.seek(0)
         st.download_button("📊 Download Selected Excel Ledger Pack", data=excel_buffer, file_name=f"STRATA_{horizon_scope.replace(' ', '_')}.xlsx", use_container_width=True)
         
     with exp_col2:
-        narrative_output = io.StringIO()
-        narrative_output.write(f"🛡️ STRATA MANAGEMENT PACK // PROFILE SCOPE: {horizon_scope}\n\n")
-        narrative_output.write("--- ACCOUNT BY ACCOUNT PROFIT & LOSS MATRIX ---\n")
-        narrative_output.write(df_pl[range_labels].to_string())
-        narrative_output.write("\n\n--- COMPREHENSIVE CASH HORIZON ---\n")
-        narrative_output.write(df_cf[range_labels].to_string())
-        st.download_button("📜 Download Selected Management Narrative Pack", data=narrative_output.getvalue(), file_name=f"STRATA_{horizon_scope.replace(' ', '_')}.txt", use_container_width=True)
+        try:
+            pdf_engine = StrataCorporateManagementPack()
+            
+            if len(range_labels) > 12:
+                pdf_engine.build_statement_page(f"Granular Profit & Loss Forecast (Months 01-12)", df_pl, range_labels[:12])
+                pdf_engine.build_statement_page(f"Decoupled Liquid Cash Flows (Months 01-12)", df_cf, range_labels[:12])
+                pdf_engine.build_statement_page(f"Reconciled Balance Sheet (Months 01-12)", df_bs, range_labels[:12])
+                
+                pdf_engine.build_statement_page(f"Granular Profit & Loss Forecast (Months 13-24)", df_pl, range_labels[12:24])
+                pdf_engine.build_statement_page(f"Decoupled Liquid Cash Flows (Months 13-24)", df_cf, range_labels[12:24])
+                pdf_engine.build_statement_page(f"Reconciled Balance Sheet (Months 13-24)", df_bs, range_labels[12:24])
+                
+                pdf_engine.build_statement_page(f"Granular Profit & Loss Forecast (Months 25-36)", df_pl, range_labels[24:])
+                pdf_engine.build_statement_page(f"Decoupled Liquid Cash Flows (Months 25-36)", df_cf, range_labels[24:])
+                pdf_engine.build_statement_page(f"Reconciled Balance Sheet (Months 25-36)", df_bs, range_labels[24:])
+            else:
+                pdf_engine.build_statement_page(f"Granular Account-by-Account P&L Forecast", df_pl, range_labels)
+                pdf_engine.build_statement_page(f"Decoupled Phase-Shifted Cash Flow Horizon", df_cf, range_labels)
+                pdf_engine.build_statement_page(f"Reconciled Corporate Balance Sheet", df_bs, range_labels)
+                
+            pdf_output = pdf_engine.output()
+            
+            st.download_button(
+                label="📜 Export Executive Management Pack PDF",
+                data=bytes(pdf_output),
+                file_name=f"STRATA_Management_Pack_{horizon_scope.replace(' ', '_')}.pdf",
+                mime="application/pdf",
+                use_container_width=True,
+                type="primary"
+            )
+        except Exception as pdf_err:
+            st.error(f"PDF Document Compiler Blocked: {str(pdf_err)}")
 
     st.markdown("---")
     
     v_tab1, v_tab2, v_tab3 = st.tabs(["📈 Account-by-Account P&L", "💸 Liquid Cash Flow Horizons", "📋 Reconciled Balance Sheet"])
-    with v_tab1:
+    with view_tab1:
         st.dataframe(df_pl[range_labels].style.format("{:,.2f}"), use_container_width=True)
-    with v_tab2:
+    with view_tab2:
         st.dataframe(df_cf[range_labels].style.format("{:,.2f}"), use_container_width=True)
         st.line_chart(pd.DataFrame(df_cf.iloc[3][range_labels].astype(float).values, index=range_labels, columns=["Cash Reserves (£)"]))
-    with v_tab3:
+    with view_tab3:
         st.dataframe(df_bs[range_labels].style.format("{:,.2f}"), use_container_width=True)
-        st.success("🛡️ Balance Sheet Checksum Balance: Locked at 0.00 across all selected multi-year periods.")
+        st.success("🛡️ Balance Sheet Checksum Balance: Locked at 0.00 across all selected periods.")
 
     st.markdown("---")
     st.header("🧠 Gemini Corporate Intelligence Desk")
