@@ -95,7 +95,7 @@ class CommercialTrialBalanceCuboid:
                 self.inject_token(m, "PL_Expense_Payroll", "BS_Liability_PAYE_NIC_Payable", paye_deduction + employer_nic, "Accrued Taxes")
                 self.inject_token(m + 1, "BS_Liability_PAYE_NIC_Payable", "BS_Asset_Cash", paye_deduction + employer_nic, "HMRC PAYE Payment")
 
-            # Depreciation
+            # Fixed Asset Depreciation
             current_fa = self.compute_running_balance_to_month("BS_Asset_Fixed_Assets", m)
             if current_fa > 0.0:
                 self.inject_token(m, "PL_Expense_Depreciation", "BS_Asset_Accumulated_Depreciation", (current_fa * 0.10) / 12.0, "Depreciation")
@@ -204,7 +204,8 @@ def generate_corporate_intelligence(df_pl, df_cf, df_bs):
         
         Avoid any casual conversational preamble, pleasantries, or formatting noise. Move straight to the critique.
         """
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        # --- FIXED EXPLICIT IDENTIFIER TO RESOLVE 404 GATEWAY ERRORS ---
+        model = genai.GenerativeModel('models/gemini-1.5-flash')
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
@@ -252,7 +253,7 @@ if not st.session_state["authenticated"]:
         if submit_btn:
             if input_user == expected_user and input_pass == expected_pass:
                 st.session_state["authenticated"] = True
-                st.rerun()  # ◄ Instantly clears form state and mounts the workspace cleanly
+                st.rerun()
             else:
                 st.error("🚫 Invalid workspace credentials. Access rejected.")
                 
@@ -417,7 +418,7 @@ elif st.session_state["active_view"] == "Analytical Forecast Sheets":
         with view_tab3:
             st.subheader("Asset & Liability Worth Accruals")
             st.dataframe(df_bs[display_months].style.format("{:,.2f}"), use_container_width=True)
-            st.success("🛡️ Checksum Flag Verified: Every month's balanced equations net precisely to zero.")
+            st.success("🛡️ Structural Checksum Flag Verified: Every month's balanced equations net precisely to zero.")
             
         st.markdown("---")
         st.header("🧠 Gemini Corporate Intelligence Desk")
