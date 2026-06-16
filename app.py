@@ -50,7 +50,7 @@ class CommercialTrialBalanceCuboid:
     def process_simulation(self, runtime_payload):
         self.token_pool = []
         
-        # Capitalization Injections
+        # Capitalisation Injections
         for cap in runtime_payload.get("capital", []):
             m_start, val, c_type = int(cap.get("month", 1)), float(cap.get("value", 0.0)), cap.get("type", "")
             if c_type == "Equity Capital / Share Premium Injection":
@@ -95,7 +95,7 @@ class CommercialTrialBalanceCuboid:
                 self.inject_token(m, "PL_Expense_Payroll", "BS_Liability_PAYE_NIC_Payable", paye_deduction + employer_nic, "Accrued Taxes")
                 self.inject_token(m + 1, "BS_Liability_PAYE_NIC_Payable", "BS_Asset_Cash", paye_deduction + employer_nic, "HMRC PAYE Payment")
 
-            # Depreciation
+            # Fixed Asset Depreciation
             current_fa = self.compute_running_balance_to_month("BS_Asset_Fixed_Assets", m)
             if current_fa > 0.0:
                 self.inject_token(m, "PL_Expense_Depreciation", "BS_Asset_Accumulated_Depreciation", (current_fa * 0.10) / 12.0, "Depreciation")
@@ -168,7 +168,7 @@ class CommercialTrialBalanceCuboid:
 # =========================================================================
 
 def generate_corporate_intelligence(df_pl, df_cf, df_bs):
-    """Compresses ledger matrices and leverages Gemini API to synthesize an executive report."""
+    """Compresses ledger matrices and leverages Gemini API to synthesise an executive report."""
     api_key = os.environ.get("GEMINI_API_KEY") or st.secrets.get("GEMINI_API_KEY", None)
     if not api_key:
         return "⚠️ **System Lock:** Gemini API Key not detected in workspace environment configuration."
@@ -204,8 +204,8 @@ def generate_corporate_intelligence(df_pl, df_cf, df_bs):
         
         Avoid any casual conversational preamble, pleasantries, or formatting noise. Move straight to the critique.
         """
-        # --- MODERN ACTIVE GENERATION MODEL POINTER ---
-        model = genai.GenerativeModel('gemini-2.5-flash')
+        # --- ROBUST API STRING INITIALISATION ---
+        model = genai.GenerativeModel('models/gemini-1.5-flash')
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
@@ -432,5 +432,4 @@ elif st.session_state["active_view"] == "Analytical Forecast Sheets":
                 st.markdown(intel_report)
             
     except Exception as err:
-        st.error(f"Execution Error inside core transactional engine: {str(err)}")   
- 
+        st.error(f"Execution Error inside core transactional engine: {str(err)}")
