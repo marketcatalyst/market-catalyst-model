@@ -448,56 +448,71 @@ def generate_corporate_intelligence(df_pl, df_cf, df_bs, range_labels):
         return f"❌ **Gateway Disconnect:** {str(e)}"
 
 # =========================================================================
-# 🎛️ REFACTORED WORKSPACE FUNCTION: HARDENED EXTRACTION PIPELINE
+# 🎛️ INTELLIGENT GEMINI MULTIMODAL INGESTION CORE
 # =========================================================================
 
 def process_file_ingestion_callback():
-    """Callback execution block that reads any row structural format from spreadsheets safely."""
+    """Reads unstructured text, spreadsheets or files and pipes them through the Gemini OCR engine."""
     uploaded_file = st.session_state.get("file_ingestion_key")
     if uploaded_file is not None:
-        file_ext = uploaded_file.name.split(".")[-1].lower()
-        origin_tag = f"Ingested Asset: {uploaded_file.name}"
+        origin_tag = f"AI Ingested: {uploaded_file.name}"
         active_proj = st.session_state.get("active_project_name", "Unsaved_Draft_Scenario")
+        api_key = os.environ.get("GEMINI_API_KEY") or st.secrets.get("GEMINI_API_KEY", None)
         
+        if not api_key:
+            st.sidebar.error("❌ Gemini API Key missing. Dropback to manual parameters required.")
+            return
+
         try:
+            file_ext = uploaded_file.name.split(".")[-1].lower()
+            
             if file_ext in ["csv", "xlsx"]:
                 if file_ext == "csv":
-                    raw_df = pd.read_csv(uploaded_file)
+                    doc_payload = pd.read_csv(uploaded_file).to_string()
                 else:
-                    raw_df = pd.read_excel(uploaded_file, engine='openpyxl')
-                
-                if not raw_df.empty:
-                    # Robust loop: extract rows sequentially regardless of naming schema
-                    for _, row in raw_df.iterrows():
-                        # Read cell strings safely avoiding row indexing errors
-                        label = str(row.iloc[0]).strip() if len(row) > 0 and pd.notna(row.iloc[0]) else "Extracted Line Vector"
-                        
-                        # Handle values cleanly mapping string amounts
-                        raw_val = row.iloc[1] if len(row) > 1 else 0.0
-                        try:
-                            amount = float(abs(float(str(raw_val).replace(',', '').replace('£', '')))) if pd.notna(raw_val) else 35000.0
-                        except ValueError:
-                            amount = 35000.0
-                            
-                        if amount <= 0.0:
-                            continue # Skip non-valued cosmetic headers
-                        
-                        # Hardened Fallback Routing: maps semantic names or defaults to clean staging cards
-                        lbl_lower = label.lower()
-                        if "revenue" in lbl_lower or "sale" in lbl_lower or "turnover" in lbl_lower or "income" in lbl_lower:
-                            stage_unverified_ingestion_line(active_proj, "sales", origin_tag, f"Scraped Rev: {label}", amount, "Flat_Linear", 0, True)
-                        elif "salary" in lbl_lower or "wage" in lbl_lower or "payroll" in lbl_lower or "staff" in lbl_lower:
-                            stage_unverified_ingestion_line(active_proj, "payroll", origin_tag, f"Scraped Staff: {label}", amount, "Flat_Linear", 0, False)
-                        else:
-                            stage_unverified_ingestion_line(active_proj, "opex", origin_tag, f"Scraped Expense: {label}", amount, "Flat_Linear", 30, True)
+                    doc_payload = pd.read_excel(uploaded_file, engine='openpyxl').to_string()
             else:
-                # Text/PDF extraction fallback matrix paths
-                stage_unverified_ingestion_line(active_proj, "opex", origin_tag, "Scraped Infrastructure Utility Cost", 14500.0, "Winter_Peak", 14, True)
-                stage_unverified_ingestion_line(active_proj, "sales", origin_tag, "Scraped Commercial Alpha Revenue", 120000.0, "Flat_Linear", 30, True)
+                doc_payload = str(uploaded_file.read())
+
+            genai.configure(api_key=api_key)
+            model = genai.GenerativeModel('models/gemini-2.5-flash')
+            
+            ai_prompt = f"""
+            You are an advanced accounting extraction system. Review this unstructured data layout:
+            
+            {doc_payload}
+            
+            Isolate any active revenue streams, supplier overhead values, infrastructure expenditures, or payroll elements.
+            Convert them into a strict JSON list of objects matching this exact syntax structure:
+            [
+              {{"vector_type": "sales", "line_name": "Label description", "base_amount": 54000.0, "seasonality": "Flat_Linear", "delay_days": 30, "vat_applicable": true}},
+              {{"vector_type": "opex", "line_name": "Label description", "base_amount": 12000.0, "seasonality": "Winter_Peak", "delay_days": 30, "vat_applicable": true}}
+            ]
+            
+            Allowed vector_type configurations: 'sales', 'opex', 'payroll'.
+            Allowed seasonality configurations: 'Flat_Linear', 'Winter_Peak', 'Summer_Peak'.
+            Output raw valid JSON only. Do not contain Markdown syntax formatting tick marks.
+            """
+            
+            ai_response = model.generate_content(ai_prompt).text
+            clean_json = ai_response.replace("```json", "").replace("```", "").strip()
+            parsed_vectors = json.loads(clean_json)
+            
+            for vec in parsed_vectors:
+                stage_unverified_ingestion_line(
+                    project_name=active_proj,
+                    v_type=vec.get("vector_type", "opex"),
+                    origin=origin_tag,
+                    name=vec.get("line_name", "AI Scraped Parameter"),
+                    amount=float(vec.get("base_amount", 0.0)),
+                    seasonality=vec.get("seasonality", "Flat_Linear"),
+                    delay=int(vec.get("delay_days", 0)),
+                    vat=bool(vec.get("vat_applicable", True))
+                )
                 
             st.session_state["file_upload_success_banner"] = True
         except Exception as err:
-            st.sidebar.error(f"Ingestion Engine Matrix Error: {str(err)}")
+            st.sidebar.error(f"Gemini Extraction Exception: {str(err)}")
 
 # =========================================================================
 # ⚙️ STREAMLIT INTERFACE LAYER & CONFIGURATION DOCK
@@ -551,9 +566,7 @@ if st.sidebar.button("Log Out"):
     st.session_state["authenticated"] = False
     st.rerun()
 
-# =========================================================================
-# 💾 THE PROJECT DIRECTORY & PERSISTENCE MANAGEMENT DOCK
-# =========================================================================
+# Project directory dropdown and persistence controllers
 st.markdown("### 🗂️ Neon Serverless Project Registry Persistence")
 proj_col1, proj_col2, proj_col3 = st.columns([4, 4, 3])
 
@@ -600,15 +613,12 @@ with proj_col3:
 
 st.markdown("---")
 
-# =========================================================================
-# RUN DATA PARAMETERS DESK
-# =========================================================================
+# Navigation branch routing loops
 if nav_choice == "Data Workspace":
     st.title("✍️ Parameter Aggregation Workspace")
     
-    # 📥 AUTOMATED ASSET INGESTION BAY
-    st.header("📥 Autonomous Asset Extraction Gate")
-    st.caption("Drop un-transcribed PDF statements, legacy spreadsheets, or contract briefs below to trigger automated parsing parameters.")
+    st.header("📥 Autonomous AI Extraction Gate")
+    st.caption("Drop any un-transcribed statement spreadsheet, invoice PDF, or contract brief below to trigger live Gemini extraction.")
     
     st.file_uploader(
         "Upload Unstructured Operational Document (PDF, CSV, XLSX):", 
@@ -618,20 +628,17 @@ if nav_choice == "Data Workspace":
     )
     
     if st.session_state["file_upload_success_banner"]:
-        st.success("🎉 Document extraction complete! Review rows ready for approval below.")
+        st.success("🎉 Gemini AI extraction complete! Review rows ready for approval below.")
         
-    # 📋 THE INPUT AWAITING APPROVAL SCHEDULE WORKSPACE
     st.markdown("### 📥 Review Schedule: Ingested Lines Awaiting Verification Gate")
     staging_records = extract_staging_schedule_records(st.session_state["active_project_name"])
     
     if not staging_records:
         st.info("ℹ️ No unverified rows currently staging. Upload a document above or manually input values beneath.")
     else:
-        # Clear succession flag so layout loops update cleanly
         st.session_state["file_upload_success_banner"] = False
-        
         for item in staging_records:
-            with st.expander(f"📋 STAGED ASSET // Source: {item['source_origin']}", expanded=True):
+            with st.expander(f"🔮 GEMINI EXTRACTED // Origin Source: {item['source_origin']}", expanded=True):
                 col_i1, col_i2, col_i3 = st.columns(3)
                 with col_i1:
                     edit_name = st.text_input("Verified Line Identifier Label:", value=item['line_name'], key=f"st_name_{item['staging_id']}")
@@ -658,7 +665,6 @@ if nav_choice == "Data Workspace":
                                 st.session_state["active_data"]["payroll"].append({
                                     "name": edit_name.strip(), "amount": float(edit_amount)
                                 })
-                            
                             purge_staging_record_by_id(item['staging_id'])
                             st.toast("🚀 Staged parameter promoted to active three-way simulation ledger!")
                             st.rerun()
@@ -776,11 +782,7 @@ elif nav_choice == "Analytical Forecast Sheets":
     df_cf = pd.read_csv("STRATA_Granular_CF.csv", index_col=0)
     df_bs = pd.read_csv("STRATA_Granular_BS.csv", index_col=0)
 
-    # =========================================================================
-    # 🎛️ REPORT SELECTION & RANGE GATEWAY CONTROL DOCK
-    # =========================================================================
     st.header("🎛️ Report Parameter Scope Configuration")
-    
     horizon_scope = st.selectbox(
         "Select Targeted Forecast Reporting Horizon:",
         options=[
@@ -813,7 +815,6 @@ elif nav_choice == "Analytical Forecast Sheets":
     with exp_col2:
         try:
             pdf_engine = StrataCorporateManagementPack()
-            
             if len(range_labels) > 12:
                 pdf_engine.build_statement_page(f"Granular Profit & Loss Forecast (Months 01-12)", df_pl, range_labels[:12])
                 pdf_engine.build_statement_page(f"Decoupled Liquid Cash Flows (Months 01-12)", df_cf, range_labels[:12])
@@ -832,7 +833,6 @@ elif nav_choice == "Analytical Forecast Sheets":
                 pdf_engine.build_statement_page(f"Reconciled Corporate Balance Sheet", df_bs, range_labels)
                 
             pdf_output = pdf_engine.output()
-            
             st.download_button(
                 label="📜 Export Executive Management Pack PDF",
                 data=bytes(pdf_output),
