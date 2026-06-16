@@ -8,7 +8,7 @@ from pathlib import Path
 import google.generativeai as genai
 
 # =========================================================================
-# 🏛️ CORE ENGINE: TRANSITIONAL VECTOR LEDGER (OMITTING DIRECTORY IMPORTS)
+# 🏛️ CORE ENGINE: TRANSITIONAL VECTOR LEDGER
 # =========================================================================
 
 class JournalToken:
@@ -50,7 +50,7 @@ class CommercialTrialBalanceCuboid:
     def process_simulation(self, runtime_payload):
         self.token_pool = []
         
-        # 1. Capitalization Injections
+        # Capitalization Injections
         for cap in runtime_payload.get("capital", []):
             m_start, val, c_type = int(cap.get("month", 1)), float(cap.get("value", 0.0)), cap.get("type", "")
             if c_type == "Equity Capital / Share Premium Injection":
@@ -60,9 +60,9 @@ class CommercialTrialBalanceCuboid:
             elif c_type == "New / Existing Fixed Asset CapEx":
                 self.inject_token(m_start, "BS_Asset_Fixed_Assets", "BS_Asset_Cash", val, "Infrastructure CapEx")
 
-        # 2. Chronological Operational Horizon Loop
+        # Chronological Loop
         for m in range(1, 61):
-            # Sales Pipeline (With Debtor Days Shift)
+            # Sales (Debtor Days Shift)
             for sale in runtime_payload.get("sales", []):
                 ann_net = float(sale.get("amount", 0.0))
                 profile, debtor_days, vat_app = sale.get("seasonality", "Flat_Linear"), int(sale.get("debtor_days", 0)), sale.get("vat_applicable", True)
@@ -74,7 +74,7 @@ class CommercialTrialBalanceCuboid:
                     self.inject_token(m, "BS_Asset_Debtors", "BS_Liability_VAT_Payable", monthly_vat, "Output VAT")
                 self.inject_token(m + (debtor_days // 30), "BS_Asset_Cash", "BS_Asset_Debtors", monthly_net + monthly_vat, "Cash Receipt")
 
-            # Overheads Pipeline (With Creditor Days Shift)
+            # Overheads (Creditor Days Shift)
             for opex in runtime_payload.get("opex", []):
                 ann_net_cost = float(opex.get("amount", 0.0))
                 profile, creditor_days, vat_rec = opex.get("seasonality", "Flat_Linear"), int(opex.get("creditor_days", 0)), opex.get("vat_applicable", True)
@@ -86,7 +86,7 @@ class CommercialTrialBalanceCuboid:
                     self.inject_token(m, "BS_Liability_VAT_Payable", "BS_Liability_Creditors", monthly_input_vat, "Input VAT")
                 self.inject_token(m + (creditor_days // 30), "BS_Liability_Creditors", "BS_Asset_Cash", monthly_net_cost + monthly_input_vat, "Supplier Payment")
 
-            # Payroll Vectors (With Delayed 1-Month PAYE Settlement)
+            # Payroll (1-Month PAYE Settlement Delay)
             for pay in runtime_payload.get("payroll", []):
                 monthly_gross = float(pay.get("amount", 0.0)) / 12.0
                 employer_nic = monthly_gross * 0.138
@@ -95,12 +95,12 @@ class CommercialTrialBalanceCuboid:
                 self.inject_token(m, "PL_Expense_Payroll", "BS_Liability_PAYE_NIC_Payable", paye_deduction + employer_nic, "Accrued Taxes")
                 self.inject_token(m + 1, "BS_Liability_PAYE_NIC_Payable", "BS_Asset_Cash", paye_deduction + employer_nic, "HMRC PAYE Payment")
 
-            # Fixed Asset Depreciation
+            # Depreciation
             current_fa = self.compute_running_balance_to_month("BS_Asset_Fixed_Assets", m)
             if current_fa > 0.0:
                 self.inject_token(m, "PL_Expense_Depreciation", "BS_Asset_Accumulated_Depreciation", (current_fa * 0.10) / 12.0, "Depreciation")
 
-            # Quarterly Statutory HMRC VAT Flush
+            # Quarterly VAT Return Flush
             if m in [3, 6, 9, 12, 15, 18, 21, 24, 27, 30, 33, 36, 39, 42, 45, 48, 51, 54, 57, 60]:
                 vat_acc = self.compute_running_balance_to_month("BS_Liability_VAT_Payable", m)
                 if vat_acc != 0.0:
@@ -211,9 +211,10 @@ def generate_corporate_intelligence(df_pl, df_cf, df_bs):
         return f"❌ **API Gateway Disconnect:** Failed to process model response. Error context: {str(e)}"
 
 # =========================================================================
-# ⚙️ STREAMLIT INTERFACE LAYER
+# ⚙️ STREAMLIT INTERFACE LAYER & SECURITY GATEWAY
 # =========================================================================
 
+# --- INITIAL REVENUE MATRIX MAPPINGS ---
 if "active_data" not in st.session_state:
     st.session_state["active_data"] = {
         "sales": [
@@ -232,6 +233,35 @@ if "active_data" not in st.session_state:
         ]
     }
 
+# --- TRACK SECURE AUTHENTICATION STATUS ---
+if "authenticated" not in st.session_state:
+    st.session_state["authenticated"] = False
+
+# --- SCREEN GATE: FORCE SIGN IN BEFORE LOADING ENGINE ---
+if not st.session_state["authenticated"]:
+    st.title("🔐 STRATA // Corporate Gateway")
+    st.caption("Access restricted to authorised team personnel. Enter your credentials to verify your workspace session.")
+    st.markdown("---")
+    
+    # Safely extract expected credentials from secrets mapping
+    expected_user = st.secrets.get("workspace_credentials", {}).get("username", "marketcatalyst")
+    expected_pass = st.secrets.get("workspace_credentials", {}).get("password", "@MCStrata080881")
+    
+    with st.form("login_form"):
+        input_user = st.text_input("Workspace Username Access Key:")
+        input_pass = st.text_input("Security Access Password:", type="password")
+        
+        if st.form_submit_button("Verify & Open Workspace Desks"):
+            if input_user == expected_user and input_pass == expected_pass:
+                st.session_state["authenticated"] = True
+                st.success("🔒 Authorization verified successfully. Mounting workspace environments...")
+                st.button("Click to Proceed to Data Workspace")
+            else:
+                st.error("🚫 Invalid workspace credentials. Access rejected.")
+                
+    st.stop()  # Strict block prevents execution of the application below until authenticated is True
+
+# --- POST AUTHENTICATION: RUN COHERENT WORKSPACE ---
 if "active_view" not in st.session_state:
     st.session_state["active_view"] = "Data Workspace"
 
@@ -248,8 +278,12 @@ st.session_state["active_view"] = nav_choice
 st.sidebar.markdown("---")
 st.sidebar.info("🔒 Platform Balance Engine Active. Monitored continuously.")
 
+if st.sidebar.button("Log Out of Session"):
+    st.session_state["authenticated"] = False
+    st.rerun()
+
 if st.session_state["active_view"] == "Data Workspace":
-    st.title("✍️ Vector Parameter Input Desk")
+    st.title("✍ *Vector Parameter Input Desk")
     st.caption("Clean-sheet environment configuration canvas. Set explicit seasonality shapes and credit delays.")
     st.markdown("---")
     
@@ -276,7 +310,7 @@ if st.session_state["active_view"] == "Data Workspace":
             col1.markdown(f"**{item['name']}**\n\n*Term:* {item['debtor_days']} Days Credit Given")
             col2.markdown(f"**Annual Baseline:** £{item['amount']:,.2f}")
             col3.markdown(f"*Curve:* `{item['seasonality']}`")
-            if col4.button("🗑️ Remove", key=f"del_r_{idx}"):
+            if col4.button("🗑 Remove", key=f"del_r_{idx}"):
                 st.session_state["active_data"]["sales"].pop(idx)
                 st.rerun()
 
@@ -301,7 +335,7 @@ if st.session_state["active_view"] == "Data Workspace":
             col1.markdown(f"**{item['name']}**\n\n*Payment window:* Net {item['creditor_days']} Terms")
             col2.markdown(f"**Annual Base:** £{item['amount']:,.2f}")
             col3.markdown(f"*Utility Profile:* `{item['seasonality']}`")
-            if col4.button("🗑️ Remove", key=f"del_o_{idx}"):
+            if col4.button("🗑 Remove", key=f"del_o_{idx}"):
                 st.session_state["active_data"]["opex"].pop(idx)
                 st.rerun()
 
@@ -320,7 +354,7 @@ if st.session_state["active_view"] == "Data Workspace":
             col1, col2, col3 = st.columns([4, 3, 1])
             col1.markdown(f"**Staff Vector Group:** {item['name']}")
             col2.markdown(f"**Annual Gross Liability Base:** £{item['amount']:,.2f}")
-            if col3.button("🗑️ Remove", key=f"del_p_{idx}"):
+            if col3.button("🗑 Remove", key=f"del_p_{idx}"):
                 st.session_state["active_data"]["payroll"].pop(idx)
                 st.rerun()
 
@@ -345,7 +379,7 @@ if st.session_state["active_view"] == "Data Workspace":
             col1, col2, col3 = st.columns([3, 4, 1])
             col1.markdown(f"**{item['name']}** - Month {item['month']}")
             col2.markdown(f"**Type:** `{item['type']}` | *Value:* £{item['value']:,.2f}")
-            if col3.button("🗑️ Remove", key=f"del_c_{idx}"):
+            if col3.button("🗑 Remove", key=f"del_c_{idx}"):
                 st.session_state["active_data"]["capital"].pop(idx)
                 st.rerun()
 
@@ -375,19 +409,18 @@ elif st.session_state["active_view"] == "Analytical Forecast Sheets":
             st.dataframe(df_cf[display_months].style.format("{:,.2f}"), use_container_width=True)
             
             st.markdown("### 📊 Compounding Real-World Cash Trajectory Curve")
-            # --- PROTECTED POSITION BASED ARRAYS TO PREVENT INFINITY WARNINGS ---
             try:
-                raw_cash_vector = df_cf.iloc[3].astype(float).values  # Explicitly grabs row index 4 (Cash Reserves) safely
+                raw_cash_vector = df_cf.iloc[3].astype(float).values
                 chart_frame = pd.DataFrame(data=raw_cash_vector, index=df_cf.columns, columns=["Liquid Bank Balances (£)"])
                 chart_frame.index.name = "Month"
                 st.line_chart(chart_frame, use_container_width=True)
             except Exception:
-                st.warning("📊 Cash Reserve chart vector processing. Add entries on the input desk to plot trajectory.")
+                st.warning("📊 Cash Reserve chart processing. Add data on the input desk to plot trajectory.")
             
         with view_tab3:
             st.subheader("Asset & Liability Worth Accruals")
             st.dataframe(df_bs[display_months].style.format("{:,.2f}"), use_container_width=True)
-            st.success("🛡️ Structural Checksum Flag Verified: Every month's balanced equations net precisely to zero.")
+            st.success("🛡 Checksum Flag Verified: Every month's balanced equations net precisely to zero.")
             
         st.markdown("---")
         st.header("🧠 Gemini Corporate Intelligence Desk")
