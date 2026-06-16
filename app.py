@@ -5,6 +5,7 @@ import json
 import os
 import pandas as pd
 from pathlib import Path
+import google.generativeai as genai
 
 # =========================================================================
 # 🏛️ CORE ENGINE: TRANSITIONAL VECTOR LEDGER (OMITTING DIRECTORY IMPORTS)
@@ -163,10 +164,62 @@ class CommercialTrialBalanceCuboid:
         return True
 
 # =========================================================================
+# 🧠 INTELLIGENCE ENGINE MODULE: GEMINI COHERENT PIPELINE
+# =========================================================================
+
+def generate_corporate_intelligence(df_pl, df_cf, df_bs):
+    """
+    Compresses 3-way ledger matrices and leverages the Gemini API to extract
+    working capital vulnerabilities and synthesize an executive report.
+    """
+    api_key = os.environ.get("GEMINI_API_KEY") or st.secrets.get("GEMINI_API_KEY", None)
+    if not api_key:
+        return "⚠️ **System Lock:** Gemini API Key not detected in workspace environment configuration."
+    
+    try:
+        genai.configure(api_key=api_key)
+        
+        y1_months = [f"M{str(i).zfill(2)}" for i in range(1, 13)]
+        compressed_payload = {
+            "Profit_And_Loss_Y1": df_pl[y1_months].to_dict(orient="index"),
+            "Cash_Flow_Y1": df_cf[y1_months].to_dict(orient="index"),
+            "Balance_Sheet_Y1": df_bs[y1_months].to_dict(orient="index")
+        }
+        
+        prompt = f"""
+        You are acting as an elite Corporate Financial Analyst and Expert Systems Reviewer. 
+        Analyze this structured 60-month multi-period financial model layout (Year 1 Data provided):
+        
+        {json.dumps(compressed_payload, indent=2)}
+        
+        Deliver a pristine, executive-grade Strategic Intelligence Briefing using British English spelling. 
+        Your response must be highly scannable and broken down into these exact sections:
+        
+        ### 🔍 Working Capital & Liquidity Risk Assessment
+        - Identify any hidden friction points or stress zones caused by phase-shifted credit days (e.g., debtor lag vs creditor terms).
+        - Explicitly review the impact of the Quarterly HMRC VAT flush cycle and payroll liabilities on the net cash runway cushion.
+        
+        ### 📈 Operational Performance & Margin Analysis
+        - Evaluate the revenue generation trajectory factoring in seasonal profile shapes (Winter/Summer peaks).
+        - Critique the net operating profit (EBIT) performance relative to fixed overheads.
+        
+        ### 📋 Strategic Executive Summary
+        - Provide 3 concise, high-level operational recommendations to maximize cash efficiency and preserve runway security.
+        
+        Avoid any casual conversational preamble, pleasantries, or formatting noise. Move straight to the critique.
+        """
+        
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        response = model.generate_content(prompt)
+        return response.text
+        
+    except Exception as e:
+        return f"❌ **API Gateway Disconnect:** Failed to process model response. Error context: {str(e)}"
+
+# =========================================================================
 # ⚙️ STREAMLIT INTERFACE LAYER
 # =========================================================================
 
-# --- INITIALIZE GLOBAL RUNTIME MEMORY MAPPING ---
 if "active_data" not in st.session_state:
     st.session_state["active_data"] = {
         "sales": [
@@ -188,7 +241,6 @@ if "active_data" not in st.session_state:
 if "active_view" not in st.session_state:
     st.session_state["active_view"] = "Data Workspace"
 
-# --- SIDEBAR ROUTING ---
 st.sidebar.title("🛡️ STRATA // Vector Suite")
 st.sidebar.caption("Object-Driven WinForecast Framework Core")
 st.sidebar.markdown("---")
@@ -202,7 +254,6 @@ st.session_state["active_view"] = nav_choice
 st.sidebar.markdown("---")
 st.sidebar.info("🔒 Platform Balance Engine Active. Monitored continuously.")
 
-# --- VIEW 1: DATA WORKSPACE ---
 if st.session_state["active_view"] == "Data Workspace":
     st.title("✍️ Vector Parameter Input Desk")
     st.caption("Clean-sheet environment configuration canvas. Set explicit seasonality shapes and credit delays.")
@@ -304,7 +355,6 @@ if st.session_state["active_view"] == "Data Workspace":
                 st.session_state["active_data"]["capital"].pop(idx)
                 st.rerun()
 
-# --- VIEW 2: ANALYTICAL FORECAST SHEETS ---
 elif st.session_state["active_view"] == "Analytical Forecast Sheets":
     st.title("📊 Synchronized Statement Reporting Canvas")
     st.caption("Pristine 3-way horizontal projection vectors derived from underlying balanced double-entry transaction pools.")
@@ -340,6 +390,20 @@ elif st.session_state["active_view"] == "Analytical Forecast Sheets":
             st.subheader("Asset & Liability Worth Accruals")
             st.dataframe(df_bs[display_months].style.format("{:,.2f}"), use_container_width=True)
             st.success("🛡️ Structural Checksum Flag Verified: Every month's balanced equations net precisely to zero.")
+            
+        # --- NEW INTEL DESK ADDITION BLOCK ---
+        st.markdown("---")
+        st.header("🧠 Gemini Corporate Intelligence Desk")
+        st.caption("Launches real-time scenario evaluations, variance tracking, and strategic narrative compilation.")
+        
+        if st.button("🚀 Synthesize Strategic Executive Report", type="primary"):
+            with st.spinner("Analyzing multi-period token vectors, parsing tax schedules, and compiling reporting canvas..."):
+                intel_report = generate_corporate_intelligence(df_pl, df_cf, df_bs)
+                
+                st.markdown("---")
+                st.markdown("### 📋 System Generated Executive Briefing")
+                st.info("Source: Live Double-Entry Ledgers. Spells set to British English standard.")
+                st.markdown(intel_report)
             
     except Exception as err:
         st.error(f"Execution Error inside core transactional engine: {str(err)}")
