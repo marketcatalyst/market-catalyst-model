@@ -214,7 +214,6 @@ def generate_corporate_intelligence(df_pl, df_cf, df_bs):
 # ⚙️ STREAMLIT INTERFACE LAYER & SECURITY GATEWAY
 # =========================================================================
 
-# --- INITIAL REVENUE MATRIX MAPPINGS ---
 if "active_data" not in st.session_state:
     st.session_state["active_data"] = {
         "sales": [
@@ -233,33 +232,31 @@ if "active_data" not in st.session_state:
         ]
     }
 
-# --- TRACK SECURE AUTHENTICATION STATUS ---
 if "authenticated" not in st.session_state:
     st.session_state["authenticated"] = False
 
-# --- SCREEN GATE: FORCE SIGN IN BEFORE LOADING ENGINE ---
+# --- SCREEN GATE: SECURE DOCKING RECONCILIATION ---
 if not st.session_state["authenticated"]:
     st.title("🔐 STRATA // Corporate Gateway")
     st.caption("Access restricted to authorised team personnel. Enter your credentials to verify your workspace session.")
     st.markdown("---")
     
-    # Safely extract expected credentials from secrets mapping
     expected_user = st.secrets.get("workspace_credentials", {}).get("username", "marketcatalyst")
     expected_pass = st.secrets.get("workspace_credentials", {}).get("password", "@MCStrata080881")
     
     with st.form("login_form"):
         input_user = st.text_input("Workspace Username Access Key:")
         input_pass = st.text_input("Security Access Password:", type="password")
+        submit_btn = st.form_submit_button("Verify & Open Workspace Desks")
         
-        if st.form_submit_button("Verify & Open Workspace Desks"):
+        if submit_btn:
             if input_user == expected_user and input_pass == expected_pass:
                 st.session_state["authenticated"] = True
-                st.success("🔒 Authorization verified successfully. Mounting workspace environments...")
-                st.button("Click to Proceed to Data Workspace")
+                st.rerun()  # ◄ Instantly clears form state and mounts the workspace cleanly
             else:
                 st.error("🚫 Invalid workspace credentials. Access rejected.")
                 
-    st.stop()  # Strict block prevents execution of the application below until authenticated is True
+    st.stop()
 
 # --- POST AUTHENTICATION: RUN COHERENT WORKSPACE ---
 if "active_view" not in st.session_state:
@@ -283,7 +280,7 @@ if st.sidebar.button("Log Out of Session"):
     st.rerun()
 
 if st.session_state["active_view"] == "Data Workspace":
-    st.title("✍ *Vector Parameter Input Desk")
+    st.title("✍️ Vector Parameter Input Desk")
     st.caption("Clean-sheet environment configuration canvas. Set explicit seasonality shapes and credit delays.")
     st.markdown("---")
     
@@ -310,7 +307,7 @@ if st.session_state["active_view"] == "Data Workspace":
             col1.markdown(f"**{item['name']}**\n\n*Term:* {item['debtor_days']} Days Credit Given")
             col2.markdown(f"**Annual Baseline:** £{item['amount']:,.2f}")
             col3.markdown(f"*Curve:* `{item['seasonality']}`")
-            if col4.button("🗑 Remove", key=f"del_r_{idx}"):
+            if col4.button("🗑️ Remove", key=f"del_r_{idx}"):
                 st.session_state["active_data"]["sales"].pop(idx)
                 st.rerun()
 
@@ -335,7 +332,7 @@ if st.session_state["active_view"] == "Data Workspace":
             col1.markdown(f"**{item['name']}**\n\n*Payment window:* Net {item['creditor_days']} Terms")
             col2.markdown(f"**Annual Base:** £{item['amount']:,.2f}")
             col3.markdown(f"*Utility Profile:* `{item['seasonality']}`")
-            if col4.button("🗑 Remove", key=f"del_o_{idx}"):
+            if col4.button("🗑️ Remove", key=f"del_o_{idx}"):
                 st.session_state["active_data"]["opex"].pop(idx)
                 st.rerun()
 
@@ -354,7 +351,7 @@ if st.session_state["active_view"] == "Data Workspace":
             col1, col2, col3 = st.columns([4, 3, 1])
             col1.markdown(f"**Staff Vector Group:** {item['name']}")
             col2.markdown(f"**Annual Gross Liability Base:** £{item['amount']:,.2f}")
-            if col3.button("🗑 Remove", key=f"del_p_{idx}"):
+            if col3.button("🗑️ Remove", key=f"del_p_{idx}"):
                 st.session_state["active_data"]["payroll"].pop(idx)
                 st.rerun()
 
@@ -379,7 +376,7 @@ if st.session_state["active_view"] == "Data Workspace":
             col1, col2, col3 = st.columns([3, 4, 1])
             col1.markdown(f"**{item['name']}** - Month {item['month']}")
             col2.markdown(f"**Type:** `{item['type']}` | *Value:* £{item['value']:,.2f}")
-            if col3.button("🗑 Remove", key=f"del_c_{idx}"):
+            if col3.button("🗑️ Remove", key=f"del_c_{idx}"):
                 st.session_state["active_data"]["capital"].pop(idx)
                 st.rerun()
 
@@ -420,7 +417,7 @@ elif st.session_state["active_view"] == "Analytical Forecast Sheets":
         with view_tab3:
             st.subheader("Asset & Liability Worth Accruals")
             st.dataframe(df_bs[display_months].style.format("{:,.2f}"), use_container_width=True)
-            st.success("🛡 Checksum Flag Verified: Every month's balanced equations net precisely to zero.")
+            st.success("🛡️ Checksum Flag Verified: Every month's balanced equations net precisely to zero.")
             
         st.markdown("---")
         st.header("🧠 Gemini Corporate Intelligence Desk")
@@ -436,4 +433,4 @@ elif st.session_state["active_view"] == "Analytical Forecast Sheets":
                 st.markdown(intel_report)
             
     except Exception as err:
-        st.error(f"Execution Error inside core transactional engine: {str(err)}")
+        st.error(f"Execution Error inside
