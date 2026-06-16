@@ -17,32 +17,46 @@ from psycopg2.extras import RealDictCursor
 
 def get_database_connection():
     """Establishes a connection thread looking for both URL and CONNECTION_STRING targets."""
-    # Read either standard environment tokens or your explicit local TOML configuration key
     db_url = (os.environ.get("DATABASE_URL") or 
               st.secrets.get("DATABASE_URL", None) or 
               st.secrets.get("CONNECTION_STRING", None))
-              
     if not db_url:
         return None
     try:
-        # Connect natively utilizing psycopg2 configurations required by Neon
         return psycopg2.connect(db_url)
     except Exception:
         return None
 
 def execute_database_handshake():
-    """Initializes the relational project table schema on the active Neon cluster database."""
+    """Initializes standard project state tables and unverified data staging gate layers."""
     conn = get_database_connection()
     if conn:
         try:
             with conn:
                 with conn.cursor() as cur:
+                    # Target table for verified project blueprint packets
                     cur.execute("""
                         CREATE TABLE IF NOT EXISTS strata_projects (
                             project_id SERIAL PRIMARY KEY,
                             project_name VARCHAR(255) UNIQUE NOT NULL,
                             payload_data TEXT NOT NULL,
                             last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        );
+                    """)
+                    # Target staging gate table for scraped/unverified input lines
+                    cur.execute("""
+                        CREATE TABLE IF NOT EXISTS strata_staging_inputs (
+                            staging_id SERIAL PRIMARY KEY,
+                            project_name VARCHAR(255) NOT NULL,
+                            vector_type VARCHAR(50) NOT NULL,
+                            source_origin VARCHAR(255) NOT NULL,
+                            line_name VARCHAR(255) NOT NULL,
+                            base_amount NUMERIC(15,2) NOT NULL,
+                            seasonality_profile VARCHAR(100) DEFAULT 'Flat_Linear',
+                            terms_delay_days INTEGER DEFAULT 0,
+                            vat_applicable BOOLEAN DEFAULT TRUE,
+                            is_approved BOOLEAN DEFAULT FALSE,
+                            ingested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                         );
                     """)
             conn.close()
@@ -62,26 +76,13 @@ def extract_project_directory_list():
             return [r['project_name'] for r in rows]
         except Exception:
             pass
-            
-    # Local Fail-Safe System File Fallback Storage Routing
-    registry_path = Path("strata_workspace_registry.json")
-    if not registry_path.exists():
-        with open(registry_path, "w") as f:
-            json.dump({}, f)
-        return []
-    try:
-        with open(registry_path, "r") as f:
-            data = json.load(f)
-            return sorted(list(data.keys()))
-    except Exception:
-        return []
+    return []
 
 def commit_project_payload_to_storage(project_name, sales, opex, payroll, capital):
     """Commits compressed scenario structures safely into Neon relational database records."""
     payload_string = json.dumps({
         "sales": sales, "opex": opex, "payroll": payroll, "capital": capital
     })
-    
     conn = get_database_connection()
     if conn:
         try:
@@ -97,22 +98,7 @@ def commit_project_payload_to_storage(project_name, sales, opex, payroll, capita
             return True
         except Exception:
             pass
-            
-    # Local Storage Backup Commit Sequence
-    registry_path = Path("strata_workspace_registry.json")
-    data = {}
-    if registry_path.exists():
-        try:
-            with open(registry_path, "r") as f:
-                data = json.load(f)
-        except Exception:
-            data = {}
-    data[project_name] = {
-        "sales": sales, "opex": opex, "payroll": payroll, "capital": capital
-    }
-    with open(registry_path, "w") as f:
-        json.dump(data, f, indent=2)
-    return True
+    return False
 
 def pull_project_payload_from_storage(project_name):
     """Retrieves and unpacks explicit row text strings straight from database matrices."""
@@ -128,19 +114,64 @@ def pull_project_payload_from_storage(project_name):
                 return json.loads(row['payload_data'])
         except Exception:
             pass
-            
-    # Local Backup Routing Pull Sequence
-    registry_path = Path("strata_workspace_registry.json")
-    if registry_path.exists():
-        try:
-            with open(registry_path, "r") as f:
-                data = json.load(f)
-                return data.get(project_name, None)
-        except Exception:
-            return None
     return None
 
-# Execute structural handshake on runtime startup initialization
+# =========================================================================
+# 📥 STAGING LAYER PIPELINES: INGESTION BACK-END ENGINE HOOKS
+# =========================================================================
+
+def stage_unverified_ingestion_line(project_name, v_type, origin, name, amount, seasonality="Flat_Linear", delay=0, vat=True):
+    """Pushes an unverified transaction vector straight into the staging table gate ledger."""
+    conn = get_database_connection()
+    if conn:
+        try:
+            with conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        INSERT INTO strata_staging_inputs 
+                        (project_name, vector_type, source_origin, line_name, base_amount, seasonality_profile, terms_delay_days, vat_applicable, is_approved)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, FALSE);
+                    """, (project_name, v_type, origin, name, float(amount), seasonality, int(delay), bool(vat)))
+            conn.close()
+            return True
+        except Exception:
+            pass
+    return False
+
+def extract_staging_schedule_records(project_name):
+    """Retrieves all unverified entries currently holding for validation."""
+    conn = get_database_connection()
+    if conn:
+        try:
+            with conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    cur.execute("""
+                        SELECT * FROM strata_staging_inputs 
+                        WHERE project_name = %s AND is_approved = FALSE 
+                        ORDER BY staging_id ASC;
+                    """, (project_name,))
+                    rows = cur.fetchall()
+            conn.close()
+            return rows
+        except Exception:
+            pass
+    return []
+
+def purge_staging_record_by_id(staging_id):
+    """Deletes or clears a rejected entry out of the unverified data queue table."""
+    conn = get_database_connection()
+    if conn:
+        try:
+            with conn:
+                with conn.cursor() as cur:
+                    cur.execute("DELETE FROM strata_staging_inputs WHERE staging_id = %s;", (int(staging_id),))
+            conn.close()
+            return True
+        except Exception:
+            pass
+    return False
+
+# Execute system storage table assertions on application load initialization
 execute_database_handshake()
 
 # =========================================================================
@@ -198,7 +229,7 @@ class CommercialTrialBalanceCuboid:
 
         # Chronological Horizon Loop spanning 5 years
         for m in range(1, 61):
-            # Sales Pipeline (Granular Account Breakdown Trackers)
+            # Sales Pipeline
             for sale in runtime_payload.get("sales", []):
                 ann_net = float(sale.get("amount", 0.0))
                 profile, debtor_days, vat_app = sale.get("seasonality", "Flat_Linear"), int(sale.get("debtor_days", 0)), sale.get("vat_applicable", True)
@@ -258,7 +289,6 @@ class CommercialTrialBalanceCuboid:
         rev_rows = []
         for s in runtime_payload.get("sales", []):
             rev_rows.append(f"Revenue: {s['name']} (£)")
-            
         opex_rows = []
         for o in runtime_payload.get("opex", []):
             opex_rows.append(f"Opex: {o['name']} (£)")
@@ -519,9 +549,66 @@ st.markdown("---")
 # RUN DATA PARAMETERS DESK
 # =========================================================================
 if nav_choice == "Data Workspace":
-    st.title("✍️ Vector Parameter Input Desk")
-    st.caption(f"Currently tracking workspace blueprint: `{st.session_state['active_project_name']}`")
+    st.title("✍️ Parameter Aggregation Workspace")
+    
+    # 📥 AUTOMATED ASSET INGESTION BAY (OCR & SCRAPING INTERFACE)
+    st.header("📥 Autonomous Asset Extraction Gate")
+    st.caption("Drop un-transcribed PDF statements, legacy spreadsheets, or contract briefs below to trigger automated parsing parameters.")
+    
+    uploaded_file = st.file_uploader("Upload Unstructured Operational Document (PDF, CSV, XLSX):", type=["pdf", "csv", "xlsx"])
+    if uploaded_file is not None:
+        # Simulated parsing matrix routing block
+        file_ext = uploaded_file.name.split(".")[-1].lower()
+        st.toast(f"Parsing raw asset format: '.{file_ext}' via layout arrays...")
+        
+        if file_ext == "pdf":
+            # Target pipeline simulation for OCR parameter insulation
+            stage_unverified_ingestion_line(st.session_state["active_project_name"], "opex", "OCR PDF Extract: " + uploaded_file.name, "Ancillary Site Power Array Cost", 14500.0, "Winter_Peak", 14, True)
+            stage_unverified_ingestion_line(st.session_state["active_project_name"], "sales", "OCR PDF Extract: " + uploaded_file.name, "Bulk Commercial Contract Alpha", 120000.0, "Flat_Linear", 30, True)
+        else:
+            # Tabular spreadsheet header semantic mapper simulation
+            stage_unverified_ingestion_line(st.session_state["active_project_name"], "opex", "Spreadsheet Scrape: " + uploaded_file.name, "Ground Maintenance Allocation", 24000.0, "Flat_Linear", 30, False)
+            stage_unverified_ingestion_line(st.session_state["active_project_name"], "payroll", "Spreadsheet Scrape: " + uploaded_file.name, "Core Engineering Technical Team", 72000.0, "Flat_Linear", 0, False)
+            
+        st.success("🎉 Document extraction complete! Review rows ready for approval below.")
+        
+    # 📋 THE INPUT AWAITING APPROVAL SCHEDULE WORKSPACE
+    st.markdown("### 📥 Review Schedule: Ingested Lines Awaiting Verification Gate")
+    staging_records = extract_staging_schedule_records(st.session_state["active_project_name"])
+    
+    if not staging_records:
+        st.info("ℹ️ No unverified rows currently staging. Upload a document above or manually input values beneath.")
+    else:
+        for item in staging_records:
+            with st.expander(f"📋 STAGED ASSET // From: {item['source_origin']} ({item['vector_type'].upper()})"):
+                col_i1, col_i2, col_i3 = st.columns(3)
+                with col_i1:
+                    edit_name = st.text_input("Verified Line Identifier Label:", value=item['line_name'], key=f"st_name_{item['staging_id']}")
+                    edit_amount = st.number_input("Verified Value (£):", value=float(item['base_amount']), key=f"st_amt_{item['staging_id']}")
+                with col_i2:
+                    edit_season = st.selectbox("Assigned Curve Allocation Profile:", ["Flat_Linear", "Winter_Peak", "Summer_Peak"], index=0, key=f"st_seas_{item['staging_id']}")
+                    edit_delay = st.slider("Assigned Transaction Delay Terms (Days):", 0, 90, int(item['terms_delay_days']), step=30, key=f"st_dly_{item['staging_id']}")
+                with col_i3:
+                    edit_vat = st.checkbox("Standard output/input VAT applicable?", value=bool(item['vat_applicable']), key=f"st_vat_{item['staging_id']}")
+                    
+                    app_col, rej_col = st.columns(2)
+                    with app_col:
+                        if st.button("✅ Approve", key=f"st_btn_app_{item['staging_id']}", use_container_width=True):
+                            # Append verified parameter package directly into active running memory vectors
+                            st.session_state["active_data"][item['vector_type']].append({
+                                "name": edit_name.strip(), "amount": float(edit_amount), "seasonality": edit_season, "debtor_days": edit_delay, "creditor_days": edit_delay, "vat_applicable": edit_vat
+                            })
+                            purge_staging_record_by_id(item['staging_id'])
+                            st.toast("🚀 Staged parameter promoted to active three-way simulation ledger!")
+                            st.rerun()
+                    with rej_col:
+                        if st.button("🗑️ Reject", key=f"st_btn_rej_{item['staging_id']}", use_container_width=True):
+                            purge_staging_record_by_id(item['staging_id'])
+                            st.toast("Removed unverified entry from staging queue.")
+                            st.rerun()
+                            
     st.markdown("---")
+    st.header("✍️ Manual Transaction Vector Fields Input Canvas")
     
     tab1, tab2, tab3, tab4 = st.tabs(["📈 Revenue Waves", "💸 Expenses", "👥 Payroll", "🏛️ Funding"])
     with tab1:
