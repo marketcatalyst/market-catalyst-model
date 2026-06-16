@@ -60,9 +60,9 @@ class CommercialTrialBalanceCuboid:
             elif c_type == "New / Existing Fixed Asset CapEx":
                 self.inject_token(m_start, "BS_Asset_Fixed_Assets", "BS_Asset_Cash", val, "Infrastructure CapEx")
 
-        # Chronological Loop
+        # Chronological Horizon Execution
         for m in range(1, 61):
-            # Sales (Debtor Days Shift)
+            # Sales Pipelines
             for sale in runtime_payload.get("sales", []):
                 ann_net = float(sale.get("amount", 0.0))
                 profile, debtor_days, vat_app = sale.get("seasonality", "Flat_Linear"), int(sale.get("debtor_days", 0)), sale.get("vat_applicable", True)
@@ -74,7 +74,7 @@ class CommercialTrialBalanceCuboid:
                     self.inject_token(m, "BS_Asset_Debtors", "BS_Liability_VAT_Payable", monthly_vat, "Output VAT")
                 self.inject_token(m + (debtor_days // 30), "BS_Asset_Cash", "BS_Asset_Debtors", monthly_net + monthly_vat, "Cash Receipt")
 
-            # Overheads (Creditor Days Shift)
+            # Running Costs / Overheads
             for opex in runtime_payload.get("opex", []):
                 ann_net_cost = float(opex.get("amount", 0.0))
                 profile, creditor_days, vat_rec = opex.get("seasonality", "Flat_Linear"), int(opex.get("creditor_days", 0)), opex.get("vat_applicable", True)
@@ -86,7 +86,7 @@ class CommercialTrialBalanceCuboid:
                     self.inject_token(m, "BS_Liability_VAT_Payable", "BS_Liability_Creditors", monthly_input_vat, "Input VAT")
                 self.inject_token(m + (creditor_days // 30), "BS_Liability_Creditors", "BS_Asset_Cash", monthly_net_cost + monthly_input_vat, "Supplier Payment")
 
-            # Payroll (1-Month PAYE Settlement Delay)
+            # Human Capital Payroll
             for pay in runtime_payload.get("payroll", []):
                 monthly_gross = float(pay.get("amount", 0.0)) / 12.0
                 employer_nic = monthly_gross * 0.138
@@ -95,12 +95,12 @@ class CommercialTrialBalanceCuboid:
                 self.inject_token(m, "PL_Expense_Payroll", "BS_Liability_PAYE_NIC_Payable", paye_deduction + employer_nic, "Accrued Taxes")
                 self.inject_token(m + 1, "BS_Liability_PAYE_NIC_Payable", "BS_Asset_Cash", paye_deduction + employer_nic, "HMRC PAYE Payment")
 
-            # Fixed Asset Depreciation
+            # Asset Value Realisation (Depreciation)
             current_fa = self.compute_running_balance_to_month("BS_Asset_Fixed_Assets", m)
             if current_fa > 0.0:
                 self.inject_token(m, "PL_Expense_Depreciation", "BS_Asset_Accumulated_Depreciation", (current_fa * 0.10) / 12.0, "Depreciation")
 
-            # Quarterly VAT Return Flush
+            # Statutory HMRC VAT Clearing Cycle
             if m in [3, 6, 9, 12, 15, 18, 21, 24, 27, 30, 33, 36, 39, 42, 45, 48, 51, 54, 57, 60]:
                 vat_acc = self.compute_running_balance_to_month("BS_Liability_VAT_Payable", m)
                 if vat_acc != 0.0:
@@ -204,8 +204,8 @@ def generate_corporate_intelligence(df_pl, df_cf, df_bs):
         
         Avoid any casual conversational preamble, pleasantries, or formatting noise. Move straight to the critique.
         """
-        # --- ROBUST API STRING INITIALISATION ---
-        model = genai.GenerativeModel('models/gemini-1.5-flash')
+        # --- ROBUST MODEL GENERATION ENDPOINT FOR STABILITY ---
+        model = genai.GenerativeModel('models/gemini-2.5-flash')
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
@@ -405,6 +405,7 @@ elif st.session_state["active_view"] == "Analytical Forecast Sheets":
             st.dataframe(df_cf[display_months].style.format("{:,.2f}"), use_container_width=True)
             
             st.markdown("### 📊 Compounding Real-World Cash Trajectory Curve")
+            # --- PROTECTED POSTIONAL LOCATORS PREVENT EXTENT ERRORS ---
             try:
                 raw_cash_vector = df_cf.iloc[3].astype(float).values
                 chart_frame = pd.DataFrame(data=raw_cash_vector, index=df_cf.columns, columns=["Liquid Bank Balances (£)"])
