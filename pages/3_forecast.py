@@ -35,8 +35,7 @@ if active_project and os.path.exists(project_file_path):
         st.sidebar.success(f"📁 Active Project: `{active_project}`")
     except Exception as engine_err:
         st.sidebar.error(f"⚠️ Calculation Engine Error: {str(engine_err)}")
-else:
-    st.sidebar.warning("⚠️ No Active Project Context Loaded")
+elseDef = True
 
 PL_CACHE = "STRATA_Forecast_Ledger_Group.xlsx - Profit & Loss.csv"
 CF_CACHE = "STRATA_Forecast_Ledger_Group.xlsx - Cash Flow Ledger.csv"
@@ -63,7 +62,6 @@ st.markdown("---")
 # 🏛️ RE-ENGINEERING DATA PIPELINES (DETERMINISTIC FIXED DATA EXTRACTION)
 # =========================================================================
 if os.path.exists(PL_CACHE) and os.path.exists(CF_CACHE) and os.path.exists(BS_CACHE):
-    # Load data files cleanly without treating column headers as indexes
     df_raw_pl = pd.read_csv(PL_CACHE, index_col=0)
     df_raw_cf = pd.read_csv(CF_CACHE, index_col=0)
     df_raw_bs = pd.read_csv(BS_CACHE, index_col=0)
@@ -334,9 +332,8 @@ if os.path.exists(PL_CACHE) and os.path.exists(CF_CACHE) and os.path.exists(BS_C
         
         st.markdown("#### 📈 Compounding Cash Horizon Trajectory Curve")
         
-        # --- THE ULTIMATE VEGA-LITE ALIGNMENT FIX ---
-        # Instead of feeding standard slices, we force-build a pristine two-column data format
-        # with a cleanly resolved structural mapping layer.
+        # --- THE DECOUPLED VEGA-LITE ROUTINE ---
+        # Isolate numerical vector from table dimensions explicitly before plotting
         raw_cash_array = target_view_source.loc["Cash Reserves (£)"].astype(float).values
         
         chart_isolated_frame = pd.DataFrame(
@@ -344,11 +341,8 @@ if os.path.exists(PL_CACHE) and os.path.exists(CF_CACHE) and os.path.exists(BS_C
             index=target_view_source.columns,
             columns=["Cash Balance (£)"]
         )
-        
-        # Explicitly label the timeline index column name to prevent Vega-Lite from throwing 'Infinite extent' alerts
         chart_isolated_frame.index.name = "Month"
         
-        # Plot the verified numerical channel
         st.line_chart(chart_isolated_frame, use_container_width=True)
 
     # --- TAB 3: BALANCE SHEET REGISTER ---

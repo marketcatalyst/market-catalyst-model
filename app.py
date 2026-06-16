@@ -49,7 +49,7 @@ def locate_target_page(file_prefix: str, fallback_path: str) -> str:
 
 path_input_desk = locate_target_page("1_", "pages/1_✍️_Data_Input_Workspace.py")
 path_sandbox    = locate_target_page("2_", "pages/2_🔮_sandbox.py")
-path_forecast   = locate_target_page("3_", "pages/3_📊_forecast.py")
+path_forecast   = locate_target_page("3_", "pages/3_forecast.py")
 path_compliance = locate_target_page("4_", "pages/4_🛡️_compliance.py")
 
 # --- 4. CALLBACK LAYER: IMMUTABLE STATE LOCKS ---
@@ -95,8 +95,8 @@ def render_landing_launchpad():
             "sales": [{"name": "Standard Court Hire Inflow", "amount": 491000.0, "vat": 0.20}],
             "opex": [{"name": "Standard Ground Site Overheads", "amount": 145000.0, "vat": 0.20}],
             "capital": [
-                {"name": "Initial Upfront Cash Cushion", "type": "Director / Equity Inflow", "value": 500000.0, "month": 1, "parameter": 0.0},
-                {"name": "Infrastructure & Court Build", "type": "Fixed Asset Purchase", "value": 250000.0, "month": 1, "parameter": 10.0}
+                {"name": "Initial Upfront Cash Cushion", "type": "Equity Capital / Share Premium Injection", "value": 500000.0, "month": 1, "parameter": 0.0},
+                {"name": "Infrastructure & Court Build", "type": "New / Existing Fixed Asset CapEx", "value": 250000.0, "month": 1, "parameter": 10.0}
             ]
         }
         with open(os.path.join(PROJECTS_DIR, "Padel-Project-Standard-Baseline.json"), "w") as f:

@@ -117,7 +117,7 @@ with inc_col3:
         c_val = st.number_input("Transaction Value (£):", min_value=0.0, step=5000.0)
         if st.form_submit_button("➕ Add Capital Row", use_container_width=True):
             if c_name.strip():
-                # FIXED: Save keys natively matching backend parsing string logic vectors exactly
+                # Locked down to match master double-entry matching vectors explicitly
                 st.session_state.manual_capital_entries.append({
                     "name": c_name.strip(), 
                     "type": c_type_display, 
