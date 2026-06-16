@@ -6,10 +6,167 @@ import os
 import pandas as pd
 from pathlib import Path
 
-# --- 1. GLOBAL SYSTEM CONFIGURATION ---
-st.set_page_config(layout="wide", page_title="STRATA Vector Intelligence Suite")
+# =========================================================================
+# 🏛️ CORE ENGINE: TRANSITIONAL VECTOR LEDGER (OMITTING DIRECTORY IMPORTS)
+# =========================================================================
 
-# --- 2. INITIALIZE GLOBAL RUNTIME SIMULATION MEMORY ---
+class JournalToken:
+    """Atomic double-entry transaction voucher ensuring absolute alignment."""
+    def __init__(self, month_label, debit_acct, credit_acct, amount, narrative=""):
+        self.month_label = month_label
+        self.debit_acct = debit_acct
+        self.credit_acct = credit_acct
+        self.amount = float(amount)
+        self.narrative = narrative
+
+class CommercialTrialBalanceCuboid:
+    """Hardened 60-month transaction token ledger processing phase-shifts and UK tax cycles."""
+    def __init__(self):
+        self.accounts = [
+            "BS_Asset_Cash", "BS_Asset_Debtors", "BS_Asset_Fixed_Assets", "BS_Asset_Accumulated_Depreciation",
+            "BS_Liability_Creditors", "BS_Liability_VAT_Payable", "BS_Liability_PAYE_NIC_Payable", "BS_Liability_Long_Term_Debt",
+            "BS_Equity_Share_Capital", "BS_Equity_Retained_Earnings",
+            "PL_Revenue_Gross", "PL_COGS", "PL_Expense_Overheads", "PL_Expense_Payroll", "PL_Expense_Depreciation", "PL_Expense_Interest"
+        ]
+        self.months = [f"M{str(i).zfill(2)}" for i in range(1, 61)]
+        self.seasonality_profiles = {
+            "Flat_Linear": [1/12] * 12,
+            "Winter_Peak": [0.12, 0.12, 0.10, 0.07, 0.05, 0.05, 0.05, 0.06, 0.08, 0.09, 0.10, 0.11],
+            "Summer_Peak": [0.05, 0.05, 0.07, 0.10, 0.12, 0.12, 0.12, 0.11, 0.09, 0.07, 0.05, 0.05]
+        }
+        self.token_pool = []
+
+    def inject_token(self, month_idx, debit_acct, credit_acct, amount, narrative=""):
+        if amount == 0.0 or month_idx < 1 or month_idx > 60:
+            return
+        month_label = f"M{str(month_idx).zfill(2)}"
+        self.token_pool.append(JournalToken(month_label, debit_acct, credit_acct, amount, narrative))
+
+    def extract_monthly_weight(self, profile_name, month_idx):
+        profile = self.seasonality_profiles.get(profile_name, self.seasonality_profiles["Flat_Linear"])
+        return profile[(month_idx - 1) % 12]
+
+    def process_simulation(self, runtime_payload):
+        self.token_pool = []
+        
+        # 1. Capitalization Injections
+        for cap in runtime_payload.get("capital", []):
+            m_start, val, c_type = int(cap.get("month", 1)), float(cap.get("value", 0.0)), cap.get("type", "")
+            if c_type == "Equity Capital / Share Premium Injection":
+                self.inject_token(m_start, "BS_Asset_Cash", "BS_Equity_Share_Capital", val, "Founder Capital")
+            elif c_type == "Commercial Debt / Facility Drawdown":
+                self.inject_token(m_start, "BS_Asset_Cash", "BS_Liability_Long_Term_Debt", val, "Debt Drawdown")
+            elif c_type == "New / Existing Fixed Asset CapEx":
+                self.inject_token(m_start, "BS_Asset_Fixed_Assets", "BS_Asset_Cash", val, "Infrastructure CapEx")
+
+        # 2. Chronological Operational Horizon Loop
+        for m in range(1, 61):
+            # Sales Pipeline (With Debtor Days Shift)
+            for sale in runtime_payload.get("sales", []):
+                ann_net = float(sale.get("amount", 0.0))
+                profile, debtor_days, vat_app = sale.get("seasonality", "Flat_Linear"), int(sale.get("debtor_days", 0)), sale.get("vat_applicable", True)
+                monthly_net = ann_net * self.extract_monthly_weight(profile, m)
+                monthly_vat = (monthly_net * 0.20) if vat_app else 0.0
+                
+                self.inject_token(m, "BS_Asset_Debtors", "PL_Revenue_Gross", monthly_net, "P&L Revenue")
+                if monthly_vat > 0:
+                    self.inject_token(m, "BS_Asset_Debtors", "BS_Liability_VAT_Payable", monthly_vat, "Output VAT")
+                self.inject_token(m + (debtor_days // 30), "BS_Asset_Cash", "BS_Asset_Debtors", monthly_net + monthly_vat, "Cash Receipt")
+
+            # Overheads Pipeline (With Creditor Days Shift)
+            for opex in runtime_payload.get("opex", []):
+                ann_net_cost = float(opex.get("amount", 0.0))
+                profile, creditor_days, vat_rec = opex.get("seasonality", "Flat_Linear"), int(opex.get("creditor_days", 0)), opex.get("vat_applicable", True)
+                monthly_net_cost = ann_net_cost * self.extract_monthly_weight(profile, m)
+                monthly_input_vat = (monthly_net_cost * 0.20) if vat_rec else 0.0
+                
+                self.inject_token(m, "PL_Expense_Overheads", "BS_Liability_Creditors", monthly_net_cost, "Opex Expense")
+                if monthly_input_vat > 0:
+                    self.inject_token(m, "BS_Liability_VAT_Payable", "BS_Liability_Creditors", monthly_input_vat, "Input VAT")
+                self.inject_token(m + (creditor_days // 30), "BS_Liability_Creditors", "BS_Asset_Cash", monthly_net_cost + monthly_input_vat, "Supplier Payment")
+
+            # Payroll Vectors (With Delayed 1-Month PAYE Settlement)
+            for pay in runtime_payload.get("payroll", []):
+                monthly_gross = float(pay.get("amount", 0.0)) / 12.0
+                employer_nic = monthly_gross * 0.138
+                paye_deduction = monthly_gross * 0.25
+                self.inject_token(m, "PL_Expense_Payroll", "BS_Asset_Cash", monthly_gross - paye_deduction, "Net Staff Wages")
+                self.inject_token(m, "PL_Expense_Payroll", "BS_Liability_PAYE_NIC_Payable", paye_deduction + employer_nic, "Accrued Taxes")
+                self.inject_token(m + 1, "BS_Liability_PAYE_NIC_Payable", "BS_Asset_Cash", paye_deduction + employer_nic, "HMRC PAYE Payment")
+
+            # Fixed Asset Depreciation
+            current_fa = self.compute_running_balance_to_month("BS_Asset_Fixed_Assets", m)
+            if current_fa > 0.0:
+                self.inject_token(m, "PL_Expense_Depreciation", "BS_Asset_Accumulated_Depreciation", (current_fa * 0.10) / 12.0, "Depreciation")
+
+            # Quarterly Statutory HMRC VAT Flush
+            if m in [3, 6, 9, 12, 15, 18, 21, 24, 27, 30, 33, 36, 39, 42, 45, 48, 51, 54, 57, 60]:
+                vat_acc = self.compute_running_balance_to_month("BS_Liability_VAT_Payable", m)
+                if vat_acc != 0.0:
+                    self.inject_token(m, "BS_Liability_VAT_Payable", "BS_Asset_Cash", vat_acc, "Quarterly VAT Return")
+
+        return self.compile_financial_statements()
+
+    def compute_running_balance_to_month(self, account_name, month_limit):
+        balance = 0.0
+        for token in self.token_pool:
+            if int(token.month_label.replace("M", "")) <= month_limit:
+                if token.debit_acct == account_name: balance += token.amount
+                if token.credit_acct == account_name: balance -= token.amount
+        return balance
+
+    def compile_financial_statements(self):
+        df_pl = pd.DataFrame(0.0, index=["Revenue (£)", "COGS (£)", "Operational Overheads (£)", "Staff Payroll Overhead (£)", "Depreciation (£)", "Net Operating Profit (EBIT)"], columns=self.months)
+        df_cf = pd.DataFrame(0.0, index=["Operational Cash Inflows (£)", "Operational Cash Outflows (£)", "Net Cash Movement (£)", "Cash Reserves (£)"], columns=self.months)
+        df_bs = pd.DataFrame(0.0, index=["Fixed Infrastructure Assets (£)", "Accumulated Depreciation (£)", "Net Book Value Asset Worth (£)", "Accounts Receivable (Debtors) (£)", "Accounts Payable (Creditors) (£)", "HMRC VAT Reserves Owing (£)", "HMRC PAYE Obligations (£)", "Long Term Facility Debt (£)", "Shareholder Invested Equity (£)", "Retained Earnings Accumulation (£)", "Ledger Verification Checksum Balance"], columns=self.months)
+
+        for m_idx, m_label in enumerate(self.months, start=1):
+            for t in self.token_pool:
+                if t.month_label == m_label:
+                    if t.credit_acct == "PL_Revenue_Gross": df_pl.at["Revenue (£)", m_label] += t.amount
+                    if t.debit_acct == "PL_COGS": df_pl.at["COGS (£)", m_label] += t.amount
+                    if t.debit_acct == "PL_Expense_Overheads": df_pl.at["Operational Overheads (£)", m_label] += t.amount
+                    if t.debit_acct == "PL_Expense_Payroll": df_pl.at["Staff Payroll Overhead (£)", m_label] += t.amount
+                    if t.debit_acct == "PL_Expense_Depreciation": df_pl.at["Depreciation (£)", m_label] += t.amount
+
+            df_pl.at["Net Operating Profit (EBIT)", m_label] = df_pl.at["Revenue (£)", m_label] - df_pl.at["COGS (£)", m_label] - df_pl.at["Operational Overheads (£)", m_label] - df_pl.at["Staff Payroll Overhead (£)", m_label] - df_pl.at["Depreciation (£)", m_label]
+
+            for t in self.token_pool:
+                if t.month_label == m_label:
+                    if t.debit_acct == "BS_Asset_Cash" and t.credit_acct in ["BS_Asset_Debtors", "BS_Equity_Share_Capital", "BS_Liability_Long_Term_Debt"]:
+                        df_cf.at["Operational Cash Inflows (£)", m_label] += t.amount
+                    if t.credit_acct == "BS_Asset_Cash" and t.debit_acct in ["BS_Liability_Creditors", "BS_Asset_Fixed_Assets", "BS_Liability_PAYE_NIC_Payable", "BS_Expense_Payroll", "BS_Liability_VAT_Payable"]:
+                        df_cf.at["Operational Cash Outflows (£)", m_label] += t.amount
+
+            df_cf.at["Net Cash Movement (£)", m_label] = df_cf.at["Operational Cash Inflows (£)", m_label] - df_cf.at["Operational Cash Outflows (£)", m_label]
+            df_cf.at["Cash Reserves (£)", m_label] = self.compute_running_balance_to_month("BS_Asset_Cash", m_idx)
+
+            df_bs.at["Fixed Infrastructure Assets (£)", m_label] = self.compute_running_balance_to_month("BS_Asset_Fixed_Assets", m_idx)
+            df_bs.at["Accumulated Depreciation (£)", m_label] = -self.compute_running_balance_to_month("BS_Asset_Accumulated_Depreciation", m_idx)
+            df_bs.at["Net Book Value Asset Worth (£)", m_label] = df_bs.at["Fixed Infrastructure Assets (£)", m_label] - df_bs.at["Accumulated Depreciation (£)", m_label]
+            df_bs.at["Accounts Receivable (Debtors) (£)", m_label] = self.compute_running_balance_to_month("BS_Asset_Debtors", m_idx)
+            df_bs.at["Accounts Payable (Creditors) (£)", m_label] = -self.compute_running_balance_to_month("BS_Liability_Creditors", m_idx)
+            df_bs.at["HMRC VAT Reserves Owing (£)", m_label] = -self.compute_running_balance_to_month("BS_Liability_VAT_Payable", m_idx)
+            df_bs.at["HMRC PAYE Obligations (£)", m_label] = -self.compute_running_balance_to_month("BS_Liability_PAYE_NIC_Payable", m_idx)
+            df_bs.at["Long Term Facility Debt (£)", m_label] = -self.compute_running_balance_to_month("BS_Liability_Long_Term_Debt", m_idx)
+            df_bs.at["Shareholder Invested Equity (£)", m_label] = -self.compute_running_balance_to_month("BS_Equity_Share_Capital", m_idx)
+            
+            hist_sum = 0.0
+            for past_m in self.months[:m_idx]:
+                hist_sum += (df_pl.at["Revenue (£)", past_m] - df_pl.at["COGS (£)", past_m] - df_pl.at["Operational Overheads (£)", past_m] - df_pl.at["Staff Payroll Overhead (£)", past_m] - df_pl.at["Depreciation (£)", past_m])
+            df_bs.at["Retained Earnings Accumulation (£)", m_label] = hist_sum
+            df_bs.at["Ledger Verification Checksum Balance", m_label] = (df_bs.at["Net Book Value Asset Worth (£)", m_label] + df_bs.at["Accounts Receivable (Debtors) (£)", m_label] + df_cf.at["Cash Reserves (£)", m_label]) - (df_bs.at["Accounts Payable (Creditors) (£)", m_label] + df_bs.at["HMRC VAT Reserves Owing (£)", m_label] + df_bs.at["HMRC PAYE Obligations (£)", m_label] + df_bs.at["Long Term Facility Debt (£)", m_label] + df_bs.at["Shareholder Invested Equity (£)", m_label] + df_bs.at["Retained Earnings Accumulation (£)", m_label])
+
+        df_pl.to_csv("STRATA_Clean_Sheet_PL.csv")
+        df_cf.to_csv("STRATA_Clean_Sheet_CF.csv")
+        df_bs.to_csv("STRATA_Clean_Sheet_BS.csv")
+        return True
+
+# =========================================================================
+# ⚙️ STREAMLIT INTERFACE LAYER
+# =========================================================================
+
+# --- INITIALIZE GLOBAL RUNTIME MEMORY MAPPING ---
 if "active_data" not in st.session_state:
     st.session_state["active_data"] = {
         "sales": [
@@ -21,9 +178,7 @@ if "active_data" not in st.session_state:
             {"name": "Ground Lease Real Estate Allocation", "amount": 48000.0, "seasonality": "Flat_Linear", "creditor_days": 30, "vat_applicable": False},
             {"name": "Site Power, Utilities & Lighting Arrays", "amount": 32000.0, "seasonality": "Winter_Peak", "creditor_days": 14, "vat_applicable": True}
         ],
-        "payroll": [
-            {"name": "Site Management & Frontline Operations Team", "amount": 65000.0}
-        ],
+        "payroll": [{"name": "Site Management & Frontline Operations Team", "amount": 65000.0}],
         "capital": [
             {"name": "Founder Initial Funding Runway", "type": "Equity Capital / Share Premium Injection", "value": 500000.0, "month": 1},
             {"name": "Indoor Covered Court Construction Infrastructure", "type": "New / Existing Fixed Asset CapEx", "value": 250000.0, "month": 1}
@@ -33,7 +188,7 @@ if "active_data" not in st.session_state:
 if "active_view" not in st.session_state:
     st.session_state["active_view"] = "Data Workspace"
 
-# --- 3. IMMUTABLE SIDEBAR NAVIGATION CORE ---
+# --- SIDEBAR ROUTING ---
 st.sidebar.title("🛡️ STRATA // Vector Suite")
 st.sidebar.caption("Object-Driven WinForecast Framework Core")
 st.sidebar.markdown("---")
@@ -44,16 +199,13 @@ nav_choice = st.sidebar.radio(
     index=0 if st.session_state["active_view"] == "Data Workspace" else 1
 )
 st.session_state["active_view"] = nav_choice
-
 st.sidebar.markdown("---")
-st.sidebar.info("🔒 Platform Balance Engine Active. Checksums monitored continuously.")
+st.sidebar.info("🔒 Platform Balance Engine Active. Monitored continuously.")
 
-# =========================================================================
-# DISPLAY VIEW 1: DATA WORKSPACE PRESENTATION
-# =========================================================================
+# --- VIEW 1: DATA WORKSPACE ---
 if st.session_state["active_view"] == "Data Workspace":
     st.title("✍️ Vector Parameter Input Desk")
-    st.caption("Clean-sheet environment configuration canvas. Set explicit seasonality shapes and cash-flow credit days delays.")
+    st.caption("Clean-sheet environment configuration canvas. Set explicit seasonality shapes and credit delays.")
     st.markdown("---")
     
     tab1, tab2, tab3, tab4 = st.tabs(["📈 Revenue Waves", "💸 Operational Expenses", "👥 Staff Payroll", "🏛️ Capital & Funding"])
@@ -64,7 +216,7 @@ if st.session_state["active_view"] == "Data Workspace":
             r_name = st.text_input("Stream Identifier Description:")
             r_amt = st.number_input("Annual Gross Contract / Target Worth (£):", min_value=0.0, value=100000.0, step=10000.0)
             r_seas = st.selectbox("Seasonality Weight Allocation Vector:", ["Flat_Linear", "Winter_Peak", "Summer_Peak"])
-            r_days = st.slider("Debtor Terms (Credit days collection delay given):", 0, 90, 0, step=30)
+            r_days = st.slider("Debtor Terms (Credit days delay given):", 0, 90, 0, step=30)
             r_vat = st.checkbox("Subject to Standard 20% Output VAT?", value=True)
             if st.form_submit_button("➕ Append Revenue Vector Line"):
                 if r_name.strip():
@@ -78,7 +230,7 @@ if st.session_state["active_view"] == "Data Workspace":
             col1, col2, col3, col4 = st.columns([3, 2, 2, 1])
             col1.markdown(f"**{item['name']}**\n\n*Term:* {item['debtor_days']} Days Credit Given")
             col2.markdown(f"**Annual Baseline:** £{item['amount']:,.2f}")
-            col3.markdown(f"*Curve Profile:* `{item['seasonality']}`")
+            col3.markdown(f"*Curve:* `{item['seasonality']}`")
             if col4.button("🗑️ Remove", key=f"del_r_{idx}"):
                 st.session_state["active_data"]["sales"].pop(idx)
                 st.rerun()
@@ -122,7 +274,7 @@ if st.session_state["active_view"] == "Data Workspace":
         for idx, item in enumerate(st.session_state["active_data"]["payroll"]):
             col1, col2, col3 = st.columns([4, 3, 1])
             col1.markdown(f"**Staff Vector Group:** {item['name']}")
-            col2.markdown(f"**Annual Gross Liability Base:** £{item['amount']:,.2f} *(Subject to automated 13.8% Employer NIC calculations)*")
+            col2.markdown(f"**Annual Gross Liability Base:** £{item['amount']:,.2f}")
             if col3.button("🗑️ Remove", key=f"del_p_{idx}"):
                 st.session_state["active_data"]["payroll"].pop(idx)
                 st.rerun()
@@ -131,13 +283,11 @@ if st.session_state["active_view"] == "Data Workspace":
         st.subheader("Add Corporate Financing or CapEx Infrastructure Event")
         with st.form("cap_form", clear_on_submit=True):
             c_name = st.text_input("Capital Event Allocation Label Description:")
-            c_type = st.selectbox("Fixed Classification Framework Category Type:", [
-                "Equity Capital / Share Premium Injection",
-                "Commercial Debt / Facility Drawdown",
-                "New / Existing Fixed Asset CapEx"
+            c_type = st.selectbox("Fixed Category Type:", [
+                "Equity Capital / Share Premium Injection", "Commercial Debt / Facility Drawdown", "New / Existing Fixed Asset CapEx"
             ])
-            c_val = st.number_input("Transaction Worth Capitalization Value (£):", min_value=0.0, value=50000.0, step=10000.0)
-            c_m = st.number_input("Target Execution Month Index (M01 -> M60):", min_value=1, max_value=60, value=1, step=1)
+            c_val = st.number_input("Value (£):", min_value=0.0, value=50000.0, step=10000.0)
+            c_m = st.number_input("Execution Month Index (M01 -> M60):", min_value=1, max_value=60, value=1, step=1)
             if st.form_submit_button("➕ Append Strategic Capital Vector"):
                 if c_name.strip():
                     st.session_state["active_data"]["capital"].append({
@@ -148,34 +298,27 @@ if st.session_state["active_view"] == "Data Workspace":
         st.markdown("### Active Structural Assets & Funding Configurations")
         for idx, item in enumerate(st.session_state["active_data"]["capital"]):
             col1, col2, col3 = st.columns([3, 4, 1])
-            col1.markdown(f"**{item['name']}**\n\n*Execution Horizon:* Month {item['month']}")
-            col2.markdown(f"**Type:** `{item['type']}`\n\n*Value:* £{item['value']:,.2f}")
+            col1.markdown(f"**{item['name']}** - Month {item['month']}")
+            col2.markdown(f"**Type:** `{item['type']}` | *Value:* £{item['value']:,.2f}")
             if col3.button("🗑️ Remove", key=f"del_c_{idx}"):
                 st.session_state["active_data"]["capital"].pop(idx)
                 st.rerun()
 
-# =========================================================================
-# DISPLAY VIEW 2: ANALYTICAL FORECAST SHEETS PRESENTATION
-# =========================================================================
+# --- VIEW 2: ANALYTICAL FORECAST SHEETS ---
 elif st.session_state["active_view"] == "Analytical Forecast Sheets":
     st.title("📊 Synchronized Statement Reporting Canvas")
     st.caption("Pristine 3-way horizontal projection vectors derived from underlying balanced double-entry transaction pools.")
     st.markdown("---")
     
-    # --- FIXED PATHWAY IMPORT LINK ---
-    from ui_skin.core_engine.double_entry_matrix import CommercialTrialBalanceCuboid
-    
     cuboid_engine = CommercialTrialBalanceCuboid()
     try:
-        # Run the phase-shifted simulation matrix calculation inside RAM vectors
         cuboid_engine.process_simulation(st.session_state["active_data"])
         
-        # Read the resulting arrays to present cleanly on screen
         df_pl = pd.read_csv("STRATA_Clean_Sheet_PL.csv", index_col=0)
         df_cf = pd.read_csv("STRATA_Clean_Sheet_CF.csv", index_col=0)
         df_bs = pd.read_csv("STRATA_Clean_Sheet_BS.csv", index_col=0)
         
-        display_months = [f"M{str(i).zfill(2)}" for i in range(1, 13)] # Focus on Year 1 multi-period metrics
+        display_months = [f"M{str(i).zfill(2)}" for i in range(1, 13)]
         
         view_tab1, view_tab2, view_tab3 = st.tabs(["📈 Profit & Loss Statement", "💸 Cash Flow Ledger Horizon", "📋 Reconciled Balance Sheet"])
         
