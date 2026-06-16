@@ -121,7 +121,6 @@ class CommercialTrialBalanceCuboid:
         return balance
 
     def compile_granular_statements(self, runtime_payload):
-        # Clean, explicit loop sequences to ensure complete Pylance coverage
         rev_rows = []
         for s in runtime_payload.get("sales", []):
             rev_rows.append(f"Revenue: {s['name']} (£)")
@@ -151,7 +150,6 @@ class CommercialTrialBalanceCuboid:
                     if t.debit_acct == "PL_Expense_Depreciation":
                         df_pl.at["Depreciation (£)", m_label] += t.amount
 
-            # Hardened lookup protection blocks key error flags when opex arrays are unpopulated
             current_opex_total = 0.0
             for row in opex_rows:
                 if row in df_pl.index:
@@ -281,7 +279,7 @@ def generate_corporate_intelligence(df_pl, df_cf, df_bs, range_labels):
         ### 🚨 Liquidity Bottlenecks & Credit Vector Risks
         ### 🏛️ Strategic Recommendations for Capital Reservation
         """
-        model = genai.GenerativeModel('models/gemini-1.5-flash')
+        model = genai.GenerativeModel('models/gemini-2.5-flash')
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
@@ -470,10 +468,11 @@ elif nav_choice == "Analytical Forecast Sheets":
     exp_col1, exp_col2 = st.columns(2)
     with exp_col1:
         excel_buffer = io.BytesIO()
+        # --- FIXED DYNAMIC TAB ROUTING SYNTAX LOOP ---
         with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
             df_pl[range_labels].to_excel(writer, sheet_name='Granular P&L Forecast')
             df_cf[range_labels].to_excel(writer, sheet_name='Cash Flow Horizon')
-            df_bs[writer, sheet_name='Reconciled Balance Sheet']
+            df_bs[range_labels].to_excel(writer, sheet_name='Reconciled Balance Sheet')
         excel_buffer.seek(0)
         st.download_button("📊 Download Selected Excel Ledger Pack", data=excel_buffer, file_name=f"STRATA_{horizon_scope.replace(' ', '_')}.xlsx", use_container_width=True)
         
@@ -514,12 +513,12 @@ elif nav_choice == "Analytical Forecast Sheets":
     st.markdown("---")
     
     v_tab1, v_tab2, v_tab3 = st.tabs(["📈 Account-by-Account P&L", "💸 Liquid Cash Flow Horizons", "📋 Reconciled Balance Sheet"])
-    with view_tab1:
+    with v_tab1:
         st.dataframe(df_pl[range_labels].style.format("{:,.2f}"), use_container_width=True)
-    with view_tab2:
+    with v_tab2:
         st.dataframe(df_cf[range_labels].style.format("{:,.2f}"), use_container_width=True)
         st.line_chart(pd.DataFrame(df_cf.iloc[3][range_labels].astype(float).values, index=range_labels, columns=["Cash Reserves (£)"]))
-    with view_tab3:
+    with v_tab3:
         st.dataframe(df_bs[range_labels].style.format("{:,.2f}"), use_container_width=True)
         st.success("🛡️ Balance Sheet Checksum Balance: Locked at 0.00 across all selected periods.")
 
