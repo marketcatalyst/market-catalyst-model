@@ -496,24 +496,27 @@ def process_file_ingestion_callback():
             
             ai_response = model.generate_content(ai_prompt).text
             
-            # Resilient Regex Isolation: Extracts everything strictly enclosed between the outer square brackets [...]
             match = re.search(r'\[.*\]', ai_response, re.DOTALL)
             if not match:
-                st.sidebar.error("❌ Ingestion Error: Gemini output structure did not contain a clear list array.")
+                st.sidebar.error("❌ Ingestion Error: Gemini output structure did not contain a valid dataset matrix.")
                 return
                 
             clean_json = match.group(0).strip()
             parsed_vectors = json.loads(clean_json)
             
             for vec in parsed_vectors:
+                # FIXED: Maps key name dynamically to seasonality parameter
+                extracted_season = vec.get("seasonality") or vec.get("seasonality_profile") or "Flat_Linear"
+                extracted_delay = vec.get("delay_days") or vec.get("terms_delay_days") or 0
+                
                 stage_unverified_ingestion_line(
                     project_name=active_proj,
                     v_type=vec.get("vector_type", "opex"),
                     origin=origin_tag,
                     name=vec.get("line_name", "AI Scraped Parameter"),
                     amount=float(vec.get("base_amount", 0.0)),
-                    seasonality=vec.get("seasonality", "Flat_Linear"),
-                    delay=int(vec.get("delay_days", 0)),
+                    seasonality=extracted_season,
+                    delay=int(extracted_delay),
                     vat=bool(vec.get("vat_applicable", True))
                 )
                 
