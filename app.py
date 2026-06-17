@@ -832,6 +832,9 @@ def process_file_ingestion_callback():
 
         try:
             file_ext = uploaded_file.name.split(".")[-1].lower()
+            contents_input = []
+
+            # 1. Check file format and build correct payload parts
             if file_ext in ["csv", "xlsx"]:
                 if file_ext == "csv":
                     doc_payload = pd.read_csv(uploaded_file).to_string()
@@ -839,31 +842,48 @@ def process_file_ingestion_callback():
                     doc_payload = pd.read_excel(
                         uploaded_file, engine="openpyxl"
                     ).to_string()
+                contents_input.append(doc_payload)
+            elif file_ext == "pdf":
+                # Use Gemini Native Multimodal PDF data mapping
+                pdf_data = uploaded_file.read()
+                contents_input.append(
+                    {"mime_type": "application/pdf", "data": pdf_data}
+                )
             else:
                 doc_payload = str(uploaded_file.read())
+                contents_input.append(doc_payload)
 
             genai.configure(api_key=api_key)
             model = genai.GenerativeModel("models/gemini-2.5-flash")
 
+            # 2. Refined accounting-aware instructions
             consolidated_prompt = f"""
-            You are a Principal Financial Systems Auditor and Data Engineer. Review this data extract:
-            
-            {doc_payload}
+            You are a Principal Financial Systems Auditor and Data Engineer specializing in UK corporate double-entry software structures.
+            Analyze this uploaded forecast statement document carefully.
             
             Execute two specific extraction directives simultaneously. Formulate your output text exactly like this template:
             
             --- AUDIT SUMMARY ---
-            [Provide a 3-bullet evaluation in British English analyzing layout clarity, named structures like Turnover or Operational Costs, and visual readability versus data sparsity anomalies.]
+            [Provide a 3-bullet evaluation in British English analyzing layout clarity, entity context, and named structures like Turnover, Overheads or Direct Costs vs data anomalies.]
             
             --- DATA MATRIX ARRAY ---
-            [Extract any valid row metrics into a strict JSON list of objects matching this formatting model:
+            [Extract all financial lines into a strict JSON list of objects matching this formatting model:
             [
-              {{"vector_type": "sales", "line_name": "Label description", "base_amount": 54000.0, "seasonality": "Flat_Linear", "delay_days": 30, "vat_applicable": true}}
+              {{"vector_type": "sales", "line_name": "Court Fees", "base_amount": 280608.0, "seasonality_profile": "Flat_Linear", "terms_delay_days": 0, "vat_applicable": true}}
             ]
-            If headers are entirely blank or contain no numerical values, omit them.]
+            
+            CRITICAL CLASSIFICATION RULE FOR `vector_type`:
+            - Map all revenue lines (e.g., Court Fees, Room Hire, Café Sales) strictly to "sales".
+            - Map all operational expenses, purchases, rent, utilities, and insurances strictly to "opex".
+            - Map all wages, staff payroll, and personnel costs (e.g., Canteen Staff, Padel Court Staff) strictly to "payroll".
+            - Map capital asset additions strictly to "capex".
+            
+            For 'base_amount', use the annualized total or total value listed for the row. If headers are entirely blank or contain no numerical values, omit them.]
             """
+            contents_input.append(consolidated_prompt)
 
-            raw_response = model.generate_content(consolidated_prompt).text
+            # Transmit multimodal payload to the dual engine
+            raw_response = model.generate_content(contents_input).text
             split_tokens = raw_response.split("--- DATA MATRIX ARRAY ---")
             st.session_state["cached_document_critique"] = (
                 split_tokens[0].replace("--- AUDIT SUMMARY ---", "").strip()
@@ -876,12 +896,12 @@ def process_file_ingestion_callback():
                     parsed_vectors = json.loads(clean_json)
                     for vec in parsed_vectors:
                         extracted_season = (
-                            vec.get("seasonality")
-                            or vec.get("seasonality_profile")
+                            vec.get("seasonality_profile")
+                            or vec.get("seasonality")
                             or "Flat_Linear"
                         )
                         extracted_delay = (
-                            vec.get("delay_days") or vec.get("terms_delay_days") or 0
+                            vec.get("terms_delay_days") or vec.get("delay_days") or 0
                         )
                         stage_unverified_ingestion_line(
                             project_name=active_proj,
