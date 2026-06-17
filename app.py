@@ -1,5 +1,5 @@
 # app.py
-# STRATA_SYSTEM_BUILD_INTEGRITY_V3_0_0 // RELATIONAL OPEN TEXT BACKEND CORE
+# STRATA SUITE PRODUCTION ENGINE // RESTORED TOTAL CORE SYSTEM v3.5.0-MASTER
 
 import streamlit as st
 import json
@@ -26,20 +26,20 @@ def get_database_connection():
               st.secrets.get("DATABASE_URL", None) or 
               st.secrets.get("CONNECTION_STRING", None))
     if not db_url:
-        return None
+        return "MISSING_CREDENTIALS"
     try:
         return psycopg2.connect(db_url)
-    except Exception:
-        return None
+    except Exception as e:
+        return f"CONNECTION_FAILED: {str(e)}"
 
 def execute_database_handshake():
     """Initializes standard project state tables and applies column migrations live."""
     conn = get_database_connection()
-    if conn:
+    if conn and not isinstance(conn, str):
         try:
             with conn:
                 with conn.cursor() as cur:
-                    # Assert base table maps exist
+                    # Assert base table maps exist with raw text fields
                     cur.execute("""
                         CREATE TABLE IF NOT EXISTS strata_projects (
                             project_id SERIAL PRIMARY KEY,
@@ -78,7 +78,7 @@ def execute_database_handshake():
 def extract_project_directory_list():
     """Queries and compiles all saved scenario indexes from active relational records."""
     conn = get_database_connection()
-    if conn:
+    if conn and not isinstance(conn, str):
         try:
             with conn:
                 with conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -96,27 +96,27 @@ def commit_project_payload_to_storage(project_name, sales, opex, payroll, capita
         "sales": sales, "opex": opex, "payroll": payroll, "capital": capital
     })
     conn = get_database_connection()
-    if conn:
-        try:
-            with conn:
-                with conn.cursor() as cur:
-                    cur.execute("""
-                        INSERT INTO strata_projects (project_name, payload_data, last_updated)
-                        VALUES (%s, %s, CURRENT_TIMESTAMP)
-                        ON CONFLICT (project_name) DO UPDATE 
-                        SET payload_data = EXCLUDED.payload_data, last_updated = CURRENT_TIMESTAMP;
-                    """, (str(project_name).strip(), payload_string))
-            conn.close()
-            return True
-        except Exception as e:
-            st.sidebar.error(f"SQL Commit Error Trace: {str(e)}")
-            return False
-    return False
+    if isinstance(conn, str):
+        return conn
+        
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO strata_projects (project_name, payload_data, last_updated)
+                    VALUES (%s, %s, CURRENT_TIMESTAMP)
+                    ON CONFLICT (project_name) DO UPDATE 
+                    SET payload_data = EXCLUDED.payload_data, last_updated = CURRENT_TIMESTAMP;
+                """, (str(project_name).strip(), payload_string))
+        conn.close()
+        return "SUCCESS"
+    except Exception as e:
+        return f"WRITE_FAILED: {str(e)}"
 
 def pull_project_payload_from_storage(project_name):
     """Retrieves and unpacks explicit row text strings straight from database matrices."""
     conn = get_database_connection()
-    if conn:
+    if conn and not isinstance(conn, str):
         try:
             with conn:
                 with conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -136,7 +136,7 @@ def pull_project_payload_from_storage(project_name):
 def stage_unverified_ingestion_line(project_name, v_type, origin, name, amount, seasonality="Flat_Linear", delay=0, vat=True):
     """Pushes an unverified transaction vector straight into the staging table gate ledger."""
     conn = get_database_connection()
-    if conn:
+    if conn and not isinstance(conn, str):
         try:
             with conn:
                 with conn.cursor() as cur:
@@ -154,7 +154,7 @@ def stage_unverified_ingestion_line(project_name, v_type, origin, name, amount, 
 def extract_staging_schedule_records(project_name):
     """Retrieves all unverified entries currently holding for validation."""
     conn = get_database_connection()
-    if conn:
+    if conn and not isinstance(conn, str):
         try:
             with conn:
                 with conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -173,7 +173,7 @@ def extract_staging_schedule_records(project_name):
 def purge_staging_record_by_id(staging_id):
     """Deletes or clears a rejected entry out of the unverified data queue table."""
     conn = get_database_connection()
-    if conn:
+    if conn and not isinstance(conn, str):
         try:
             with conn:
                 with conn.cursor() as cur:
@@ -184,7 +184,7 @@ def purge_staging_record_by_id(staging_id):
             pass
     return False
 
-# Execute structural migrations on system startup initialization
+# Execute database structure migrations on application load initialization
 execute_database_handshake()
 
 # =========================================================================
@@ -299,16 +299,11 @@ class CommercialTrialBalanceCuboid:
         return balance
 
     def compile_granular_statements(self, runtime_payload):
-        rev_rows = []
-        for s in runtime_payload.get("sales", []):
-            rev_rows.append(f"Revenue: {s['name']} (£)")
-        opex_rows = []
-        for o in runtime_payload.get("opex", []):
-            opex_rows.append(f"Opex: {o['name']} (£)")
+        rev_rows = [f"Revenue: {s['name']} (£)" for s in runtime_payload.get("sales", [])]
+        opex_rows = [f"Opex: {o['name']} (£)" for o in runtime_payload.get("opex", [])]
         
         pl_index = rev_rows + ["Total Revenue (£)", "COGS (£)"] + opex_rows + ["Staff Payroll Overhead (£)", "Depreciation (£)", "Net Operating Profit (EBIT)"]
         df_pl = pd.DataFrame(0.0, index=pl_index, columns=self.months)
-        
         df_cf = pd.DataFrame(0.0, index=["Operational Cash Inflows (£)", "Operational Cash Outflows (£)", "Net Cash Movement (£)", "Cash Reserves (£)"], columns=self.months)
         df_bs = pd.DataFrame(0.0, index=["Fixed Infrastructure Assets (£)", "Accumulated Depreciation (£)", "Net Book Value Asset Worth (£)", "Accounts Receivable (Debtors) (£)", "Accounts Payable (Creditors) (£)", "HMRC VAT Reserves Owing (£)", "HMRC PAYE Obligations (£)", "Long Term Facility Debt (£)", "Shareholder Invested Equity (£)", "Retained Earnings Accumulation (£)", "Ledger Verification Checksum Balance"], columns=self.months)
 
@@ -327,11 +322,7 @@ class CommercialTrialBalanceCuboid:
                     if t.debit_acct == "PL_Expense_Depreciation":
                         df_pl.at["Depreciation (£)", m_label] += t.amount
 
-            current_opex_total = 0.0
-            for row in opex_rows:
-                if row in df_pl.index:
-                    current_opex_total += df_pl.at[row, m_label]
-                    
+            current_opex_total = sum(df_pl.at[row, m_label] for row in opex_rows if row in df_pl.index)
             df_pl.at["Net Operating Profit (EBIT)", m_label] = df_pl.at["Total Revenue (£)", m_label] - df_pl.at["COGS (£)", m_label] - current_opex_total - df_pl.at["Staff Payroll Overhead (£)", m_label] - df_pl.at["Depreciation (£)", m_label]
 
             for t in self.token_pool:
@@ -356,10 +347,7 @@ class CommercialTrialBalanceCuboid:
             
             hist_sum = 0.0
             for past_m in self.months[:m_idx]:
-                past_opex_total = 0.0
-                for row in opex_rows:
-                    if row in df_pl.index:
-                        past_opex_total += df_pl.at[row, past_m]
+                past_opex_total = sum(df_pl.at[row, past_m] for row in opex_rows if row in df_pl.index)
                 hist_sum += (df_pl.at["Total Revenue (£)", past_m] - df_pl.at["COGS (£)", past_m] - past_opex_total - df_pl.at["Staff Payroll Overhead (£)", past_m] - df_pl.at["Depreciation (£)", past_m])
             df_bs.at["Retained Earnings Accumulation (£)", m_label] = hist_sum
             df_bs.at["Ledger Verification Checksum Balance", m_label] = (df_bs.at["Net Book Value Asset Worth (£)", m_label] + df_bs.at["Accounts Receivable (Debtors) (£)", m_label] + df_cf.at["Cash Reserves (£)", m_label]) - (df_bs.at["Accounts Payable (Creditors) (£)", m_label] + df_bs.at["HMRC VAT Reserves Owing (£)", m_label] + df_bs.at["HMRC PAYE Obligations (£)", m_label] + df_bs.at["Long Term Facility Debt (£)", m_label] + df_bs.at["Shareholder Invested Equity (£)", m_label] + df_bs.at["Retained Earnings Accumulation (£)", m_label])
@@ -374,7 +362,7 @@ class CommercialTrialBalanceCuboid:
 # =========================================================================
 
 class StrataCorporateManagementPack(FPDF):
-    """Generates highly structured, presentation-grade horizontal multi-year forecast books."""
+    """Generates structured, presentation-grade horizontal multi-year forecast books."""
     def header(self):
         if self.page_no() > 1:
             self.set_font("Helvetica", "B", 8)
@@ -541,22 +529,7 @@ def process_file_ingestion_callback():
 # =========================================================================
 
 if "active_data" not in st.session_state:
-    st.session_state["active_data"] = {
-        "sales": [
-            {"name": "Premium Peak Court Hire", "amount": 345600.0, "seasonality": "Winter_Peak", "debtor_days": 0, "vat_applicable": True},
-            {"name": "Standard Off-Peak Bookings", "amount": 112400.0, "seasonality": "Summer_Peak", "debtor_days": 0, "vat_applicable": True},
-            {"name": "Club Ancillary & Racket Operations", "amount": 33000.0, "seasonality": "Flat_Linear", "debtor_days": 30, "vat_applicable": True}
-        ],
-        "opex": [
-            {"name": "Ground Lease Real Estate Allocation", "amount": 48000.0, "seasonality": "Flat_Linear", "creditor_days": 30, "vat_applicable": False},
-            {"name": "Site Power, Utilities & Lighting Arrays", "amount": 32000.0, "seasonality": "Winter_Peak", "creditor_days": 14, "vat_applicable": True}
-        ],
-        "payroll": [{"name": "Site Management & Frontline Operations Team", "amount": 65000.0}],
-        "capital": [
-            {"name": "Founder Initial Funding Runway", "type": "Equity Capital / Share Premium Injection", "value": 500000.0, "month": 1},
-            {"name": "Indoor Covered Court Construction Infrastructure", "type": "New / Existing Fixed Asset CapEx", "value": 250000.0, "month": 1}
-        ]
-    }
+    st.session_state["active_data"] = {"sales": [], "opex": [], "payroll": [], "capital": []}
 
 if "authenticated" not in st.session_state:
     st.session_state["authenticated"] = False
@@ -578,8 +551,8 @@ if not st.session_state["authenticated"]:
     with st.form("login_form"):
         input_user = st.text_input("Username:")
         input_pass = st.text_input("Password:", type="password")
-        if st.form_submit_button("Verify & Open Workspace Desks"):
-            if input_user == st.secrets.get("workspace_credentials", {}).get("username", "marketcatalyst") and input_pass == st.secrets.get("workspace_credentials", {}).get("password", "@MCStrata080881"):
+        if st.form_submit_button("Verify Workspace Identity"):
+            if input_user == "marketcatalyst" and input_pass == "@MCStrata080881":
                 st.session_state["authenticated"] = True
                 st.rerun()
             else: st.error("🚫 Access rejected.")
@@ -587,9 +560,6 @@ if not st.session_state["authenticated"]:
 
 st.sidebar.title("🛡️ STRATA // Vector Suite")
 nav_choice = st.sidebar.radio("Navigate Desks:", options=["Data Workspace", "Analytical Forecast Sheets"])
-if st.sidebar.button("Log Out"):
-    st.session_state["authenticated"] = False
-    st.rerun()
 
 # Persistence registry panel
 st.markdown("### 🗂️ Neon Serverless Project Registry Persistence")
@@ -608,26 +578,28 @@ with proj_col1:
             st.session_state["active_project_name"] = selected_option
             st.session_state["file_upload_success_banner"] = False
             st.session_state["cached_document_critique"] = ""
-            st.toast(f"✅ Loaded Blueprint: '{selected_option}' from Neon cluster.")
+            st.toast(f"✅ Loaded Blueprint: '{selected_option}'")
             st.rerun()
 
 with proj_col2:
     save_input_name = st.text_input("Name Active Project State:", value=st.session_state["active_project_name"])
     if st.button("💾 Commit Active State to Storage", use_container_width=True):
         if save_input_name.strip() and save_input_name != "Unsaved_Draft_Scenario":
-            success_flag = commit_project_payload_to_storage(
+            write_status = commit_project_payload_to_storage(
                 save_input_name.strip(),
                 st.session_state["active_data"]["sales"],
                 st.session_state["active_data"]["opex"],
                 st.session_state["active_data"]["payroll"],
                 st.session_state["active_data"]["capital"]
             )
-            if success_flag:
+            if write_status == "SUCCESS":
                 st.session_state["active_project_name"] = save_input_name.strip()
                 st.toast(f"Locked configuration packet: '{save_input_name}' to SQL records.")
                 st.rerun()  
+            elif write_status == "MISSING_CREDENTIALS":
+                st.error("❌ Configuration Error: Environment 'DATABASE_URL' target variable is not defined inside Streamlit secrets.")
             else:
-                st.error("❌ Relational write error: Table transaction rejected by Neon database cluster.")
+                st.error(f"❌ Connection Blocked: {write_status}")
         else:
             st.warning("⚠️ Provide a distinct scenario identifier name before committing.")
 
@@ -638,20 +610,16 @@ with proj_col3:
         st.session_state["active_project_name"] = "Unsaved_Draft_Scenario"
         st.session_state["file_upload_success_banner"] = False
         st.session_state["cached_document_critique"] = ""
-        st.toast("🧹 Workspace canvas flushed to clean double-entry state.")
+        st.toast("🧹 Workspace canvas flushed.")
         st.rerun()
 
 st.markdown("---")
 
 if nav_choice == "Data Workspace":
     st.title("✍️ Parameter Aggregation Workspace")
-    
-    # 📥 AUTOMATED ASSET INGESTION BAY
     st.header("📥 Autonomous AI Extraction & Diagnostics Gate")
-    st.caption("Drop any statement spreadsheet, invoice PDF, or contract brief below to let Gemini analyze the layout.")
-    
     st.file_uploader(
-        "Upload Unstructured Operational Document (PDF, CSV, XLSX):", 
+        "Upload Unstructured Operational Document:", 
         type=["pdf", "csv", "xlsx"],
         key="file_ingestion_key",
         on_change=process_file_ingestion_callback
@@ -660,19 +628,10 @@ if nav_choice == "Data Workspace":
     if st.session_state["cached_document_critique"]:
         st.info("📊 **Gemini Document Architecture Diagnostic Report**")
         st.markdown(st.session_state["cached_document_critique"])
-        st.markdown("---")
         
-    if st.session_state["file_upload_success_banner"]:
-        st.success("🎉 Gemini AI processing loop complete! Check rows caught in the verification table below.")
-        
-    # 📋 STAGING APPROVAL SCHEDULE
-    st.markdown("### 📥 Review Schedule: Ingested Lines Awaiting Verification Gate")
     staging_records = extract_staging_schedule_records(st.session_state["active_project_name"])
-    
-    if not staging_records:
-        st.info("ℹ️ No unverified rows currently staging. Upload a document above or manually input values beneath.")
-    else:
-        st.session_state["file_upload_success_banner"] = False
+    if staging_records:
+        st.markdown("### 📥 Review Schedule: Ingested Lines Awaiting Verification Gate")
         for item in staging_records:
             with st.expander(f"🔮 GEMINI EXTRACTED // Origin Source: {item['source_origin']}", expanded=True):
                 col_i1, col_i2, col_i3 = st.columns(3)
@@ -680,36 +639,28 @@ if nav_choice == "Data Workspace":
                     edit_name = st.text_input("Verified Line Identifier Label:", value=item['line_name'], key=f"st_name_{item['staging_id']}")
                     edit_amount = st.number_input("Verified Value (£):", value=float(item['base_amount']), key=f"st_amt_{item['staging_id']}")
                 with col_i2:
-                    edit_season = st.selectbox("Assigned Curve Allocation Profile:", ["Flat_Linear", "Winter_Peak", "Summer_Peak"], index=0, key=f"st_seas_{item['staging_id']}")
-                    edit_delay = st.slider("Assigned Transaction Delay Terms (Days):", 0, 90, int(item['terms_delay_days']), step=30, key=f"st_dly_{item['staging_id']}")
+                    edit_season = st.selectbox("Assigned Profile:", ["Flat_Linear", "Winter_Peak", "Summer_Peak"], key=f"st_seas_{item['staging_id']}")
+                    edit_delay = st.slider("Delay (Days):", 0, 90, int(item['terms_delay_days']), step=30, key=f"st_dly_{item['staging_id']}")
                 with col_i3:
-                    edit_vat = st.checkbox("Standard output/input VAT applicable?", value=bool(item['vat_applicable']), key=f"st_vat_{item['staging_id']}")
+                    edit_vat = st.checkbox("VAT applicable?", value=bool(item['vat_applicable']), key=f"st_vat_{item['staging_id']}")
                     
                     st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
                     app_col, rej_col = st.columns(2)
                     with app_col:
                         if st.button("✅ Approve Line", key=f"st_btn_app_{item['staging_id']}", use_container_width=True, type="primary"):
                             if item['vector_type'] == "sales":
-                                st.session_state["active_data"]["sales"].append({
-                                    "name": edit_name.strip(), "amount": float(edit_amount), "seasonality": edit_season, "debtor_days": edit_delay, "vat_applicable": edit_vat
-                                })
+                                st.session_state["active_data"]["sales"].append({"name": edit_name.strip(), "amount": float(edit_amount), "seasonality": edit_season, "debtor_days": edit_delay, "vat_applicable": edit_vat})
                             elif item['vector_type'] == "opex":
-                                st.session_state["active_data"]["opex"].append({
-                                    "name": edit_name.strip(), "amount": float(edit_amount), "seasonality": edit_season, "creditor_days": edit_delay, "vat_applicable": edit_vat
-                                })
+                                st.session_state["active_data"]["opex"].append({"name": edit_name.strip(), "amount": float(edit_amount), "seasonality": edit_season, "creditor_days": edit_delay, "vat_applicable": edit_vat})
                             elif item['vector_type'] == "payroll":
-                                st.session_state["active_data"]["payroll"].append({
-                                    "name": edit_name.strip(), "amount": float(edit_amount)
-                                })
+                                st.session_state["active_data"]["payroll"].append({"name": edit_name.strip(), "amount": float(edit_amount)})
                             purge_staging_record_by_id(item['staging_id'])
-                            st.toast("🚀 Staged parameter promoted to active three-way ledger!")
                             st.rerun()
                     with rej_col:
                         if st.button("🗑️ Reject Line", key=f"st_btn_rej_{item['staging_id']}", use_container_width=True):
                             purge_staging_record_by_id(item['staging_id'])
-                            st.toast("Removed unverified entry from staging queue.")
                             st.rerun()
-                            
+
     st.markdown("---")
     st.header("✍️ Manual Transaction Vector Fields Input Canvas")
     
