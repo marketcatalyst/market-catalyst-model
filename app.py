@@ -449,11 +449,11 @@ def generate_corporate_intelligence(df_pl, df_cf, df_bs, range_labels):
         return f"❌ **Gateway Disconnect:** {str(e)}"
 
 # =========================================================================
-# 🎛️ REFACTORED: ROBUST REGEX-DRIVEN GEMINI MULTIMODAL INGESTION
+# 🎛️ REFACTORED: ADVANCED GEMINI AUDIT DIAGNOSTIC PIPELINE
 # =========================================================================
 
 def process_file_ingestion_callback():
-    """Reads unstructured file text and pulls a cleanly regex-isolated JSON array loop from Gemini."""
+    """Reads raw string matrices, outputs a live layout diagnostic, and triggers regex-isolated JSON parsing."""
     uploaded_file = st.session_state.get("file_ingestion_key")
     if uploaded_file is not None:
         origin_tag = f"AI Ingested: {uploaded_file.name}"
@@ -461,7 +461,7 @@ def process_file_ingestion_callback():
         api_key = os.environ.get("GEMINI_API_KEY") or st.secrets.get("GEMINI_API_KEY", None)
         
         if not api_key:
-            st.sidebar.error("❌ Gemini API Key missing. Dropback to manual parameters required.")
+            st.sidebar.error("❌ Gemini API Key missing.")
             return
 
         try:
@@ -477,52 +477,54 @@ def process_file_ingestion_callback():
             genai.configure(api_key=api_key)
             model = genai.GenerativeModel('models/gemini-2.5-flash')
             
-            ai_prompt = f"""
-            You are an advanced accounting extraction system. Review this unstructured data layout:
+            # --- LANE 1: LIVE STRUCTURAL AUDIT CRITIQUE ---
+            audit_prompt = f"""
+            You are acting as a Principal Systems Auditor and Document Reviewer. 
+            Analyze the formatting, columns, and text alignment of this uploaded spreadsheet data extraction:
             
             {doc_payload}
             
-            Isolate any active revenue streams, supplier overhead values, infrastructure expenditures, or payroll elements.
-            Convert them into a strict JSON list of objects matching this exact syntax structure:
-            [
-              {{"vector_type": "sales", "line_name": "Label description", "base_amount": 54000.0, "seasonality": "Flat_Linear", "delay_days": 30, "vat_applicable": true}},
-              {{"vector_type": "opex", "line_name": "Label description", "base_amount": 12000.0, "seasonality": "Winter_Peak", "delay_days": 30, "vat_applicable": true}}
-            ]
+            Provide a short, 3-bullet executive evaluation pack using British English spelling. 
+            State clearly whether the sheet contains identifiable financial headers or if it is too unstructured/blank to process automatically.
+            """
+            st.session_state["cached_document_critique"] = model.generate_content(audit_prompt).text
+
+            # --- LANE 2: PROGRAMMATIC JSON ARRAY STREAM EXTRACTION ---
+            ai_prompt = f"""
+            Extract any identifiable revenue streams, supplier overhead values, or payroll elements from this data layout:
             
-            Allowed vector_type configurations: 'sales', 'opex', 'payroll'.
-            Allowed seasonality configurations: 'Flat_Linear', 'Winter_Peak', 'Summer_Peak'.
-            Output raw valid JSON only. Do not wrap with markdown code fences like ```json.
+            {doc_payload}
+            
+            Convert into a strict JSON list of objects matching this exact structure:
+            [
+              {{"vector_type": "sales", "line_name": "Label description", "base_amount": 54000.0, "seasonality": "Flat_Linear", "delay_days": 30, "vat_applicable": true}}
+            ]
+            If rows contain no numbers or un-identifiable headers, omit them. Output valid JSON list array enclosed in brackets only.
             """
             
             ai_response = model.generate_content(ai_prompt).text
-            
             match = re.search(r'\[.*\]', ai_response, re.DOTALL)
-            if not match:
-                st.sidebar.error("❌ Ingestion Error: Gemini output structure did not contain a valid dataset matrix.")
-                return
-                
-            clean_json = match.group(0).strip()
-            parsed_vectors = json.loads(clean_json)
             
-            for vec in parsed_vectors:
-                # FIXED: Maps key name dynamically to seasonality parameter
-                extracted_season = vec.get("seasonality") or vec.get("seasonality_profile") or "Flat_Linear"
-                extracted_delay = vec.get("delay_days") or vec.get("terms_delay_days") or 0
-                
-                stage_unverified_ingestion_line(
-                    project_name=active_proj,
-                    v_type=vec.get("vector_type", "opex"),
-                    origin=origin_tag,
-                    name=vec.get("line_name", "AI Scraped Parameter"),
-                    amount=float(vec.get("base_amount", 0.0)),
-                    seasonality=extracted_season,
-                    delay=int(extracted_delay),
-                    vat=bool(vec.get("vat_applicable", True))
-                )
-                
+            if match:
+                clean_json = match.group(0).strip()
+                parsed_vectors = json.loads(clean_json)
+                for vec in parsed_vectors:
+                    extracted_season = vec.get("seasonality") or vec.get("seasonality_profile") or "Flat_Linear"
+                    extracted_delay = vec.get("delay_days") or vec.get("terms_delay_days") or 0
+                    stage_unverified_ingestion_line(
+                        project_name=active_proj,
+                        v_type=vec.get("vector_type", "opex"),
+                        origin=origin_tag,
+                        name=vec.get("line_name", "AI Scraped Parameter"),
+                        amount=float(vec.get("base_amount", 0.0)),
+                        seasonality=extracted_season,
+                        delay=int(extracted_delay),
+                        vat=bool(vec.get("vat_applicable", True))
+                    )
+            
             st.session_state["file_upload_success_banner"] = True
         except Exception as err:
-            st.sidebar.error(f"Gemini Extraction Exception: {str(err)}")
+            st.sidebar.error(f"Gemini Audit System Exception: {str(err)}")
 
 # =========================================================================
 # ⚙️ STREAMLIT INTERFACE LAYER & CONFIGURATION DOCK
@@ -552,6 +554,9 @@ if "authenticated" not in st.session_state:
 if "cached_report" not in st.session_state:
     st.session_state["cached_report"] = ""
 
+if "cached_document_critique" not in st.session_state:
+    st.session_state["cached_document_critique"] = ""
+
 if "active_project_name" not in st.session_state:
     st.session_state["active_project_name"] = "Unsaved_Draft_Scenario"
 
@@ -576,7 +581,7 @@ if st.sidebar.button("Log Out"):
     st.session_state["authenticated"] = False
     st.rerun()
 
-# Project directory dropdown and persistence controllers
+# Persistence registry panel
 st.markdown("### 🗂️ Neon Serverless Project Registry Persistence")
 proj_col1, proj_col2, proj_col3 = st.columns([4, 4, 3])
 
@@ -592,6 +597,7 @@ with proj_col1:
             st.session_state["active_data"] = loaded_payload
             st.session_state["active_project_name"] = selected_option
             st.session_state["file_upload_success_banner"] = False
+            st.session_state["cached_document_critique"] = ""
             st.toast(f"✅ Loaded Blueprint: '{selected_option}' from Neon cluster.")
             st.rerun()
 
@@ -618,17 +624,18 @@ with proj_col3:
         st.session_state["active_data"] = {"sales": [], "opex": [], "payroll": [], "capital": []}
         st.session_state["active_project_name"] = "Unsaved_Draft_Scenario"
         st.session_state["file_upload_success_banner"] = False
+        st.session_state["cached_document_critique"] = ""
         st.toast("🧹 Workspace canvas flushed to clean double-entry state.")
         st.rerun()
 
 st.markdown("---")
 
-# Navigation branch routing loops
 if nav_choice == "Data Workspace":
     st.title("✍️ Parameter Aggregation Workspace")
     
-    st.header("📥 Autonomous AI Extraction Gate")
-    st.caption("Drop any un-transcribed statement spreadsheet, invoice PDF, or contract brief below to trigger live Gemini extraction.")
+    # 📥 AUTOMATED ASSET INGESTION BAY (UPGRADED WITH LIVE DIAGNOSTIC ENGINE)
+    st.header("📥 Autonomous AI Extraction & Diagnostics Gate")
+    st.caption("Drop any statement spreadsheet, invoice PDF, or contract brief below to let Gemini analyze the layout.")
     
     st.file_uploader(
         "Upload Unstructured Operational Document (PDF, CSV, XLSX):", 
@@ -637,9 +644,15 @@ if nav_choice == "Data Workspace":
         on_change=process_file_ingestion_callback
     )
     
-    if st.session_state["file_upload_success_banner"]:
-        st.success("🎉 Gemini AI extraction complete! Review rows ready for approval below.")
+    if st.session_state["cached_document_critique"]:
+        st.info("📊 **Gemini Document Architecture Diagnostic Report**")
+        st.markdown(st.session_state["cached_document_critique"])
+        st.markdown("---")
         
+    if st.session_state["file_upload_success_banner"]:
+        st.success("🎉 Gemini AI processing loop complete! Check rows caught in the verification table below.")
+        
+    # 📋 STAGING APPROVAL SCHEDULE
     st.markdown("### 📥 Review Schedule: Ingested Lines Awaiting Verification Gate")
     staging_records = extract_staging_schedule_records(st.session_state["active_project_name"])
     
@@ -676,7 +689,7 @@ if nav_choice == "Data Workspace":
                                     "name": edit_name.strip(), "amount": float(edit_amount)
                                 })
                             purge_staging_record_by_id(item['staging_id'])
-                            st.toast("🚀 Staged parameter promoted to active three-way simulation ledger!")
+                            st.toast("🚀 Staged parameter promoted to active three-way ledger!")
                             st.rerun()
                     with rej_col:
                         if st.button("🗑️ Reject Line", key=f"st_btn_rej_{item['staging_id']}", use_container_width=True):
