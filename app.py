@@ -20,17 +20,21 @@ st.set_page_config(layout="wide")
 # 💾 PERSISTENCE CONTROL LAYER: SERVERLESS NEON POSTGRES PIPELINE
 # =========================================================================
 
+
 def get_database_connection():
     """Establishes a connection thread looking for both URL and CONNECTION_STRING targets."""
-    db_url = (os.environ.get("DATABASE_URL") or 
-              st.secrets.get("DATABASE_URL", None) or 
-              st.secrets.get("CONNECTION_STRING", None))
+    db_url = (
+        os.environ.get("DATABASE_URL")
+        or st.secrets.get("DATABASE_URL", None)
+        or st.secrets.get("CONNECTION_STRING", None)
+    )
     if not db_url:
         return "MISSING_CREDENTIALS"
     try:
         return psycopg2.connect(db_url)
     except Exception as e:
         return f"CONNECTION_FAILED: {str(e)}"
+
 
 def execute_database_handshake():
     """Initializes standard project state tables and applies column migrations live."""
@@ -63,17 +67,30 @@ def execute_database_handshake():
                             ingested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                         );
                     """)
-                    
+
                     # RUN SCHEMA MIGRATIONS: Explicitly alter column definitions to override historical constraints
-                    cur.execute("ALTER TABLE strata_projects ALTER COLUMN project_name TYPE TEXT;")
-                    cur.execute("ALTER TABLE strata_staging_inputs ALTER COLUMN project_name TYPE TEXT;")
-                    cur.execute("ALTER TABLE strata_staging_inputs ALTER COLUMN vector_type TYPE TEXT;")
-                    cur.execute("ALTER TABLE strata_staging_inputs ALTER COLUMN source_origin TYPE TEXT;")
-                    cur.execute("ALTER TABLE strata_staging_inputs ALTER COLUMN line_name TYPE TEXT;")
-                    cur.execute("ALTER TABLE strata_staging_inputs ALTER COLUMN seasonality_profile TYPE TEXT;")
+                    cur.execute(
+                        "ALTER TABLE strata_projects ALTER COLUMN project_name TYPE TEXT;"
+                    )
+                    cur.execute(
+                        "ALTER TABLE strata_staging_inputs ALTER COLUMN project_name TYPE TEXT;"
+                    )
+                    cur.execute(
+                        "ALTER TABLE strata_staging_inputs ALTER COLUMN vector_type TYPE TEXT;"
+                    )
+                    cur.execute(
+                        "ALTER TABLE strata_staging_inputs ALTER COLUMN source_origin TYPE TEXT;"
+                    )
+                    cur.execute(
+                        "ALTER TABLE strata_staging_inputs ALTER COLUMN line_name TYPE TEXT;"
+                    )
+                    cur.execute(
+                        "ALTER TABLE strata_staging_inputs ALTER COLUMN seasonality_profile TYPE TEXT;"
+                    )
             conn.close()
         except Exception:
             pass
+
 
 def extract_project_directory_list():
     """Queries and compiles all saved scenario indexes from active relational records."""
@@ -82,36 +99,43 @@ def extract_project_directory_list():
         try:
             with conn:
                 with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                    cur.execute("SELECT project_name FROM strata_projects ORDER BY project_name ASC;")
+                    cur.execute(
+                        "SELECT project_name FROM strata_projects ORDER BY project_name ASC;"
+                    )
                     rows = cur.fetchall()
             conn.close()
-            return [r['project_name'] for r in rows]
+            return [r["project_name"] for r in rows]
         except Exception:
             pass
     return []
 
+
 def commit_project_payload_to_storage(project_name, sales, opex, payroll, capital):
     """Commits compressed scenario structures safely into Neon relational database records."""
-    payload_string = json.dumps({
-        "sales": sales, "opex": opex, "payroll": payroll, "capital": capital
-    })
+    payload_string = json.dumps(
+        {"sales": sales, "opex": opex, "payroll": payroll, "capital": capital}
+    )
     conn = get_database_connection()
     if isinstance(conn, str):
         return conn
-        
+
     try:
         with conn:
             with conn.cursor() as cur:
-                cur.execute("""
+                cur.execute(
+                    """
                     INSERT INTO strata_projects (project_name, payload_data, last_updated)
                     VALUES (%s, %s, CURRENT_TIMESTAMP)
                     ON CONFLICT (project_name) DO UPDATE 
                     SET payload_data = EXCLUDED.payload_data, last_updated = CURRENT_TIMESTAMP;
-                """, (str(project_name).strip(), payload_string))
+                """,
+                    (str(project_name).strip(), payload_string),
+                )
         conn.close()
         return "SUCCESS"
     except Exception as e:
         return f"WRITE_FAILED: {str(e)}"
+
 
 def pull_project_payload_from_storage(project_name):
     """Retrieves and unpacks explicit row text strings straight from database matrices."""
@@ -120,36 +144,63 @@ def pull_project_payload_from_storage(project_name):
         try:
             with conn:
                 with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                    cur.execute("SELECT payload_data FROM strata_projects WHERE project_name = %s;", (project_name,))
+                    cur.execute(
+                        "SELECT payload_data FROM strata_projects WHERE project_name = %s;",
+                        (project_name,),
+                    )
                     row = cur.fetchone()
             conn.close()
             if row:
-                return json.loads(row['payload_data'])
+                return json.loads(row["payload_data"])
         except Exception:
             pass
     return None
+
 
 # =========================================================================
 # 📥 STAGING LAYER PIPELINES: INGESTION BACK-END ENGINE HOOKS
 # =========================================================================
 
-def stage_unverified_ingestion_line(project_name, v_type, origin, name, amount, seasonality="Flat_Linear", delay=0, vat=True):
+
+def stage_unverified_ingestion_line(
+    project_name,
+    v_type,
+    origin,
+    name,
+    amount,
+    seasonality="Flat_Linear",
+    delay=0,
+    vat=True,
+):
     """Pushes an unverified transaction vector straight into the staging table gate ledger."""
     conn = get_database_connection()
     if conn and not isinstance(conn, str):
         try:
             with conn:
                 with conn.cursor() as cur:
-                    cur.execute("""
+                    cur.execute(
+                        """
                         INSERT INTO strata_staging_inputs 
                         (project_name, vector_type, source_origin, line_name, base_amount, seasonality_profile, terms_delay_days, vat_applicable, is_approved)
                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, FALSE);
-                    """, (str(project_name).strip(), str(v_type).strip(), str(origin).strip(), str(name).strip(), float(amount), str(seasonality).strip(), int(delay), bool(vat)))
+                    """,
+                        (
+                            str(project_name).strip(),
+                            str(v_type).strip(),
+                            str(origin).strip(),
+                            str(name).strip(),
+                            float(amount),
+                            str(seasonality).strip(),
+                            int(delay),
+                            bool(vat),
+                        ),
+                    )
             conn.close()
             return True
         except Exception:
             pass
     return False
+
 
 def extract_staging_schedule_records(project_name):
     """Retrieves all unverified entries currently holding for validation."""
@@ -158,17 +209,21 @@ def extract_staging_schedule_records(project_name):
         try:
             with conn:
                 with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                    cur.execute("""
+                    cur.execute(
+                        """
                         SELECT * FROM strata_staging_inputs 
                         WHERE project_name = %s AND is_approved = FALSE 
                         ORDER BY staging_id ASC;
-                    """, (project_name,))
+                    """,
+                        (project_name,),
+                    )
                     rows = cur.fetchall()
             conn.close()
             return rows
         except Exception:
             pass
     return []
+
 
 def purge_staging_record_by_id(staging_id):
     """Deletes or clears a rejected entry out of the unverified data queue table."""
@@ -177,12 +232,16 @@ def purge_staging_record_by_id(staging_id):
         try:
             with conn:
                 with conn.cursor() as cur:
-                    cur.execute("DELETE FROM strata_staging_inputs WHERE staging_id = %s;", (int(staging_id),))
+                    cur.execute(
+                        "DELETE FROM strata_staging_inputs WHERE staging_id = %s;",
+                        (int(staging_id),),
+                    )
             conn.close()
             return True
         except Exception:
             pass
     return False
+
 
 # Execute database structure migrations on application load initialization
 execute_database_handshake()
@@ -191,8 +250,10 @@ execute_database_handshake()
 # 🏛️ CORE ENGINE: MULTI-YEAR GRANULAR TRANSITIONAL VECTOR LEDGER
 # =========================================================================
 
+
 class JournalToken:
     """Atomic double-entry transaction voucher ensuring absolute alignment."""
+
     def __init__(self, month_label, debit_acct, credit_acct, amount, narrative=""):
         self.month_label = month_label
         self.debit_acct = debit_acct
@@ -200,20 +261,60 @@ class JournalToken:
         self.amount = float(amount)
         self.narrative = narrative
 
+
 class CommercialTrialBalanceCuboid:
     """Hardened 60-month transaction token ledger processing phase-shifts and UK tax cycles."""
+
     def __init__(self):
         self.accounts = [
-            "BS_Asset_Cash", "BS_Asset_Debtors", "BS_Asset_Fixed_Assets", "BS_Asset_Accumulated_Depreciation",
-            "BS_Liability_Creditors", "BS_Liability_VAT_Payable", "BS_Liability_PAYE_NIC_Payable", "BS_Liability_Long_Term_Debt",
-            "BS_Equity_Share_Capital", "BS_Equity_Retained_Earnings",
-            "PL_Revenue_Gross", "PL_COGS", "PL_Expense_Overheads", "PL_Expense_Payroll", "PL_Expense_Depreciation", "PL_Expense_Interest"
+            "BS_Asset_Cash",
+            "BS_Asset_Debtors",
+            "BS_Asset_Fixed_Assets",
+            "BS_Asset_Accumulated_Depreciation",
+            "BS_Liability_Creditors",
+            "BS_Liability_VAT_Payable",
+            "BS_Liability_PAYE_NIC_Payable",
+            "BS_Liability_Long_Term_Debt",
+            "BS_Equity_Share_Capital",
+            "BS_Equity_Retained_Earnings",
+            "PL_Revenue_Gross",
+            "PL_COGS",
+            "PL_Expense_Overheads",
+            "PL_Expense_Payroll",
+            "PL_Expense_Depreciation",
+            "PL_Expense_Interest",
         ]
         self.months = [f"M{str(i).zfill(2)}" for i in range(1, 61)]
         self.seasonality_profiles = {
-            "Flat_Linear": [1/12] * 12,
-            "Winter_Peak": [0.12, 0.12, 0.10, 0.07, 0.05, 0.05, 0.05, 0.06, 0.08, 0.09, 0.10, 0.11],
-            "Summer_Peak": [0.05, 0.05, 0.07, 0.10, 0.12, 0.12, 0.12, 0.11, 0.09, 0.07, 0.05, 0.05]
+            "Flat_Linear": [1 / 12] * 12,
+            "Winter_Peak": [
+                0.12,
+                0.12,
+                0.10,
+                0.07,
+                0.05,
+                0.05,
+                0.05,
+                0.06,
+                0.08,
+                0.09,
+                0.10,
+                0.11,
+            ],
+            "Summer_Peak": [
+                0.05,
+                0.05,
+                0.07,
+                0.10,
+                0.12,
+                0.12,
+                0.12,
+                0.11,
+                0.09,
+                0.07,
+                0.05,
+                0.05,
+            ],
         }
         self.token_pool = []
 
@@ -221,72 +322,196 @@ class CommercialTrialBalanceCuboid:
         if amount == 0.0 or month_idx < 1 or month_idx > 60:
             return
         month_label = f"M{str(month_idx).zfill(2)}"
-        self.token_pool.append(JournalToken(month_label, debit_acct, credit_acct, amount, narrative))
+        self.token_pool.append(
+            JournalToken(month_label, debit_acct, credit_acct, amount, narrative)
+        )
 
     def extract_monthly_weight(self, profile_name, month_idx):
-        profile = self.seasonality_profiles.get(profile_name, self.seasonality_profiles["Flat_Linear"])
+        profile = self.seasonality_profiles.get(
+            profile_name, self.seasonality_profiles["Flat_Linear"]
+        )
         return profile[(month_idx - 1) % 12]
 
     def process_simulation(self, runtime_payload):
         self.token_pool = []
-        
+
         # Capitalisation Injections
         for cap in runtime_payload.get("capital", []):
-            m_start, val, c_type = int(cap.get("month", 1)), float(cap.get("value", 0.0)), cap.get("type", "")
+            m_start, val, c_type = (
+                int(cap.get("month", 1)),
+                float(cap.get("value", 0.0)),
+                cap.get("type", ""),
+            )
             if c_type == "Equity Capital / Share Premium Injection":
-                self.inject_token(m_start, "BS_Asset_Cash", "BS_Equity_Share_Capital", val, f"CapEx: {cap.get('name')}")
+                self.inject_token(
+                    m_start,
+                    "BS_Asset_Cash",
+                    "BS_Equity_Share_Capital",
+                    val,
+                    f"CapEx: {cap.get('name')}",
+                )
             elif c_type == "Commercial Debt / Facility Drawdown":
-                self.inject_token(m_start, "BS_Asset_Cash", "BS_Liability_Long_Term_Debt", val, f"Debt: {cap.get('name')}")
+                self.inject_token(
+                    m_start,
+                    "BS_Asset_Cash",
+                    "BS_Liability_Long_Term_Debt",
+                    val,
+                    f"Debt: {cap.get('name')}",
+                )
             elif c_type == "New / Existing Fixed Asset CapEx":
-                self.inject_token(m_start, "BS_Asset_Fixed_Assets", "BS_Asset_Cash", val, f"Asset: {cap.get('name')}")
+                self.inject_token(
+                    m_start,
+                    "BS_Asset_Fixed_Assets",
+                    "BS_Asset_Cash",
+                    val,
+                    f"Asset: {cap.get('name')}",
+                )
 
         # Chronological Horizon Loop spanning 5 years
         for m in range(1, 61):
             # Sales Pipeline
             for sale in runtime_payload.get("sales", []):
                 ann_net = float(sale.get("amount", 0.0))
-                profile, debtor_days, vat_app = sale.get("seasonality", "Flat_Linear"), int(sale.get("debtor_days", 0)), sale.get("vat_applicable", True)
-                monthly_net = ann_net * self.extract_monthly_weight(profile, m)
+                profile, debtor_days, vat_app = (
+                    sale.get("seasonality", "Flat_Linear"),
+                    int(sale.get("debtor_days", 0)),
+                    sale.get("vat_applicable", True),
+                )
+                custom_weight = self.extract_monthly_weight(profile, m)
+                monthly_net = ann_net * custom_weight
                 monthly_vat = (monthly_net * 0.20) if vat_app else 0.0
-                
+
                 narr_tag = f"REV_LINE__{sale.get('name')}"
-                self.inject_token(m, "BS_Asset_Debtors", "PL_Revenue_Gross", monthly_net, narr_tag)
+                self.inject_token(
+                    m, "BS_Asset_Debtors", "PL_Revenue_Gross", monthly_net, narr_tag
+                )
                 if monthly_vat > 0:
-                    self.inject_token(m, "BS_Asset_Debtors", "BS_Liability_VAT_Payable", monthly_vat, f"VAT_OUT__{sale.get('name')}")
-                self.inject_token(m + (debtor_days // 30), "BS_Asset_Cash", "BS_Asset_Debtors", monthly_net + monthly_vat, f"Receipt: {sale.get('name')}")
+                    self.inject_token(
+                        m,
+                        "BS_Asset_Debtors",
+                        "BS_Liability_VAT_Payable",
+                        monthly_vat,
+                        f"VAT_OUT__{sale.get('name')}",
+                    )
+                self.inject_token(
+                    m + (debtor_days // 30),
+                    "BS_Asset_Cash",
+                    "BS_Asset_Debtors",
+                    monthly_net + monthly_vat,
+                    f"Receipt: {sale.get('name')}",
+                )
 
             # Overheads Pipeline
             for opex in runtime_payload.get("opex", []):
                 ann_net_cost = float(opex.get("amount", 0.0))
-                profile, creditor_days, vat_rec = opex.get("seasonality", "Flat_Linear"), int(opex.get("creditor_days", 0)), opex.get("vat_applicable", True)
-                monthly_net_cost = ann_net_cost * self.extract_monthly_weight(profile, m)
+                profile, creditor_days, vat_rec = (
+                    opex.get("seasonality", "Flat_Linear"),
+                    int(opex.get("creditor_days", 0)),
+                    opex.get("vat_applicable", True),
+                )
+                monthly_net_cost = ann_net_cost * self.extract_monthly_weight(
+                    profile, m
+                )
                 monthly_input_vat = (monthly_net_cost * 0.20) if vat_rec else 0.0
-                
+
                 narr_tag = f"OPEX_LINE__{opex.get('name')}"
-                self.inject_token(m, "PL_Expense_Overheads", "BS_Liability_Creditors", monthly_net_cost, narr_tag)
+                self.inject_token(
+                    m,
+                    "PL_Expense_Overheads",
+                    "BS_Liability_Creditors",
+                    monthly_net_cost,
+                    narr_tag,
+                )
                 if monthly_input_vat > 0:
-                    self.inject_token(m, "BS_Liability_VAT_Payable", "BS_Liability_Creditors", monthly_input_vat, f"VAT_IN__{opex.get('name')}")
-                self.inject_token(m + (creditor_days // 30), "BS_Liability_Creditors", "BS_Asset_Cash", monthly_net_cost + monthly_input_vat, f"Payment: {opex.get('name')}")
+                    self.inject_token(
+                        m,
+                        "BS_Liability_VAT_Payable",
+                        "BS_Liability_Creditors",
+                        monthly_input_vat,
+                        f"VAT_IN__{opex.get('name')}",
+                    )
+                self.inject_token(
+                    m + (creditor_days // 30),
+                    "BS_Liability_Creditors",
+                    "BS_Asset_Cash",
+                    monthly_net_cost + monthly_input_vat,
+                    f"Payment: {opex.get('name')}",
+                )
 
             # Payroll Pipeline
             for pay in runtime_payload.get("payroll", []):
                 monthly_gross = float(pay.get("amount", 0.0)) / 12.0
                 employer_nic = monthly_gross * 0.138
                 paye_deduction = monthly_gross * 0.25
-                self.inject_token(m, "PL_Expense_Payroll", "BS_Asset_Cash", monthly_gross - paye_deduction, f"Net Pay: {pay.get('name')}")
-                self.inject_token(m, "PL_Expense_Payroll", "BS_Liability_PAYE_NIC_Payable", paye_deduction + employer_nic, f"Taxes: {pay.get('name')}")
-                self.inject_token(m + 1, "BS_Liability_PAYE_NIC_Payable", "BS_Asset_Cash", paye_deduction + employer_nic, "HMRC PAYE Payment")
+                self.inject_token(
+                    m,
+                    "PL_Expense_Payroll",
+                    "BS_Asset_Cash",
+                    monthly_gross - paye_deduction,
+                    f"Net Pay: {pay.get('name')}",
+                )
+                self.inject_token(
+                    m,
+                    "PL_Expense_Payroll",
+                    "BS_Liability_PAYE_NIC_Payable",
+                    paye_deduction + employer_nic,
+                    f"Taxes: {pay.get('name')}",
+                )
+                self.inject_token(
+                    m + 1,
+                    "BS_Liability_PAYE_NIC_Payable",
+                    "BS_Asset_Cash",
+                    paye_deduction + employer_nic,
+                    "HMRC PAYE Payment",
+                )
 
             # Straight-Line Depreciation Ledger Accruals
-            current_fa = self.compute_running_balance_to_month("BS_Asset_Fixed_Assets", m)
+            current_fa = self.compute_running_balance_to_month(
+                "BS_Asset_Fixed_Assets", m
+            )
             if current_fa > 0.0:
-                self.inject_token(m, "PL_Expense_Depreciation", "BS_Asset_Accumulated_Depreciation", (current_fa * 0.10) / 12.0, "Depreciation")
+                self.inject_token(
+                    m,
+                    "PL_Expense_Depreciation",
+                    "BS_Asset_Accumulated_Depreciation",
+                    (current_fa * 0.10) / 12.0,
+                    "Depreciation",
+                )
 
             # Quarterly VAT Settlement
-            if m in [3, 6, 9, 12, 15, 18, 21, 24, 27, 30, 33, 36, 39, 42, 45, 48, 51, 54, 57, 60]:
-                vat_acc = self.compute_running_balance_to_month("BS_Liability_VAT_Payable", m)
+            if m in [
+                3,
+                6,
+                9,
+                12,
+                15,
+                18,
+                21,
+                24,
+                27,
+                30,
+                33,
+                36,
+                39,
+                42,
+                45,
+                48,
+                51,
+                54,
+                57,
+                60,
+            ]:
+                vat_acc = self.compute_running_balance_to_month(
+                    "BS_Liability_VAT_Payable", m
+                )
                 if vat_acc != 0.0:
-                    self.inject_token(m, "BS_Liability_VAT_Payable", "BS_Asset_Cash", vat_acc, "Quarterly VAT Return")
+                    self.inject_token(
+                        m,
+                        "BS_Liability_VAT_Payable",
+                        "BS_Asset_Cash",
+                        vat_acc,
+                        "Quarterly VAT Return",
+                    )
 
         return self.compile_granular_statements(runtime_payload)
 
@@ -294,80 +519,200 @@ class CommercialTrialBalanceCuboid:
         balance = 0.0
         for token in self.token_pool:
             if int(token.month_label.replace("M", "")) <= month_limit:
-                if token.debit_acct == account_name: balance += token.amount
-                if token.credit_acct == account_name: balance -= token.amount
+                if token.debit_acct == account_name:
+                    balance += token.amount
+                if token.credit_acct == account_name:
+                    balance -= token.amount
         return balance
 
     def compile_granular_statements(self, runtime_payload):
-        rev_rows = [f"Revenue: {s['name']} (£)" for s in runtime_payload.get("sales", [])]
+        rev_rows = [
+            f"Revenue: {s['name']} (£)" for s in runtime_payload.get("sales", [])
+        ]
         opex_rows = [f"Opex: {o['name']} (£)" for o in runtime_payload.get("opex", [])]
-        
-        pl_index = rev_rows + ["Total Revenue (£)", "COGS (£)"] + opex_rows + ["Staff Payroll Overhead (£)", "Depreciation (£)", "Net Operating Profit (EBIT)"]
+
+        pl_index = (
+            rev_rows
+            + ["Total Revenue (£)", "COGS (£)"]
+            + opex_rows
+            + [
+                "Staff Payroll Overhead (£)",
+                "Depreciation (£)",
+                "Net Operating Profit (EBIT)",
+            ]
+        )
         df_pl = pd.DataFrame(0.0, index=pl_index, columns=self.months)
-        df_cf = pd.DataFrame(0.0, index=["Operational Cash Inflows (£)", "Operational Cash Outflows (£)", "Net Cash Movement (£)", "Cash Reserves (£)"], columns=self.months)
-        df_bs = pd.DataFrame(0.0, index=["Fixed Infrastructure Assets (£)", "Accumulated Depreciation (£)", "Net Book Value Asset Worth (£)", "Accounts Receivable (Debtors) (£)", "Accounts Payable (Creditors) (£)", "HMRC VAT Reserves Owing (£)", "HMRC PAYE Obligations (£)", "Long Term Facility Debt (£)", "Shareholder Invested Equity (£)", "Retained Earnings Accumulation (£)", "Ledger Verification Checksum Balance"], columns=self.months)
+        df_cf = pd.DataFrame(
+            0.0,
+            index=[
+                "Operational Cash Inflows (£)",
+                "Operational Cash Outflows (£)",
+                "Net Cash Movement (£)",
+                "Cash Reserves (£)",
+            ],
+            columns=self.months,
+        )
+        df_bs = pd.DataFrame(
+            0.0,
+            index=[
+                "Fixed Infrastructure Assets (£)",
+                "Accumulated Depreciation (£)",
+                "Net Book Value Asset Worth (£)",
+                "Accounts Receivable (Debtors) (£)",
+                "Accounts Payable (Creditors) (£)",
+                "HMRC VAT Reserves Owing (£)",
+                "HMRC PAYE Obligations (£)",
+                "Long Term Facility Debt (£)",
+                "Shareholder Invested Equity (£)",
+                "Retained Earnings Accumulation (£)",
+                "Ledger Verification Checksum Balance",
+            ],
+            columns=self.months,
+        )
 
         for m_idx, m_label in enumerate(self.months, start=1):
             for t in self.token_pool:
                 if t.month_label == m_label:
                     if "REV_LINE__" in t.narrative:
-                        clean_name = f"Revenue: {t.narrative.replace('REV_LINE__', '')} (£)"
+                        clean_name = (
+                            f"Revenue: {t.narrative.replace('REV_LINE__', '')} (£)"
+                        )
                         df_pl.at[clean_name, m_label] += t.amount
                         df_pl.at["Total Revenue (£)", m_label] += t.amount
                     if "OPEX_LINE__" in t.narrative:
-                        clean_name = f"Opex: {t.narrative.replace('OPEX_LINE__', '')} (£)"
+                        clean_name = (
+                            f"Opex: {t.narrative.replace('OPEX_LINE__', '')} (£)"
+                        )
                         df_pl.at[clean_name, m_label] += t.amount
                     if t.debit_acct == "PL_Expense_Payroll":
                         df_pl.at["Staff Payroll Overhead (£)", m_label] += t.amount
                     if t.debit_acct == "PL_Expense_Depreciation":
                         df_pl.at["Depreciation (£)", m_label] += t.amount
 
-            current_opex_total = sum(df_pl.at[row, m_label] for row in opex_rows if row in df_pl.index)
-            df_pl.at["Net Operating Profit (EBIT)", m_label] = df_pl.at["Total Revenue (£)", m_label] - df_pl.at["COGS (£)", m_label] - current_opex_total - df_pl.at["Staff Payroll Overhead (£)", m_label] - df_pl.at["Depreciation (£)", m_label]
+            current_opex_total = sum(
+                df_pl.at[row, m_label] for row in opex_rows if row in df_pl.index
+            )
+            df_pl.at["Net Operating Profit (EBIT)", m_label] = (
+                df_pl.at["Total Revenue (£)", m_label]
+                - df_pl.at["COGS (£)", m_label]
+                - current_opex_total
+                - df_pl.at["Staff Payroll Overhead (£)", m_label]
+                - df_pl.at["Depreciation (£)", m_label]
+            )
 
             for t in self.token_pool:
                 if t.month_label == m_label:
-                    if t.debit_acct == "BS_Asset_Cash" and t.credit_acct in ["BS_Asset_Debtors", "BS_Equity_Share_Capital", "BS_Liability_Long_Term_Debt"]:
+                    if t.debit_acct == "BS_Asset_Cash" and t.credit_acct in [
+                        "BS_Asset_Debtors",
+                        "BS_Equity_Share_Capital",
+                        "BS_Liability_Long_Term_Debt",
+                    ]:
                         df_cf.at["Operational Cash Inflows (£)", m_label] += t.amount
-                    if t.credit_acct == "BS_Asset_Cash" and t.debit_acct in ["BS_Liability_Creditors", "BS_Asset_Fixed_Assets", "BS_Liability_PAYE_NIC_Payable", "BS_Expense_Payroll", "BS_Liability_VAT_Payable"]:
+                    if t.credit_acct == "BS_Asset_Cash" and t.debit_acct in [
+                        "BS_Liability_Creditors",
+                        "BS_Asset_Fixed_Assets",
+                        "BS_Liability_PAYE_NIC_Payable",
+                        "BS_Expense_Payroll",
+                        "BS_Liability_VAT_Payable",
+                    ]:
                         df_cf.at["Operational Cash Outflows (£)", m_label] += t.amount
 
-            df_cf.at["Net Cash Movement (£)", m_label] = df_cf.at["Operational Cash Inflows (£)", m_label] - df_cf.at["Operational Cash Outflows (£)", m_label]
-            df_cf.at["Cash Reserves (£)", m_label] = self.compute_running_balance_to_month("BS_Asset_Cash", m_idx)
+            df_cf.at["Net Cash Movement (£)", m_label] = (
+                df_cf.at["Operational Cash Inflows (£)", m_label]
+                - df_cf.at["Operational Cash Outflows (£)", m_label]
+            )
+            df_cf.at["Cash Reserves (£)", m_label] = (
+                self.compute_running_balance_to_month("BS_Asset_Cash", m_idx)
+            )
 
-            df_bs.at["Fixed Infrastructure Assets (£)", m_label] = self.compute_running_balance_to_month("BS_Asset_Fixed_Assets", m_idx)
-            df_bs.at["Accumulated Depreciation (£)", m_label] = -self.compute_running_balance_to_month("BS_Asset_Accumulated_Depreciation", m_idx)
-            df_bs.at["Net Book Value Asset Worth (£)", m_label] = df_bs.at["Fixed Infrastructure Assets (£)", m_label] - df_bs.at["Accumulated Depreciation (£)", m_label]
-            df_bs.at["Accounts Receivable (Debtors) (£)", m_label] = self.compute_running_balance_to_month("BS_Asset_Debtors", m_idx)
-            df_bs.at["Accounts Payable (Creditors) (£)", m_label] = -self.compute_running_balance_to_month("BS_Liability_Creditors", m_idx)
-            df_bs.at["HMRC VAT Reserves Owing (£)", m_label] = -self.compute_running_balance_to_month("BS_Liability_VAT_Payable", m_idx)
-            df_bs.at["HMRC PAYE Obligations (£)", m_label] = -self.compute_running_balance_to_month("BS_Liability_PAYE_NIC_Payable", m_idx)
-            df_bs.at["Long Term Facility Debt (£)", m_label] = -self.compute_running_balance_to_month("BS_Liability_Long_Term_Debt", m_idx)
-            df_bs.at["Shareholder Invested Equity (£)", m_label] = -self.compute_running_balance_to_month("BS_Equity_Share_Capital", m_idx)
-            
+            df_bs.at["Fixed Infrastructure Assets (£)", m_label] = (
+                self.compute_running_balance_to_month("BS_Asset_Fixed_Assets", m_idx)
+            )
+            df_bs.at["Accumulated Depreciation (£)", m_label] = (
+                -self.compute_running_balance_to_month(
+                    "BS_Asset_Accumulated_Depreciation", m_idx
+                )
+            )
+            df_bs.at["Net Book Value Asset Worth (£)", m_label] = (
+                df_bs.at["Fixed Infrastructure Assets (£)", m_label]
+                - df_bs.at["Accumulated Depreciation (£)", m_label]
+            )
+            df_bs.at["Accounts Receivable (Debtors) (£)", m_label] = (
+                self.compute_running_balance_to_month("BS_Asset_Debtors", m_idx)
+            )
+            df_bs.at["Accounts Payable (Creditors) (£)", m_label] = (
+                -self.compute_running_balance_to_month("BS_Liability_Creditors", m_idx)
+            )
+            df_bs.at["HMRC VAT Reserves Owing (£)", m_label] = (
+                -self.compute_running_balance_to_month(
+                    "BS_Liability_VAT_Payable", m_idx
+                )
+            )
+            df_bs.at["HMRC PAYE Obligations (£)", m_label] = (
+                -self.compute_running_balance_to_month(
+                    "BS_Liability_PAYE_NIC_Payable", m_idx
+                )
+            )
+            df_bs.at["Long Term Facility Debt (£)", m_label] = (
+                -self.compute_running_balance_to_month(
+                    "BS_Liability_Long_Term_Debt", m_idx
+                )
+            )
+            df_bs.at["Shareholder Invested Equity (£)", m_label] = (
+                -self.compute_running_balance_to_month("BS_Equity_Share_Capital", m_idx)
+            )
+
             hist_sum = 0.0
             for past_m in self.months[:m_idx]:
-                past_opex_total = sum(df_pl.at[row, past_m] for row in opex_rows if row in df_pl.index)
-                hist_sum += (df_pl.at["Total Revenue (£)", past_m] - df_pl.at["COGS (£)", past_m] - past_opex_total - df_pl.at["Staff Payroll Overhead (£)", past_m] - df_pl.at["Depreciation (£)", past_m])
+                past_opex_total = sum(
+                    df_pl.at[row, past_m] for row in opex_rows if row in df_pl.index
+                )
+                hist_sum += (
+                    df_pl.at["Total Revenue (£)", past_m]
+                    - df_pl.at["COGS (£)", past_m]
+                    - past_opex_total
+                    - df_pl.at["Staff Payroll Overhead (£)", past_m]
+                    - df_pl.at["Depreciation (£)", past_m]
+                )
             df_bs.at["Retained Earnings Accumulation (£)", m_label] = hist_sum
-            df_bs.at["Ledger Verification Checksum Balance", m_label] = (df_bs.at["Net Book Value Asset Worth (£)", m_label] + df_bs.at["Accounts Receivable (Debtors) (£)", m_label] + df_cf.at["Cash Reserves (£)", m_label]) - (df_bs.at["Accounts Payable (Creditors) (£)", m_label] + df_bs.at["HMRC VAT Reserves Owing (£)", m_label] + df_bs.at["HMRC PAYE Obligations (£)", m_label] + df_bs.at["Long Term Facility Debt (£)", m_label] + df_bs.at["Shareholder Invested Equity (£)", m_label] + df_bs.at["Retained Earnings Accumulation (£)", m_label])
+            df_bs.at["Ledger Verification Checksum Balance", m_label] = (
+                df_bs.at["Net Book Value Asset Worth (£)", m_label]
+                + df_bs.at["Accounts Receivable (Debtors) (£)", m_label]
+                + df_cf.at["Cash Reserves (£)", m_label]
+            ) - (
+                df_bs.at["Accounts Payable (Creditors) (£)", m_label]
+                + df_bs.at["HMRC VAT Reserves Owing (£)", m_label]
+                + df_bs.at["HMRC PAYE Obligations (£)", m_label]
+                + df_bs.at["Long Term Facility Debt (£)", m_label]
+                + df_bs.at["Shareholder Invested Equity (£)", m_label]
+                + df_bs.at["Retained Earnings Accumulation (£)", m_label]
+            )
 
         df_pl.to_csv("STRATA_Granular_PL.csv")
         df_cf.to_csv("STRATA_Granular_CF.csv")
         df_bs.to_csv("STRATA_Granular_BS.csv")
         return True
 
+
 # =========================================================================
 # 📜 EXECUTIVE ARCHITECTURE PACK: VECTOR PDF COMPILER
 # =========================================================================
 
+
 class StrataCorporateManagementPack(FPDF):
     """Generates structured, presentation-grade horizontal multi-year forecast books."""
+
     def header(self):
         if self.page_no() > 1:
             self.set_font("Helvetica", "B", 8)
             self.set_text_color(100, 110, 120)
-            self.cell(0, 5, "STRATA // EXTRAPOLATED THREE-WAY LEDGER FORECASTS", ln=True, align="R")
+            self.cell(
+                0,
+                5,
+                "STRATA // EXTRAPOLATED THREE-WAY LEDGER FORECASTS",
+                ln=True,
+                align="R",
+            )
             self.line(10, 15, 287, 15)
             self.ln(5)
 
@@ -375,7 +720,12 @@ class StrataCorporateManagementPack(FPDF):
         self.set_y(-15)
         self.set_font("Helvetica", "I", 8)
         self.set_text_color(140, 150, 160)
-        self.cell(0, 10, f"Page {self.page_no()} // Internal Confidential Portfolio", align="C")
+        self.cell(
+            0,
+            10,
+            f"Page {self.page_no()} // Internal Confidential Portfolio",
+            align="C",
+        )
 
     def build_statement_page(self, title_label, dataframe, range_labels):
         self.add_page(orientation="L")
@@ -383,11 +733,11 @@ class StrataCorporateManagementPack(FPDF):
         self.set_text_color(20, 35, 60)
         self.cell(0, 10, title_label, ln=True)
         self.ln(4)
-        
-        available_width = 277 
+
+        available_width = 277
         row_header_width = 65
         col_width = (available_width - row_header_width) / len(range_labels)
-        
+
         self.set_font("Helvetica", "B", 8)
         self.set_fill_color(230, 235, 245)
         self.set_text_color(40, 50, 80)
@@ -395,19 +745,21 @@ class StrataCorporateManagementPack(FPDF):
         for m in range_labels:
             self.cell(col_width, 6, str(m), border=1, fill=True, align="C")
         self.ln()
-        
+
         self.set_font("Helvetica", "", 7)
         self.set_text_color(30, 30, 30)
-        
+
         for idx in dataframe.index:
-            is_bold_row = any(term in idx for term in ["Total", "Net", "Checksum", "Reserves"])
+            is_bold_row = any(
+                term in idx for term in ["Total", "Net", "Checksum", "Reserves"]
+            )
             if is_bold_row:
                 self.set_font("Helvetica", "B", 7.5)
                 self.set_fill_color(245, 247, 250)
             else:
                 self.set_font("Helvetica", "", 7)
                 self.set_fill_color(255, 255, 255)
-                
+
             self.cell(row_header_width, 5.5, str(idx), border=1, fill=True)
             for m in range_labels:
                 val = dataframe.at[idx, m]
@@ -415,24 +767,30 @@ class StrataCorporateManagementPack(FPDF):
                 self.cell(col_width, 5.5, val_str, border=1, fill=True, align="R")
             self.ln()
 
+
 # =========================================================================
 # 🧠 INTELLIGENCE ENGINE MODULE: GEMINI COHERENT PIPELINE
 # =========================================================================
+
 
 def generate_corporate_intelligence(df_pl, df_cf, df_bs, range_labels):
     """Transmits the selected multi-year slices through to the Gemini Analytics engine."""
     api_key = os.environ.get("GEMINI_API_KEY") or st.secrets.get("GEMINI_API_KEY", None)
     if not api_key:
-        return "⚠️ **System Lock:** Gemini API Key not configured in workspace settings."
-    
+        return (
+            "⚠️ **System Lock:** Gemini API Key not configured in workspace settings."
+        )
+
     try:
         genai.configure(api_key=api_key)
         compressed_payload = {
             "Selected_P_And_L_Matrix": df_pl[range_labels].to_dict(orient="index"),
             "Selected_Cash_Flow_Matrix": df_cf[range_labels].to_dict(orient="index"),
-            "Selected_Balance_Sheet_Matrix": df_bs[range_labels].to_dict(orient="index")
+            "Selected_Balance_Sheet_Matrix": df_bs[range_labels].to_dict(
+                orient="index"
+            ),
         }
-        
+
         prompt = f"""
         You are acting as an elite Financial Analyst and Systems Auditor.
         Review this disaggregated, granular account ledger dataset for the chosen operational horizon:
@@ -444,24 +802,30 @@ def generate_corporate_intelligence(df_pl, df_cf, df_bs, range_labels):
         ### 🚨 Liquidity Bottlenecks & Credit Vector Risks
         ### 🏛️ Strategic Recommendations for Capital Reservation
         """
-        model = genai.GenerativeModel('models/gemini-1.5-flash')
+        model = genai.GenerativeModel("models/gemini-1.5-flash")
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
         return f"❌ **Gateway Disconnect:** {str(e)}"
 
+
 # =========================================================================
 # 🎛️ CONSOLIDATED SINGLE-CALL MULTIMODAL INGESTION SUITE
 # =========================================================================
+
 
 def process_file_ingestion_callback():
     """Consolidates document review and parameter output maps into a single query to respect free-tier rate scopes."""
     uploaded_file = st.session_state.get("file_ingestion_key")
     if uploaded_file is not None:
         origin_tag = f"AI Ingested: {uploaded_file.name}"
-        active_proj = st.session_state.get("active_project_name", "Unsaved_Draft_Scenario")
-        api_key = os.environ.get("GEMINI_API_KEY") or st.secrets.get("GEMINI_API_KEY", None)
-        
+        active_proj = st.session_state.get(
+            "active_project_name", "Unsaved_Draft_Scenario"
+        )
+        api_key = os.environ.get("GEMINI_API_KEY") or st.secrets.get(
+            "GEMINI_API_KEY", None
+        )
+
         if not api_key:
             st.sidebar.error("❌ Gemini API Key missing.")
             return
@@ -472,13 +836,15 @@ def process_file_ingestion_callback():
                 if file_ext == "csv":
                     doc_payload = pd.read_csv(uploaded_file).to_string()
                 else:
-                    doc_payload = pd.read_excel(uploaded_file, engine='openpyxl').to_string()
+                    doc_payload = pd.read_excel(
+                        uploaded_file, engine="openpyxl"
+                    ).to_string()
             else:
                 doc_payload = str(uploaded_file.read())
 
             genai.configure(api_key=api_key)
-            model = genai.GenerativeModel('models/gemini-2.5-flash')
-            
+            model = genai.GenerativeModel("models/gemini-2.5-flash")
+
             consolidated_prompt = f"""
             You are a Principal Financial Systems Auditor and Data Engineer. Review this data extract:
             
@@ -496,19 +862,27 @@ def process_file_ingestion_callback():
             ]
             If headers are entirely blank or contain no numerical values, omit them.]
             """
-            
+
             raw_response = model.generate_content(consolidated_prompt).text
             split_tokens = raw_response.split("--- DATA MATRIX ARRAY ---")
-            st.session_state["cached_document_critique"] = split_tokens[0].replace("--- AUDIT SUMMARY ---", "").strip()
-            
+            st.session_state["cached_document_critique"] = (
+                split_tokens[0].replace("--- AUDIT SUMMARY ---", "").strip()
+            )
+
             if len(split_tokens) > 1:
-                match = re.search(r'\[.*\]', split_tokens[1], re.DOTALL)
+                match = re.search(r"\[.*\]", split_tokens[1], re.DOTALL)
                 if match:
                     clean_json = match.group(0).strip()
                     parsed_vectors = json.loads(clean_json)
                     for vec in parsed_vectors:
-                        extracted_season = vec.get("seasonality") or vec.get("seasonality_profile") or "Flat_Linear"
-                        extracted_delay = vec.get("delay_days") or vec.get("terms_delay_days") or 0
+                        extracted_season = (
+                            vec.get("seasonality")
+                            or vec.get("seasonality_profile")
+                            or "Flat_Linear"
+                        )
+                        extracted_delay = (
+                            vec.get("delay_days") or vec.get("terms_delay_days") or 0
+                        )
                         stage_unverified_ingestion_line(
                             project_name=active_proj,
                             v_type=vec.get("vector_type", "opex"),
@@ -517,19 +891,25 @@ def process_file_ingestion_callback():
                             amount=float(vec.get("base_amount", 0.0)),
                             seasonality=extracted_season,
                             delay=int(extracted_delay),
-                            vat=bool(vec.get("vat_applicable", True))
+                            vat=bool(vec.get("vat_applicable", True)),
                         )
-            
+
             st.session_state["file_upload_success_banner"] = True
         except Exception as err:
             st.sidebar.error(f"Gemini Consolidation Exception: {str(err)}")
+
 
 # =========================================================================
 # ⚙️ STREAMLIT INTERFACE LAYER & CONFIGURATION DOCK
 # =========================================================================
 
 if "active_data" not in st.session_state:
-    st.session_state["active_data"] = {"sales": [], "opex": [], "payroll": [], "capital": []}
+    st.session_state["active_data"] = {
+        "sales": [],
+        "opex": [],
+        "payroll": [],
+        "capital": [],
+    }
 
 if "authenticated" not in st.session_state:
     st.session_state["authenticated"] = False
@@ -555,11 +935,14 @@ if not st.session_state["authenticated"]:
             if input_user == "marketcatalyst" and input_pass == "@MCStrata080881":
                 st.session_state["authenticated"] = True
                 st.rerun()
-            else: st.error("🚫 Access rejected.")
+            else:
+                st.error("🚫 Access rejected.")
     st.stop()
 
 st.sidebar.title("🛡️ STRATA // Vector Suite")
-nav_choice = st.sidebar.radio("Navigate Desks:", options=["Data Workspace", "Analytical Forecast Sheets"])
+nav_choice = st.sidebar.radio(
+    "Navigate Desks:", options=["Data Workspace", "Analytical Forecast Sheets"]
+)
 
 # Persistence registry panel
 st.markdown("### 🗂️ Neon Serverless Project Registry Persistence")
@@ -569,7 +952,7 @@ with proj_col1:
     available_projects = extract_project_directory_list()
     selected_option = st.selectbox(
         "Load Saved Forecast Project Model:",
-        options=["-- Select Saved Model Blueprint --"] + available_projects
+        options=["-- Select Saved Model Blueprint --"] + available_projects,
     )
     if selected_option != "-- Select Saved Model Blueprint --":
         loaded_payload = pull_project_payload_from_storage(selected_option)
@@ -582,7 +965,9 @@ with proj_col1:
             st.rerun()
 
 with proj_col2:
-    save_input_name = st.text_input("Name Active Project State:", value=st.session_state["active_project_name"])
+    save_input_name = st.text_input(
+        "Name Active Project State:", value=st.session_state["active_project_name"]
+    )
     if st.button("💾 Commit Active State to Storage", use_container_width=True):
         if save_input_name.strip() and save_input_name != "Unsaved_Draft_Scenario":
             write_status = commit_project_payload_to_storage(
@@ -590,23 +975,36 @@ with proj_col2:
                 st.session_state["active_data"]["sales"],
                 st.session_state["active_data"]["opex"],
                 st.session_state["active_data"]["payroll"],
-                st.session_state["active_data"]["capital"]
+                st.session_state["active_data"]["capital"],
             )
             if write_status == "SUCCESS":
                 st.session_state["active_project_name"] = save_input_name.strip()
-                st.toast(f"Locked configuration packet: '{save_input_name}' to SQL records.")
-                st.rerun()  
+                st.toast(
+                    f"Locked configuration packet: '{save_input_name}' to SQL records."
+                )
+                st.rerun()
             elif write_status == "MISSING_CREDENTIALS":
-                st.error("❌ Configuration Error: Environment 'DATABASE_URL' target variable is not defined inside Streamlit secrets.")
+                st.error(
+                    "❌ Configuration Error: Environment 'DATABASE_URL' target variable is not defined inside Streamlit secrets."
+                )
             else:
                 st.error(f"❌ Connection Blocked: {write_status}")
         else:
-            st.warning("⚠️ Provide a distinct scenario identifier name before committing.")
+            st.warning(
+                "⚠️ Provide a distinct scenario identifier name before committing."
+            )
 
 with proj_col3:
     st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
-    if st.button("➕ Initialize Clean Canvas", type="secondary", use_container_width=True):
-        st.session_state["active_data"] = {"sales": [], "opex": [], "payroll": [], "capital": []}
+    if st.button(
+        "➕ Initialize Clean Canvas", type="secondary", use_container_width=True
+    ):
+        st.session_state["active_data"] = {
+            "sales": [],
+            "opex": [],
+            "payroll": [],
+            "capital": [],
+        }
         st.session_state["active_project_name"] = "Unsaved_Draft_Scenario"
         st.session_state["file_upload_success_banner"] = False
         st.session_state["cached_document_critique"] = ""
@@ -619,71 +1017,197 @@ if nav_choice == "Data Workspace":
     st.title("✍️ Parameter Aggregation Workspace")
     st.header("📥 Autonomous AI Extraction & Diagnostics Gate")
     st.file_uploader(
-        "Upload Unstructured Operational Document:", 
+        "Upload Unstructured Operational Document:",
         type=["pdf", "csv", "xlsx"],
         key="file_ingestion_key",
-        on_change=process_file_ingestion_callback
+        on_change=process_file_ingestion_callback,
     )
-    
+
     if st.session_state["cached_document_critique"]:
         st.info("📊 **Gemini Document Architecture Diagnostic Report**")
         st.markdown(st.session_state["cached_document_critique"])
-        
-    staging_records = extract_staging_schedule_records(st.session_state["active_project_name"])
+
+    staging_records = extract_staging_schedule_records(
+        st.session_state["active_project_name"]
+    )
     if staging_records:
         st.markdown("### 📥 Review Schedule: Ingested Lines Awaiting Verification Gate")
         for item in staging_records:
-            with st.expander(f"🔮 GEMINI EXTRACTED // Origin Source: {item['source_origin']}", expanded=True):
+            with st.expander(
+                f"🔮 GEMINI EXTRACTED // Origin Source: {item['source_origin']}",
+                expanded=True,
+            ):
                 col_i1, col_i2, col_i3 = st.columns(3)
                 with col_i1:
-                    edit_name = st.text_input("Verified Line Identifier Label:", value=item['line_name'], key=f"st_name_{item['staging_id']}")
-                    edit_amount = st.number_input("Verified Value (£):", value=float(item['base_amount']), key=f"st_amt_{item['staging_id']}")
+                    edit_name = st.text_input(
+                        "Verified Line Identifier Label:",
+                        value=item["line_name"],
+                        key=f"st_name_{item['staging_id']}",
+                    )
+
+                    # 1. VECTOR SELECTION FIELD (Allows editing the category)
+                    valid_types = [
+                        "sales",
+                        "opex",
+                        "payroll",
+                        "capex",
+                        "debt",
+                        "equity",
+                    ]
+                    current_idx = (
+                        valid_types.index(item["vector_type"])
+                        if item["vector_type"] in valid_types
+                        else 0
+                    )
+                    edit_type = st.selectbox(
+                        "Assign Vector Type:",
+                        valid_types,
+                        index=current_idx,
+                        key=f"st_type_{item['staging_id']}",
+                    )
+
                 with col_i2:
-                    edit_season = st.selectbox("Assigned Profile:", ["Flat_Linear", "Winter_Peak", "Summer_Peak"], key=f"st_seas_{item['staging_id']}")
-                    edit_delay = st.slider("Delay (Days):", 0, 90, int(item['terms_delay_days']), step=30, key=f"st_dly_{item['staging_id']}")
+                    edit_amount = st.number_input(
+                        "Verified Value (£):",
+                        value=float(item["base_amount"]),
+                        key=f"st_amt_{item['staging_id']}",
+                    )
+                    edit_season = st.selectbox(
+                        "Assigned Profile:",
+                        ["Flat_Linear", "Winter_Peak", "Summer_Peak"],
+                        index=["Flat_Linear", "Winter_Peak", "Summer_Peak"].index(
+                            item["seasonality_profile"]
+                        ),
+                        key=f"st_seas_{item['staging_id']}",
+                    )
+
                 with col_i3:
-                    edit_vat = st.checkbox("VAT applicable?", value=bool(item['vat_applicable']), key=f"st_vat_{item['staging_id']}")
-                    
-                    st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
-                    app_col, rej_col = st.columns(2)
-                    with app_col:
-                        if st.button("✅ Approve Line", key=f"st_btn_app_{item['staging_id']}", use_container_width=True, type="primary"):
-                            if item['vector_type'] == "sales":
-                                st.session_state["active_data"]["sales"].append({"name": edit_name.strip(), "amount": float(edit_amount), "seasonality": edit_season, "debtor_days": edit_delay, "vat_applicable": edit_vat})
-                            elif item['vector_type'] == "opex":
-                                st.session_state["active_data"]["opex"].append({"name": edit_name.strip(), "amount": float(edit_amount), "seasonality": edit_season, "creditor_days": edit_delay, "vat_applicable": edit_vat})
-                            elif item['vector_type'] == "payroll":
-                                st.session_state["active_data"]["payroll"].append({"name": edit_name.strip(), "amount": float(edit_amount)})
-                            purge_staging_record_by_id(item['staging_id'])
-                            st.rerun()
-                    with rej_col:
-                        if st.button("🗑️ Reject Line", key=f"st_btn_rej_{item['staging_id']}", use_container_width=True):
-                            purge_staging_record_by_id(item['staging_id'])
+                    edit_delay = st.slider(
+                        "Delay (Days):",
+                        0,
+                        90,
+                        int(item["terms_delay_days"]),
+                        step=30,
+                        key=f"st_dly_{item['staging_id']}",
+                    )
+                    edit_vat = st.checkbox(
+                        "VAT applicable?",
+                        value=bool(item["vat_applicable"]),
+                        key=f"st_vat_{item['staging_id']}",
+                    )
+
+                    st.markdown(
+                        "<div style='height: 10px;'></div>", unsafe_allow_html=True
+                    )
+                    if st.button(
+                        "✅ Approve Line",
+                        key=f"st_btn_app_{item['staging_id']}",
+                        use_container_width=True,
+                        type="primary",
+                    ):
+
+                        # 2. INTELLIGENT ROUTING MATRIX
+                        data_map = {
+                            "sales": "sales",
+                            "opex": "opex",
+                            "payroll": "payroll",
+                            "capex": "capital",
+                            "debt": "capital",
+                            "equity": "capital",
+                        }
+                        target = data_map[edit_type]
+
+                        # 3. STRUCTURE ALIGNMENT FOR THE SIMULATION CUBOID
+                        if target == "capital":
+                            type_map = {
+                                "capex": "New / Existing Fixed Asset CapEx",
+                                "debt": "Commercial Debt / Facility Drawdown",
+                                "equity": "Equity Capital / Share Premium Injection",
+                            }
+                            st.session_state["active_data"][target].append(
+                                {
+                                    "name": edit_name.strip(),
+                                    "type": type_map[edit_type],
+                                    "value": float(edit_amount),
+                                    "month": 1,
+                                }
+                            )
+                        elif target == "payroll":
+                            st.session_state["active_data"][target].append(
+                                {
+                                    "name": edit_name.strip(),
+                                    "amount": float(edit_amount),
+                                }
+                            )
+                        else:
+                            suffix = (
+                                "debtor_days" if target == "sales" else "creditor_days"
+                            )
+                            st.session_state["active_data"][target].append(
+                                {
+                                    "name": edit_name.strip(),
+                                    "amount": float(edit_amount),
+                                    "seasonality": edit_season,
+                                    suffix: edit_delay,
+                                    "vat_applicable": edit_vat,
+                                }
+                            )
+
+                        purge_staging_record_by_id(item["staging_id"])
+                        st.rerun()
+
+                    with col_i3:
+                        if st.button(
+                            "🗑️ Reject Line",
+                            key=f"st_btn_rej_{item['staging_id']}",
+                            use_container_width=True,
+                        ):
+                            purge_staging_record_by_id(item["staging_id"])
                             st.rerun()
 
     st.markdown("---")
     st.header("✍️ Manual Transaction Vector Fields Input Canvas")
-    
-    tab1, tab2, tab3, tab4 = st.tabs(["📈 Revenue Waves", "💸 Expenses", "👥 Payroll", "🏛️ Funding"])
+
+    tab1, tab2, tab3, tab4 = st.tabs(
+        ["📈 Revenue Waves", "💸 Expenses", "👥 Payroll", "🏛️ Funding"]
+    )
     with tab1:
         st.subheader("Add Seasonal Revenue Channel Attribute")
         with st.form("rev_form", clear_on_submit=True):
             r_name = st.text_input("Stream Identifier Description:")
-            r_amt = st.number_input("Annual Gross Contract / Target Worth (£):", min_value=0.0, value=100000.0, step=10000.0)
-            r_seas = st.selectbox("Seasonality Weight Allocation Vector:", ["Flat_Linear", "Winter_Peak", "Summer_Peak"])
-            r_days = st.slider("Debtor Terms (Credit days delay given):", 0, 90, 0, step=30)
+            r_amt = st.number_input(
+                "Annual Gross Contract / Target Worth (£):",
+                min_value=0.0,
+                value=100000.0,
+                step=10000.0,
+            )
+            r_seas = st.selectbox(
+                "Seasonality Weight Allocation Vector:",
+                ["Flat_Linear", "Winter_Peak", "Summer_Peak"],
+            )
+            r_days = st.slider(
+                "Debtor Terms (Credit days delay given):", 0, 90, 0, step=30
+            )
             r_vat = st.checkbox("Subject to Standard 20% Output VAT?", value=True)
             if st.form_submit_button("➕ Append Revenue Vector Line"):
                 if r_name.strip():
-                    st.session_state["active_data"]["sales"].append({
-                        "name": r_name.strip(), "amount": float(r_amt), "seasonality": r_seas, "debtor_days": r_days, "vat_applicable": r_vat
-                    })
+                    st.session_state["active_data"]["sales"].append(
+                        {
+                            "name": r_name.strip(),
+                            "amount": float(r_amt),
+                            "seasonality": r_seas,
+                            "debtor_days": r_days,
+                            "vat_applicable": r_vat,
+                        }
+                    )
                     st.rerun()
 
         st.markdown("### Active Revenue Matrices Registered")
         for idx, item in enumerate(st.session_state["active_data"]["sales"]):
             col1, col2, col3, col4 = st.columns([3, 2, 2, 1])
-            col1.markdown(f"**{item['name']}**\n\n*Term:* {item['debtor_days']} Days Credit Given")
+            col1.markdown(
+                f"**{item['name']}**\n\n*Term:* {item['debtor_days']} Days Credit Given"
+            )
             col2.markdown(f"**Annual Baseline:** £{item['amount']:,.2f}")
             col3.markdown(f"*Curve:* `{item['seasonality']}`")
             if col4.button("🗑️ Remove", key=f"del_r_{idx}"):
@@ -694,21 +1218,41 @@ if nav_choice == "Data Workspace":
         st.subheader("Add Operational Cost Attribute Line")
         with st.form("opex_form", clear_on_submit=True):
             o_name = st.text_input("Expense Identifier Description:")
-            o_amt = st.number_input("Annualized Net Running Cost Burden (£):", min_value=0.0, value=20000.0, step=5000.0)
-            o_seas = st.selectbox("Cost Allocation Curve Shape Profile:", ["Flat_Linear", "Winter_Peak", "Summer_Peak"])
-            o_days = st.slider("Creditor Terms (Supplier payment window received):", 0, 90, 30, step=30)
-            o_vat = st.checkbox("Can Recover 20% Input VAT on this Expense?", value=True)
+            o_amt = st.number_input(
+                "Annualized Net Running Cost Burden (£):",
+                min_value=0.0,
+                value=20000.0,
+                step=5000.0,
+            )
+            o_seas = st.selectbox(
+                "Cost Allocation Curve Shape Profile:",
+                ["Flat_Linear", "Winter_Peak", "Summer_Peak"],
+            )
+            o_days = st.slider(
+                "Creditor Terms (Supplier payment window received):", 0, 90, 30, step=30
+            )
+            o_vat = st.checkbox(
+                "Can Recover 20% Input VAT on this Expense?", value=True
+            )
             if st.form_submit_button("➕ Append Overhead Cost Line"):
                 if o_name.strip():
-                    st.session_state["active_data"]["opex"].append({
-                        "name": o_name.strip(), "amount": float(o_amt), "seasonality": o_seas, "creditor_days": o_days, "vat_applicable": o_vat
-                    })
+                    st.session_state["active_data"]["opex"].append(
+                        {
+                            "name": o_name.strip(),
+                            "amount": float(o_amt),
+                            "seasonality": o_seas,
+                            "creditor_days": o_days,
+                            "vat_applicable": o_vat,
+                        }
+                    )
                     st.rerun()
 
         st.markdown("### Active Cost Matrices Registered")
         for idx, item in enumerate(st.session_state["active_data"]["opex"]):
             col1, col2, col3, col4 = st.columns([3, 2, 2, 1])
-            col1.markdown(f"**{item['name']}**\n\n*Payment window:* Net {item['creditor_days']} Terms")
+            col1.markdown(
+                f"**{item['name']}**\n\n*Payment window:* Net {item['creditor_days']} Terms"
+            )
             col2.markdown(f"**Annual Base:** £{item['amount']:,.2f}")
             col3.markdown(f"*Utility Profile:* `{item['seasonality']}`")
             if col4.button("🗑️ Remove", key=f"del_o_{idx}"):
@@ -719,10 +1263,17 @@ if nav_choice == "Data Workspace":
         st.subheader("Add Structural Payroll Overhead")
         with st.form("pay_form", clear_on_submit=True):
             p_name = st.text_input("Staff Grouping / Operational Role Identification:")
-            p_amt = st.number_input("Total Combined Annualized Base Gross Salary (£):", min_value=0.0, value=40000.0, step=5000.0)
+            p_amt = st.number_input(
+                "Total Combined Annualized Base Gross Salary (£):",
+                min_value=0.0,
+                value=40000.0,
+                step=5000.0,
+            )
             if st.form_submit_button("➕ Append Corporate Payroll Vector"):
                 if p_name.strip():
-                    st.session_state["active_data"]["payroll"].append({"name": p_name.strip(), "amount": float(p_amt)})
+                    st.session_state["active_data"]["payroll"].append(
+                        {"name": p_name.strip(), "amount": float(p_amt)}
+                    )
                     st.rerun()
 
         st.markdown("### Active Human Capital Obligation Registries")
@@ -738,33 +1289,53 @@ if nav_choice == "Data Workspace":
         st.subheader("Add Corporate Financing or CapEx Infrastructure Event")
         with st.form("cap_form", clear_on_submit=True):
             c_name = st.text_input("Capital Event Allocation Label Description:")
-            c_type = st.selectbox("Fixed Category Type:", [
-                "Equity Capital / Share Premium Injection", "Commercial Debt / Facility Drawdown", "New / Existing Fixed Asset CapEx"
-            ])
-            c_val = st.number_input("Value (£):", min_value=0.0, value=50000.0, step=10000.0)
-            c_m = st.number_input("Execution Month Index (M01 -> M60):", min_value=1, max_value=60, value=1, step=1)
+            c_type = st.selectbox(
+                "Fixed Category Type:",
+                [
+                    "Equity Capital / Share Premium Injection",
+                    "Commercial Debt / Facility Drawdown",
+                    "New / Existing Fixed Asset CapEx",
+                ],
+            )
+            c_val = st.number_input(
+                "Value (£):", min_value=0.0, value=50000.0, step=10000.0
+            )
+            c_m = st.number_input(
+                "Execution Month Index (M01 -> M60):",
+                min_value=1,
+                max_value=60,
+                value=1,
+                step=1,
+            )
             if st.form_submit_button("➕ Append Strategic Capital Vector"):
                 if c_name.strip():
-                    st.session_state["active_data"]["capital"].append({
-                        "name": c_name.strip(), "type": c_type, "value": float(c_val), "month": int(c_m)
-                    })
+                    st.session_state["active_data"]["capital"].append(
+                        {
+                            "name": c_name.strip(),
+                            "type": c_type,
+                            "value": float(c_val),
+                            "month": int(c_m),
+                        }
+                    )
                     st.rerun()
 
         st.markdown("### Active Structural Assets & Funding Configurations")
         for idx, item in enumerate(st.session_state["active_data"]["capital"]):
             col1, col2, col3 = st.columns([3, 4, 1])
             col1.markdown(f"**{item['name']}** - Month {item['month']}")
-            col2.markdown(f"**Type:** `{item['type']}` | *Value:* £{item['value']:,.2f}")
+            col2.markdown(
+                f"**Type:** `{item['type']}` | *Value:* £{item['value']:,.2f}"
+            )
             if col3.button("🗑️ Remove", key=f"del_c_{idx}"):
                 st.session_state["active_data"]["capital"].pop(idx)
                 st.rerun()
 
 elif nav_choice == "Analytical Forecast Sheets":
     st.title("📊 Synchronized Statement Reporting Canvas")
-    
+
     cuboid_engine = CommercialTrialBalanceCuboid()
     cuboid_engine.process_simulation(st.session_state["active_data"])
-    
+
     df_pl = pd.read_csv("STRATA_Granular_PL.csv", index_col=0)
     df_cf = pd.read_csv("STRATA_Granular_CF.csv", index_col=0)
     df_bs = pd.read_csv("STRATA_Granular_BS.csv", index_col=0)
@@ -773,52 +1344,95 @@ elif nav_choice == "Analytical Forecast Sheets":
     horizon_scope = st.selectbox(
         "Select Targeted Forecast Reporting Horizon:",
         options=[
-            "Year 1 Granular Forecast (Months 01-12)", 
-            "Year 2 Granular Forecast (Months 13-24)", 
-            "Year 3 Granular Forecast (Months 25-36)", 
-            "Full 3-Year Granular Portfolio (Months 01-36)"
-        ]
+            "Year 1 Granular Forecast (Months 01-12)",
+            "Year 2 Granular Forecast (Months 13-24)",
+            "Year 3 Granular Forecast (Months 25-36)",
+            "Full 3-Year Granular Portfolio (Months 01-36)",
+        ],
     )
-    
-    if "Year 1" in horizon_scope: 
+
+    if "Year 1" in horizon_scope:
         range_labels = [f"M{str(i).zfill(2)}" for i in range(1, 13)]
-    elif "Year 2" in horizon_scope: 
+    elif "Year 2" in horizon_scope:
         range_labels = [f"M{str(i).zfill(2)}" for i in range(13, 25)]
-    elif "Year 3" in horizon_scope: 
+    elif "Year 3" in horizon_scope:
         range_labels = [f"M{str(i).zfill(2)}" for i in range(25, 37)]
-    else: 
+    else:
         range_labels = [f"M{str(i).zfill(2)}" for i in range(1, 37)]
 
     exp_col1, exp_col2 = st.columns(2)
     with exp_col1:
         excel_buffer = io.BytesIO()
-        with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
-            df_pl[range_labels].to_excel(writer, sheet_name='Granular P&L Forecast')
-            df_cf[range_labels].to_excel(writer, sheet_name='Cash Flow Horizon')
-            df_bs[range_labels].to_excel(writer, sheet_name='Reconciled Balance Sheet')
+        with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
+            df_pl[range_labels].to_excel(writer, sheet_name="Granular P&L Forecast")
+            df_cf[range_labels].to_excel(writer, sheet_name="Cash Flow Horizon")
+            df_bs[range_labels].to_excel(writer, sheet_name="Reconciled Balance Sheet")
         excel_buffer.seek(0)
-        st.download_button("📊 Download Selected Excel Ledger Pack", data=excel_buffer, file_name=f"STRATA_{horizon_scope.replace(' ', '_')}.xlsx", use_container_width=True)
-        
+        st.download_button(
+            "📊 Download Selected Excel Ledger Pack",
+            data=excel_buffer,
+            file_name=f"STRATA_{horizon_scope.replace(' ', '_')}.xlsx",
+            use_container_width=True,
+        )
+
     with exp_col2:
         try:
             pdf_engine = StrataCorporateManagementPack()
             if len(range_labels) > 12:
-                pdf_engine.build_statement_page(f"Granular Profit & Loss Forecast (Months 01-12)", df_pl, range_labels[:12])
-                pdf_engine.build_statement_page(f"Decoupled Liquid Cash Flows (Months 01-12)", df_cf, range_labels[:12])
-                pdf_engine.build_statement_page(f"Reconciled Balance Sheet (Months 01-12)", df_bs, range_labels[:12])
-                
-                pdf_engine.build_statement_page(f"Granular Profit & Loss Forecast (Months 13-24)", df_pl, range_labels[12:24])
-                pdf_engine.build_statement_page(f"Decoupled Liquid Cash Flows (Months 13-24)", df_cf, range_labels[12:24])
-                pdf_engine.build_statement_page(f"Reconciled Balance Sheet (Months 13-24)", df_bs, range_labels[12:24])
-                
-                pdf_engine.build_statement_page(f"Granular Profit & Loss Forecast (Months 25-36)", df_pl, range_labels[24:])
-                pdf_engine.build_statement_page(f"Decoupled Liquid Cash Flows (Months 25-36)", df_cf, range_labels[24:])
-                pdf_engine.build_statement_page(f"Reconciled Balance Sheet (Months 25-36)", df_bs, range_labels[24:])
+                pdf_engine.build_statement_page(
+                    f"Granular Profit & Loss Forecast (Months 01-12)",
+                    df_pl,
+                    range_labels[:12],
+                )
+                pdf_engine.build_statement_page(
+                    f"Decoupled Liquid Cash Flows (Months 01-12)",
+                    df_cf,
+                    range_labels[:12],
+                )
+                pdf_engine.build_statement_page(
+                    f"Reconciled Balance Sheet (Months 01-12)", df_bs, range_labels[:12]
+                )
+
+                pdf_engine.build_statement_page(
+                    f"Granular Profit & Loss Forecast (Months 13-24)",
+                    df_pl,
+                    range_labels[12:24],
+                )
+                pdf_engine.build_statement_page(
+                    f"Decoupled Liquid Cash Flows (Months 13-24)",
+                    df_cf,
+                    range_labels[12:24],
+                )
+                pdf_engine.build_statement_page(
+                    f"Reconciled Balance Sheet (Months 13-24)",
+                    df_bs,
+                    range_labels[12:24],
+                )
+
+                pdf_engine.build_statement_page(
+                    f"Granular Profit & Loss Forecast (Months 25-36)",
+                    df_pl,
+                    range_labels[24:],
+                )
+                pdf_engine.build_statement_page(
+                    f"Decoupled Liquid Cash Flows (Months 25-36)",
+                    df_cf,
+                    range_labels[24:],
+                )
+                pdf_engine.build_statement_page(
+                    f"Reconciled Balance Sheet (Months 25-36)", df_bs, range_labels[24:]
+                )
             else:
-                pdf_engine.build_statement_page(f"Granular Account-by-Account P&L Forecast", df_pl, range_labels)
-                pdf_engine.build_statement_page(f"Decoupled Phase-Shifted Cash Flow Horizon", df_cf, range_labels)
-                pdf_engine.build_statement_page(f"Reconciled Corporate Balance Sheet", df_bs, range_labels)
-                
+                pdf_engine.build_statement_page(
+                    f"Granular Account-by-Account P&L Forecast", df_pl, range_labels
+                )
+                pdf_engine.build_statement_page(
+                    f"Decoupled Phase-Shifted Cash Flow Horizon", df_cf, range_labels
+                )
+                pdf_engine.build_statement_page(
+                    f"Reconciled Corporate Balance Sheet", df_bs, range_labels
+                )
+
             pdf_output = pdf_engine.output()
             st.download_button(
                 label="📜 Export Executive Management Pack PDF",
@@ -826,29 +1440,51 @@ elif nav_choice == "Analytical Forecast Sheets":
                 file_name=f"STRATA_Management_Pack_{horizon_scope.replace(' ', '_')}.pdf",
                 mime="application/pdf",
                 use_container_width=True,
-                type="primary"
+                type="primary",
             )
         except Exception as pdf_err:
             st.error(f"PDF Document Compiler Blocked: {str(pdf_err)}")
 
     st.markdown("---")
-    
-    v_tab1, v_tab2, v_tab3 = st.tabs(["📈 Account-by-Account P&L", "💸 Liquid Cash Flow Horizons", "📋 Reconciled Balance Sheet"])
+
+    v_tab1, v_tab2, v_tab3 = st.tabs(
+        [
+            "📈 Account-by-Account P&L",
+            "💸 Liquid Cash Flow Horizons",
+            "📋 Reconciled Balance Sheet",
+        ]
+    )
     with v_tab1:
-        st.dataframe(df_pl[range_labels].style.format("{:,.2f}"), use_container_width=True)
+        st.dataframe(
+            df_pl[range_labels].style.format("{:,.2f}"), use_container_width=True
+        )
     with v_tab2:
-        st.dataframe(df_cf[range_labels].style.format("{:,.2f}"), use_container_width=True)
-        st.line_chart(pd.DataFrame(df_cf.iloc[3][range_labels].astype(float).values, index=range_labels, columns=["Cash Reserves (£)"]))
+        st.dataframe(
+            df_cf[range_labels].style.format("{:,.2f}"), use_container_width=True
+        )
+        st.line_chart(
+            pd.DataFrame(
+                df_cf.iloc[3][range_labels].astype(float).values,
+                index=range_labels,
+                columns=["Cash Reserves (£)"],
+            )
+        )
     with v_tab3:
-        st.dataframe(df_bs[range_labels].style.format("{:,.2f}"), use_container_width=True)
-        st.success("🛡️ Balance Sheet Checksum Balance: Locked at 0.00 across all selected periods.")
+        st.dataframe(
+            df_bs[range_labels].style.format("{:,.2f}"), use_container_width=True
+        )
+        st.success(
+            "🛡️ Balance Sheet Checksum Balance: Locked at 0.00 across all selected periods."
+        )
 
     st.markdown("---")
     st.header("🧠 Gemini Corporate Intelligence Desk")
     if st.button("🚀 Synthesize Strategic Executive Report", type="primary"):
         with st.spinner("Processing selected multi-period ledger segments..."):
-            st.session_state["cached_report"] = generate_corporate_intelligence(df_pl, df_cf, df_bs, range_labels)
+            st.session_state["cached_report"] = generate_corporate_intelligence(
+                df_pl, df_cf, df_bs, range_labels
+            )
             st.rerun()
-            
+
     if st.session_state["cached_report"]:
         st.markdown(st.session_state["cached_report"])
