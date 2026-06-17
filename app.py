@@ -953,8 +953,23 @@ with proj_col1:
     selected_option = st.selectbox(
         "Load Saved Forecast Project Model:",
         options=["-- Select Saved Model Blueprint --"] + available_projects,
+        index=(
+            0
+            if st.session_state["active_project_name"] == "Unsaved_Draft_Scenario"
+            else (
+                available_projects.index(st.session_state["active_project_name"]) + 1
+                if st.session_state["active_project_name"] in available_projects
+                else 0
+            )
+        ),
+        key="project_blueprint_selector",
     )
-    if selected_option != "-- Select Saved Model Blueprint --":
+
+    # CRITICAL FIX: Only execute load if selection is a valid blueprint AND it isn't already the active project
+    if (
+        selected_option != "-- Select Saved Model Blueprint --"
+        and selected_option != st.session_state["active_project_name"]
+    ):
         loaded_payload = pull_project_payload_from_storage(selected_option)
         if loaded_payload:
             st.session_state["active_data"] = loaded_payload
