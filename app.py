@@ -761,8 +761,16 @@ class StrataCorporateManagementPack(FPDF):
         self.set_text_color(30, 30, 30)
 
         for idx in dataframe.index:
+            # Force conversion to clean scalar string to avoid ambiguity traps
+            clean_idx_str = (
+                str(idx.iloc[0])
+                if isinstance(idx, pd.Index) or isinstance(idx, pd.Series)
+                else str(idx)
+            )
+
             is_bold_row = any(
-                term in idx for term in ["Total", "Net", "Checksum", "Reserves"]
+                term in clean_idx_str
+                for term in ["Total", "Net", "Checksum", "Reserves"]
             )
             if is_bold_row:
                 self.set_font("Helvetica", "B", 7.5)
@@ -771,9 +779,11 @@ class StrataCorporateManagementPack(FPDF):
                 self.set_font("Helvetica", "", 7)
                 self.set_fill_color(255, 255, 255)
 
-            self.cell(row_header_width, 5.5, str(idx), border=1, fill=True)
+            self.cell(row_header_width, 5.5, clean_idx_str, border=1, fill=True)
             for m in range_labels:
                 val = dataframe.at[idx, m]
+                if isinstance(val, pd.Series):
+                    val = val.iloc[0] if not val.empty else 0.0
                 val_str = f"{val:,.2f}" if abs(val) > 0.001 else "0.00"
                 self.cell(col_width, 5.5, val_str, border=1, fill=True, align="R")
             self.ln()
