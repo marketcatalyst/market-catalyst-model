@@ -32,7 +32,7 @@ def get_database_connection():
         return None
 
 def execute_database_handshake():
-    """Initializes standard project state tables and unverified data staging gate layers."""
+    """Initializes standard project state tables with open TEXT field definitions."""
     conn = get_database_connection()
     if conn:
         try:
@@ -41,7 +41,7 @@ def execute_database_handshake():
                     cur.execute("""
                         CREATE TABLE IF NOT EXISTS strata_projects (
                             project_id SERIAL PRIMARY KEY,
-                            project_name VARCHAR(255) UNIQUE NOT NULL,
+                            project_name TEXT UNIQUE NOT NULL,
                             payload_data TEXT NOT NULL,
                             last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                         );
@@ -49,12 +49,12 @@ def execute_database_handshake():
                     cur.execute("""
                         CREATE TABLE IF NOT EXISTS strata_staging_inputs (
                             staging_id SERIAL PRIMARY KEY,
-                            project_name VARCHAR(255) NOT NULL,
-                            vector_type VARCHAR(50) NOT NULL,
-                            source_origin VARCHAR(255) NOT NULL,
-                            line_name VARCHAR(255) NOT NULL,
+                            project_name TEXT NOT NULL,
+                            vector_type TEXT NOT NULL,
+                            source_origin TEXT NOT NULL,
+                            line_name TEXT NOT NULL,
                             base_amount NUMERIC(15,2) NOT NULL,
-                            seasonality_profile VARCHAR(100) DEFAULT 'Flat_Linear',
+                            seasonality_profile TEXT DEFAULT 'Flat_Linear',
                             terms_delay_days INTEGER DEFAULT 0,
                             vat_applicable BOOLEAN DEFAULT TRUE,
                             is_approved BOOLEAN DEFAULT FALSE,
@@ -95,11 +95,11 @@ def commit_project_payload_to_storage(project_name, sales, opex, payroll, capita
                         VALUES (%s, %s, CURRENT_TIMESTAMP)
                         ON CONFLICT (project_name) DO UPDATE 
                         SET payload_data = EXCLUDED.payload_data, last_updated = CURRENT_TIMESTAMP;
-                    """, (project_name, payload_string))
+                    """, (str(project_name).strip(), payload_string))
             conn.close()
             return True
         except Exception as e:
-            st.sidebar.error(f"SQL Execution Error: {str(e)}")
+            st.sidebar.error(f"SQL Commit Exception: {str(e)}")
             return False
     return False
 
@@ -134,7 +134,7 @@ def stage_unverified_ingestion_line(project_name, v_type, origin, name, amount, 
                         INSERT INTO strata_staging_inputs 
                         (project_name, vector_type, source_origin, line_name, base_amount, seasonality_profile, terms_delay_days, vat_applicable, is_approved)
                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, FALSE);
-                    """, (project_name, v_type, origin, name, float(amount), seasonality, int(delay), bool(vat)))
+                    """, (str(project_name).strip(), str(v_type).strip(), str(origin).strip(), str(name).strip(), float(amount), str(seasonality).strip(), int(delay), bool(vat)))
             conn.close()
             return True
         except Exception:
@@ -256,7 +256,7 @@ class CommercialTrialBalanceCuboid:
                 self.inject_token(m, "PL_Expense_Overheads", "BS_Liability_Creditors", monthly_net_cost, narr_tag)
                 if monthly_input_vat > 0:
                     self.inject_token(m, "BS_Liability_VAT_Payable", "BS_Liability_Creditors", monthly_input_vat, f"VAT_IN__{opex.get('name')}")
-                self.inject_token(m + (creditor_days // 30), "BS_Liability_Creditors", "BS_Asset_Cash", monthly_net_cost + monthly_input_vat, f"Payment: {opex.get('name')}")
+                self.inject_token(m + (creditor_days // 30), "VA_Liability_Creditors", "BS_Asset_Cash", monthly_net_cost + monthly_input_vat, f"Payment: {opex.get('name')}")
 
             # Payroll Pipeline
             for pay in runtime_payload.get("payroll", []):
@@ -619,9 +619,7 @@ with proj_col2:
             if success_flag:
                 st.session_state["active_project_name"] = save_input_name.strip()
                 st.toast(f"Locked configuration packet: '{save_input_name}' to SQL records.")
-                st.rerun()  # Triggers full layout refresh safely without internal config crashes
-            else:
-                st.error("❌ Relational write error: Table transaction rejected by Neon database cluster.")
+                st.rerun()  
         else:
             st.warning("⚠️ Provide a distinct scenario identifier name before committing.")
 
