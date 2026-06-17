@@ -12,6 +12,9 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 import re
 
+# Set page configuration at the absolute top of the script execution layout
+st.set_page_config(layout="wide")
+
 # =========================================================================
 # 💾 PERSISTENCE CONTROL LAYER: SERVERLESS NEON POSTGRES PIPELINE
 # =========================================================================
@@ -95,8 +98,9 @@ def commit_project_payload_to_storage(project_name, sales, opex, payroll, capita
                     """, (project_name, payload_string))
             conn.close()
             return True
-        except Exception:
-            pass
+        except Exception as e:
+            st.sidebar.error(f"SQL Execution Error: {str(e)}")
+            return False
     return False
 
 def pull_project_payload_from_storage(project_name):
@@ -605,17 +609,19 @@ with proj_col2:
     save_input_name = st.text_input("Name Active Project State:", value=st.session_state["active_project_name"])
     if st.button("💾 Commit Active State to Storage", use_container_width=True):
         if save_input_name.strip() and save_input_name != "Unsaved_Draft_Scenario":
-            commit_project_payload_to_storage(
+            success_flag = commit_project_payload_to_storage(
                 save_input_name.strip(),
                 st.session_state["active_data"]["sales"],
                 st.session_state["active_data"]["opex"],
                 st.session_state["active_data"]["payroll"],
                 st.session_state["active_data"]["capital"]
             )
-            st.session_state["active_project_name"] = save_input_name.strip()
-            st.success(f"Locked configuration packet: '{save_input_name}' to SQL records.")
-            st.set_page_config(layout="wide") # Dummy change to assist parsing but st.rerun handles state layout update loop safely below
-            st.rerun()  # FIXED: Triggers full layout reload so saved keys populate inside select boxes instantly
+            if success_flag:
+                st.session_state["active_project_name"] = save_input_name.strip()
+                st.toast(f"Locked configuration packet: '{save_input_name}' to SQL records.")
+                st.rerun()  # Triggers full layout refresh safely without internal config crashes
+            else:
+                st.error("❌ Relational write error: Table transaction rejected by Neon database cluster.")
         else:
             st.warning("⚠️ Provide a distinct scenario identifier name before committing.")
 
