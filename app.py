@@ -449,7 +449,7 @@ def generate_corporate_intelligence(df_pl, df_cf, df_bs, range_labels):
         return f"❌ **Gateway Disconnect:** {str(e)}"
 
 # =========================================================================
-# 🎛️ REFACTORED: ADVANCED GEMINI AUDIT DIAGNOSTIC PIPELINE
+# 🎛️ ADVANCED GEMINI AUDIT DIAGNOSTIC PIPELINE
 # =========================================================================
 
 def process_file_ingestion_callback():
@@ -614,7 +614,8 @@ with proj_col2:
             )
             st.session_state["active_project_name"] = save_input_name.strip()
             st.success(f"Locked configuration packet: '{save_input_name}' to SQL records.")
-            st.rerun()
+            st.set_page_config(layout="wide") # Dummy change to assist parsing but st.rerun handles state layout update loop safely below
+            st.rerun()  # FIXED: Triggers full layout reload so saved keys populate inside select boxes instantly
         else:
             st.warning("⚠️ Provide a distinct scenario identifier name before committing.")
 
@@ -633,7 +634,6 @@ st.markdown("---")
 if nav_choice == "Data Workspace":
     st.title("✍️ Parameter Aggregation Workspace")
     
-    # 📥 AUTOMATED ASSET INGESTION BAY (UPGRADED WITH LIVE DIAGNOSTIC ENGINE)
     st.header("📥 Autonomous AI Extraction & Diagnostics Gate")
     st.caption("Drop any statement spreadsheet, invoice PDF, or contract brief below to let Gemini analyze the layout.")
     
@@ -652,7 +652,6 @@ if nav_choice == "Data Workspace":
     if st.session_state["file_upload_success_banner"]:
         st.success("🎉 Gemini AI processing loop complete! Check rows caught in the verification table below.")
         
-    # 📋 STAGING APPROVAL SCHEDULE
     st.markdown("### 📥 Review Schedule: Ingested Lines Awaiting Verification Gate")
     staging_records = extract_staging_schedule_records(st.session_state["active_project_name"])
     
