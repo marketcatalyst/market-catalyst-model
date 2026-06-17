@@ -98,8 +98,7 @@ def commit_project_payload_to_storage(project_name, sales, opex, payroll, capita
                     """, (str(project_name).strip(), payload_string))
             conn.close()
             return True
-        except Exception as e:
-            st.sidebar.error(f"SQL Commit Exception: {str(e)}")
+        except Exception:
             return False
     return False
 
@@ -256,7 +255,7 @@ class CommercialTrialBalanceCuboid:
                 self.inject_token(m, "PL_Expense_Overheads", "BS_Liability_Creditors", monthly_net_cost, narr_tag)
                 if monthly_input_vat > 0:
                     self.inject_token(m, "BS_Liability_VAT_Payable", "BS_Liability_Creditors", monthly_input_vat, f"VAT_IN__{opex.get('name')}")
-                self.inject_token(m + (creditor_days // 30), "VA_Liability_Creditors", "BS_Asset_Cash", monthly_net_cost + monthly_input_vat, f"Payment: {opex.get('name')}")
+                self.inject_token(m + (creditor_days // 30), "BS_Liability_Creditors", "BS_Asset_Cash", monthly_net_cost + monthly_input_vat, f"Payment: {opex.get('name')}")
 
             # Payroll Pipeline
             for pay in runtime_payload.get("payroll", []):
@@ -453,11 +452,11 @@ def generate_corporate_intelligence(df_pl, df_cf, df_bs, range_labels):
         return f"❌ **Gateway Disconnect:** {str(e)}"
 
 # =========================================================================
-# 🎛️ ADVANCED GEMINI AUDIT DIAGNOSTIC PIPELINE
+# 🎛️ CONSOLIDATED SINGLE-CALL MULTIMODAL INGESTION SUITE
 # =========================================================================
 
 def process_file_ingestion_callback():
-    """Reads raw string matrices, outputs a live layout diagnostic, and triggers regex-isolated JSON parsing."""
+    """Consolidates document review and parameter output maps into a single query to respect free-tier rate scopes."""
     uploaded_file = st.session_state.get("file_ingestion_key")
     if uploaded_file is not None:
         origin_tag = f"AI Ingested: {uploaded_file.name}"
@@ -481,54 +480,56 @@ def process_file_ingestion_callback():
             genai.configure(api_key=api_key)
             model = genai.GenerativeModel('models/gemini-2.5-flash')
             
-            # --- LANE 1: LIVE STRUCTURAL AUDIT CRITIQUE ---
-            audit_prompt = f"""
-            You are acting as a Principal Systems Auditor and Document Reviewer. 
-            Analyze the formatting, columns, and text alignment of this uploaded spreadsheet data extraction:
+            # Rate-Hardened Prompt Design: Single context pass capturing both narrative and parsing models
+            consolidated_prompt = f"""
+            You are a Principal Financial Systems Auditor and Data Engineer. Review this data extract:
             
             {doc_payload}
             
-            Provide a short, 3-bullet executive evaluation pack using British English spelling. 
-            State clearly whether the sheet contains identifiable financial headers or if it is too unstructured/blank to process automatically.
-            """
-            st.session_state["cached_document_critique"] = model.generate_content(audit_prompt).text
-
-            # --- LANE 2: PROGRAMMATIC JSON ARRAY STREAM EXTRACTION ---
-            ai_prompt = f"""
-            Extract any identifiable revenue streams, supplier overhead values, or payroll elements from this data layout:
+            Execute two specific extraction directives simultaneously. Formulate your output text exactly like this template:
             
-            {doc_payload}
+            --- AUDIT SUMMARY ---
+            [Provide a 3-bullet evaluation in British English analyzing layout clarity, named structures like Turnover or Operational Costs, and visual readability versus data sparsity anomalies.]
             
-            Convert into a strict JSON list of objects matching this exact structure:
+            --- DATA MATRIX ARRAY ---
+            [Extract any valid row metrics into a strict JSON list of objects matching this formatting model:
             [
               {{"vector_type": "sales", "line_name": "Label description", "base_amount": 54000.0, "seasonality": "Flat_Linear", "delay_days": 30, "vat_applicable": true}}
             ]
-            If rows contain no numbers or un-identifiable headers, omit them. Output valid JSON list array enclosed in brackets only.
+            If headers are entirely blank or contain no numerical values, omit them.]
             """
             
-            ai_response = model.generate_content(ai_prompt).text
-            match = re.search(r'\[.*\]', ai_response, re.DOTALL)
+            raw_response = model.generate_content(consolidated_prompt).text
             
-            if match:
-                clean_json = match.group(0).strip()
-                parsed_vectors = json.loads(clean_json)
-                for vec in parsed_vectors:
-                    extracted_season = vec.get("seasonality") or vec.get("seasonality_profile") or "Flat_Linear"
-                    extracted_delay = vec.get("delay_days") or vec.get("terms_delay_days") or 0
-                    stage_unverified_ingestion_line(
-                        project_name=active_proj,
-                        v_type=vec.get("vector_type", "opex"),
-                        origin=origin_tag,
-                        name=vec.get("line_name", "AI Scraped Parameter"),
-                        amount=float(vec.get("base_amount", 0.0)),
-                        seasonality=extracted_season,
-                        delay=int(extracted_delay),
-                        vat=bool(vec.get("vat_applicable", True))
-                    )
+            # Segment the output payload via text boundary token anchors
+            split_tokens = raw_response.split("--- DATA MATRIX ARRAY ---")
+            
+            # Cache the audit critique narrative segment
+            st.session_state["cached_document_critique"] = split_tokens[0].replace("--- AUDIT SUMMARY ---", "").strip()
+            
+            # Isolate and parse the JSON dataset matrix segment
+            if len(split_tokens) > 1:
+                match = re.search(r'\[.*\]', split_tokens[1], re.DOTALL)
+                if match:
+                    clean_json = match.group(0).strip()
+                    parsed_vectors = json.loads(clean_json)
+                    for vec in parsed_vectors:
+                        extracted_season = vec.get("seasonality") or vec.get("seasonality_profile") or "Flat_Linear"
+                        extracted_delay = vec.get("delay_days") or vec.get("terms_delay_days") or 0
+                        stage_unverified_ingestion_line(
+                            project_name=active_proj,
+                            v_type=vec.get("vector_type", "opex"),
+                            origin=origin_tag,
+                            name=vec.get("line_name", "AI Scraped Parameter"),
+                            amount=float(vec.get("base_amount", 0.0)),
+                            seasonality=extracted_season,
+                            delay=int(extracted_delay),
+                            vat=bool(vec.get("vat_applicable", True))
+                        )
             
             st.session_state["file_upload_success_banner"] = True
         except Exception as err:
-            st.sidebar.error(f"Gemini Audit System Exception: {str(err)}")
+            st.sidebar.error(f"Gemini Consolidation Exception: {str(err)}")
 
 # =========================================================================
 # ⚙️ STREAMLIT INTERFACE LAYER & CONFIGURATION DOCK
@@ -638,6 +639,7 @@ st.markdown("---")
 if nav_choice == "Data Workspace":
     st.title("✍️ Parameter Aggregation Workspace")
     
+    # 📥 AUTOMATED ASSET INGESTION BAY
     st.header("📥 Autonomous AI Extraction & Diagnostics Gate")
     st.caption("Drop any statement spreadsheet, invoice PDF, or contract brief below to let Gemini analyze the layout.")
     
