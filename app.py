@@ -1087,12 +1087,20 @@ if nav_choice == "Data Workspace":
                         value=float(item["base_amount"]),
                         key=f"st_amt_{item['staging_id']}",
                     )
+
+                    # SAFE FALLBACK CHECK: Ensure value exists in list before checking its index
+                    valid_profiles = ["Flat_Linear", "Winter_Peak", "Summer_Peak"]
+                    raw_profile = item.get("seasonality_profile", "Flat_Linear")
+                    profile_idx = (
+                        valid_profiles.index(raw_profile)
+                        if raw_profile in valid_profiles
+                        else 0
+                    )
+
                     edit_season = st.selectbox(
                         "Assigned Profile:",
-                        ["Flat_Linear", "Winter_Peak", "Summer_Peak"],
-                        index=["Flat_Linear", "Winter_Peak", "Summer_Peak"].index(
-                            item["seasonality_profile"]
-                        ),
+                        options=valid_profiles,
+                        index=profile_idx,
                         key=f"st_seas_{item['staging_id']}",
                     )
 
