@@ -1,4 +1,5 @@
 # app.py
+# STRATA SUITE PRODUCTION ENGINE // SYSTEM VERSION VECTOR V2.5.0-HARDENED
 
 import streamlit as st
 import json
@@ -32,12 +33,13 @@ def get_database_connection():
         return None
 
 def execute_database_handshake():
-    """Initializes standard project state tables with open TEXT field definitions."""
+    """Initializes standard project state tables and applies column migrations live."""
     conn = get_database_connection()
     if conn:
         try:
             with conn:
                 with conn.cursor() as cur:
+                    # Assert base table maps exist
                     cur.execute("""
                         CREATE TABLE IF NOT EXISTS strata_projects (
                             project_id SERIAL PRIMARY KEY,
@@ -61,6 +63,14 @@ def execute_database_handshake():
                             ingested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                         );
                     """)
+                    
+                    # RUN SCHEMA MIGRATIONS: Explicitly alter column definitions to override historical constraints
+                    cur.execute("ALTER TABLE strata_projects ALTER COLUMN project_name TYPE TEXT;")
+                    cur.execute("ALTER TABLE strata_staging_inputs ALTER COLUMN project_name TYPE TEXT;")
+                    cur.execute("ALTER TABLE strata_staging_inputs ALTER COLUMN vector_type TYPE TEXT;")
+                    cur.execute("ALTER TABLE strata_staging_inputs ALTER COLUMN source_origin TYPE TEXT;")
+                    cur.execute("ALTER TABLE strata_staging_inputs ALTER COLUMN line_name TYPE TEXT;")
+                    cur.execute("ALTER TABLE strata_staging_inputs ALTER COLUMN seasonality_profile TYPE TEXT;")
             conn.close()
         except Exception:
             pass
@@ -98,7 +108,8 @@ def commit_project_payload_to_storage(project_name, sales, opex, payroll, capita
                     """, (str(project_name).strip(), payload_string))
             conn.close()
             return True
-        except Exception:
+        except Exception as e:
+            st.sidebar.error(f"SQL Commit Error Trace: {str(e)}")
             return False
     return False
 
@@ -173,7 +184,7 @@ def purge_staging_record_by_id(staging_id):
             pass
     return False
 
-# Execute system storage table assertions on application load initialization
+# Execute structural migrations on system startup initialization
 execute_database_handshake()
 
 # =========================================================================
@@ -480,7 +491,6 @@ def process_file_ingestion_callback():
             genai.configure(api_key=api_key)
             model = genai.GenerativeModel('models/gemini-2.5-flash')
             
-            # Rate-Hardened Prompt Design: Single context pass capturing both narrative and parsing models
             consolidated_prompt = f"""
             You are a Principal Financial Systems Auditor and Data Engineer. Review this data extract:
             
@@ -500,14 +510,9 @@ def process_file_ingestion_callback():
             """
             
             raw_response = model.generate_content(consolidated_prompt).text
-            
-            # Segment the output payload via text boundary token anchors
             split_tokens = raw_response.split("--- DATA MATRIX ARRAY ---")
-            
-            # Cache the audit critique narrative segment
             st.session_state["cached_document_critique"] = split_tokens[0].replace("--- AUDIT SUMMARY ---", "").strip()
             
-            # Isolate and parse the JSON dataset matrix segment
             if len(split_tokens) > 1:
                 match = re.search(r'\[.*\]', split_tokens[1], re.DOTALL)
                 if match:
@@ -621,6 +626,8 @@ with proj_col2:
                 st.session_state["active_project_name"] = save_input_name.strip()
                 st.toast(f"Locked configuration packet: '{save_input_name}' to SQL records.")
                 st.rerun()  
+            else:
+                st.error("❌ Relational write error: Table transaction rejected by Neon database cluster.")
         else:
             st.warning("⚠️ Provide a distinct scenario identifier name before committing.")
 
@@ -658,6 +665,7 @@ if nav_choice == "Data Workspace":
     if st.session_state["file_upload_success_banner"]:
         st.success("🎉 Gemini AI processing loop complete! Check rows caught in the verification table below.")
         
+    # 📋 STAGING APPROVAL SCHEDULE
     st.markdown("### 📥 Review Schedule: Ingested Lines Awaiting Verification Gate")
     staging_records = extract_staging_schedule_records(st.session_state["active_project_name"])
     
