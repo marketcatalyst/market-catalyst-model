@@ -589,15 +589,26 @@ class CommercialTrialBalanceCuboid:
                     if t.debit_acct == "PL_Expense_Depreciation":
                         df_pl.at["Depreciation (£)", m_label] += t.amount
 
+            # --- PREVENT PYTHON SERIES TYPE CONFLICT ALIGNMENT PASS ---
+            def get_scalar_val(df, row_lbl, col_lbl):
+                if row_lbl not in df.index:
+                    return 0.0
+                val = df.loc[row_lbl, col_lbl]
+                if isinstance(val, pd.Series):
+                    return float(val.iloc[0]) if not val.empty else 0.0
+                return float(val) if pd.notna(val) else 0.0
+
             current_opex_total = sum(
-                df_pl.at[row, m_label] for row in opex_rows if row in df_pl.index
+                get_scalar_val(df_pl, row, m_label) for row in opex_rows
             )
+
+            tot_rev = get_scalar_val(df_pl, "Total Revenue (£)", m_label)
+            cogs = get_scalar_val(df_pl, "COGS (£)", m_label)
+            payroll = get_scalar_val(df_pl, "Staff Payroll Overhead (£)", m_label)
+            depr = get_scalar_val(df_pl, "Depreciation (£)", m_label)
+
             df_pl.at["Net Operating Profit (EBIT)", m_label] = (
-                df_pl.at["Total Revenue (£)", m_label]
-                - df_pl.at["COGS (£)", m_label]
-                - current_opex_total
-                - df_pl.at["Staff Payroll Overhead (£)", m_label]
-                - df_pl.at["Depreciation (£)", m_label]
+                tot_rev - cogs - current_opex_total - payroll - depr
             )
 
             for t in self.token_pool:
@@ -665,14 +676,14 @@ class CommercialTrialBalanceCuboid:
             hist_sum = 0.0
             for past_m in self.months[:m_idx]:
                 past_opex_total = sum(
-                    df_pl.at[row, past_m] for row in opex_rows if row in df_pl.index
+                    get_scalar_val(df_pl, row, past_m) for row in opex_rows
                 )
                 hist_sum += (
-                    df_pl.at["Total Revenue (£)", past_m]
-                    - df_pl.at["COGS (£)", past_m]
+                    get_scalar_val(df_pl, "Total Revenue (£)", past_m)
+                    - get_scalar_val(df_pl, "COGS (£)", past_m)
                     - past_opex_total
-                    - df_pl.at["Staff Payroll Overhead (£)", past_m]
-                    - df_pl.at["Depreciation (£)", past_m]
+                    - get_scalar_val(df_pl, "Staff Payroll Overhead (£)", past_m)
+                    - get_scalar_val(df_pl, "Depreciation (£)", past_m)
                 )
             df_bs.at["Retained Earnings Accumulation (£)", m_label] = hist_sum
             df_bs.at["Ledger Verification Checksum Balance", m_label] = (
@@ -834,7 +845,7 @@ def process_file_ingestion_callback():
             file_ext = uploaded_file.name.split(".")[-1].lower()
             contents_input = []
 
-            # 1. Check file format and build correct payload parts
+            # Check file format and build correct payload parts
             if file_ext in ["csv", "xlsx"]:
                 if file_ext == "csv":
                     doc_payload = pd.read_csv(uploaded_file).to_string()
@@ -856,7 +867,7 @@ def process_file_ingestion_callback():
             genai.configure(api_key=api_key)
             model = genai.GenerativeModel("models/gemini-2.5-flash")
 
-            # 2. Refined accounting-aware instructions
+            # Refined accounting-aware instructions
             consolidated_prompt = f"""
             You are a Principal Financial Systems Auditor and Data Engineer specializing in UK corporate double-entry software structures.
             Analyze this uploaded forecast statement document carefully.
@@ -950,7 +961,7 @@ if not st.session_state["authenticated"]:
     st.title("🔐 STRATA // Corporate Gateway")
     with st.form("login_form"):
         input_user = st.text_input("Username:")
-        input_pass = st.text_input("Password:", type="password")
+        input_pass = pd.Series([st.text_input("Password:", type="password")]).iloc[0]
         if st.form_submit_button("Verify Workspace Identity"):
             if input_user == "marketcatalyst" and input_pass == "@MCStrata080881":
                 st.session_state["authenticated"] = True
@@ -1080,7 +1091,7 @@ if nav_choice == "Data Workspace":
                         key=f"st_name_{item['staging_id']}",
                     )
 
-                    # 1. VECTOR SELECTION FIELD (Allows editing the category)
+                    # VECTOR SELECTION FIELD (Allows editing the category)
                     valid_types = [
                         "sales",
                         "opex",
@@ -1149,7 +1160,7 @@ if nav_choice == "Data Workspace":
                         type="primary",
                     ):
 
-                        # 2. INTELLIGENT ROUTING MATRIX
+                        # INTELLIGENT ROUTING MATRIX
                         data_map = {
                             "sales": "sales",
                             "opex": "opex",
@@ -1160,7 +1171,7 @@ if nav_choice == "Data Workspace":
                         }
                         target = data_map[edit_type]
 
-                        # 3. STRUCTURE ALIGNMENT FOR THE SIMULATION CUBOID
+                        # STRUCTURE ALIGNMENT FOR THE SIMULATION CUBOID
                         if target == "capital":
                             type_map = {
                                 "capex": "New / Existing Fixed Asset CapEx",
