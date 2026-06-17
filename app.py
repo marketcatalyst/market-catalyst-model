@@ -1129,21 +1129,33 @@ if nav_choice == "Data Workspace":
                         key=f"st_amt_{item['staging_id']}",
                     )
 
-                    # SAFE FALLBACK CHECK: Ensure value exists in list before checking its index
-                    valid_profiles = ["Flat_Linear", "Winter_Peak", "Summer_Peak"]
-                    raw_profile = item.get("seasonality_profile", "Flat_Linear")
-                    profile_idx = (
-                        valid_profiles.index(raw_profile)
-                        if raw_profile in valid_profiles
-                        else 0
-                    )
+                    # --- DYNAMIC PARAMETER SHIFT FOR TIMING LABELS ---
+                    if edit_type in ["capex", "debt", "equity"]:
+                        edit_month = st.slider(
+                            "Execution Horizon (Month):",
+                            min_value=1,
+                            max_value=60,
+                            value=2 if "outer" in item["line_name"].lower() else 1,
+                            step=1,
+                            key=f"st_month_{item['staging_id']}",
+                        )
+                        edit_season = f"M{str(edit_month).zfill(2)}"
+                    else:
+                        valid_profiles = ["Flat_Linear", "Winter_Peak", "Summer_Peak"]
+                        raw_profile = item.get("seasonality_profile", "Flat_Linear")
+                        profile_idx = (
+                            valid_profiles.index(raw_profile)
+                            if raw_profile in valid_profiles
+                            else 0
+                        )
 
-                    edit_season = st.selectbox(
-                        "Assigned Profile:",
-                        options=valid_profiles,
-                        index=profile_idx,
-                        key=f"st_seas_{item['staging_id']}",
-                    )
+                        edit_season = st.selectbox(
+                            "Assigned Profile:",
+                            options=valid_profiles,
+                            index=profile_idx,
+                            key=f"st_seas_{item['staging_id']}",
+                        )
+                    # --- END OF TIMING SHIFT ---
 
                 with col_i3:
                     edit_delay = st.slider(
@@ -1188,12 +1200,19 @@ if nav_choice == "Data Workspace":
                                 "debt": "Commercial Debt / Facility Drawdown",
                                 "equity": "Equity Capital / Share Premium Injection",
                             }
+                            parsed_m = (
+                                int(edit_season.replace("M", ""))
+                                if edit_season.startswith("M")
+                                else 1
+                            )
                             st.session_state["active_data"][target].append(
                                 {
                                     "name": edit_name.strip(),
-                                    "type": type_map[edit_type],
+                                    "type": type_map.get(
+                                        edit_type, "New / Existing Fixed Asset CapEx"
+                                    ),
                                     "value": float(edit_amount),
-                                    "month": 1,
+                                    "month": parsed_m,
                                 }
                             )
                         elif target == "payroll":
