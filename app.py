@@ -1,5 +1,5 @@
 # app.py
-# STRATA SUITE PRODUCTION ENGINE // RESTORED TOTAL CORE SYSTEM v3.6.0-MASTER
+# STRATA SUITE PRODUCTION ENGINE // RESTORED TOTAL CORE SYSTEM v3.6.1-MASTER
 
 import streamlit as st
 import json
@@ -1205,7 +1205,7 @@ with proj_col3:
         st.toast("🧹 Workspace canvas flushed.")
         st.rerun()
 
-# --- THE "CHANGE INDUSTRY" LINK STRIP ---
+# --- THE "CHANGE INDUSTRY" LINK STRIP FIXED ---
 st.markdown(
     "<div style='margin-top: -8px; margin-bottom: 12px;'>", unsafe_allow_html=True
 )
@@ -1217,7 +1217,8 @@ if current_meta:
             f"📊 **Active UK Sector Blueprint Benchmark:** `{current_meta['name']}`"
         )
     with lnk_col:
-        if st.button("🔗 Change Industry Sector", type="secondary", small=True):
+        # FIXED: Removed the invalid custom 'small=True' keyword property
+        if st.button("🔗 Change Industry Sector", type="secondary"):
             st.session_state["active_data"]["sic_meta"] = None
             st.session_state["onboarding_complete"] = False
             st.rerun()
@@ -1229,7 +1230,7 @@ st.markdown("</div>", unsafe_allow_html=True)
 st.markdown("---")
 
 # =========================================================================
-# ⚙️ DESK RENDERING LAYOUT HOOKS
+# ⚖️ DESK RENDERING LAYOUT HOOKS
 # =========================================================================
 
 if nav_choice == "Data Workspace":
@@ -1597,9 +1598,6 @@ elif nav_choice == "Analytical Forecast Sheets":
     else:
         range_labels = [f"M{str(i).zfill(2)}" for i in range(1, 37)]
 
-    # =========================================================================
-    # 🚦 THE REALITY CHECK SCOREBOARD PANEL (SaaS UX HEAVEN)
-    # =========================================================================
     v_analysis = calculate_industry_variance_analysis(
         df_pl, range_labels, st.session_state["active_data"].get("sic_meta")
     )
@@ -1622,7 +1620,6 @@ elif nav_choice == "Analytical Forecast Sheets":
 
         with card_col2:
             staff_delta = v_analysis["staff_var"] * 100
-            # Staff delta indicator direction inverted (Higher costs are negative delta in score card terms)
             st.metric(
                 label="👥 Operating Payroll-to-Revenue Ratio",
                 value=f"{v_analysis['model_staff']*100:.1f}%",
