@@ -706,7 +706,7 @@ class CommercialTrialBalanceCuboid:
 
 
 # =========================================================================
-# 📜 EXECUTIVE ARCHITECTURE PACK: VECTOR PDF COMPILER
+# ⚖️ EXECUTIVE ARCHITECTURE PACK: VECTOR PDF COMPILER
 # =========================================================================
 
 
@@ -966,19 +966,6 @@ if "active_project_name" not in st.session_state:
 
 if "file_upload_success_banner" not in st.session_state:
     st.session_state["file_upload_success_banner"] = False
-
-if not st.session_state["authenticated"]:
-    st.title("🔐 STRATA // Corporate Gateway")
-    with st.form("login_form"):
-        input_user = st.text_input("Username:")
-        input_pass = pd.Series([st.text_input("Password:", type="password")]).iloc[0]
-        if st.form_submit_button("Verify Workspace Identity"):
-            if input_user == "marketcatalyst" and input_pass == "@MCStrata080881":
-                st.session_state["authenticated"] = True
-                st.rerun()
-            else:
-                st.error("🚫 Access rejected.")
-    st.stop()
 
 st.sidebar.title("🛡️ STRATA // Vector Suite")
 nav_choice = st.sidebar.radio(
