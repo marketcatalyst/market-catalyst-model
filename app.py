@@ -1,5 +1,5 @@
 # app.py
-# STRATA SUITE PRODUCTION ENGINE // TOTAL CORE SYSTEM v3.7.0-MASTER
+# STRATA SUITE PRODUCTION ENGINE // TOTAL CORE SYSTEM v3.7.1-MASTER
 
 import streamlit as st
 import json
@@ -1166,6 +1166,7 @@ with proj_col1:
             st.session_state["active_data"] = loaded_payload
             st.session_state["active_project_name"] = selected_option
             st.session_state["cached_document_critique"] = ""
+            # CRITICAL FIX: Automatically flag onboarding complete when loading a pre-saved file from database
             st.session_state["onboarding_complete"] = True
             st.toast(f"✅ Loaded Blueprint: '{selected_option}'")
             st.rerun()
@@ -1236,14 +1237,18 @@ if current_meta:
             st.session_state["onboarding_complete"] = False
             st.rerun()
 else:
-    st.markdown(
-        "⚠️ **Active UK Sector Blueprint Benchmark:** `None Assigned` | [🔗 Launch Alignment Wizard](javascript:void(0))"
-    )
+    lbl_col, lnk_col = st.columns([6, 5])
+    with lbl_col:
+        st.markdown("⚠️ **Active UK Sector Blueprint Benchmark:** `None Assigned`")
+    with lnk_col:
+        if st.button("🔗 Launch Alignment Wizard", type="secondary"):
+            st.session_state["onboarding_complete"] = False
+            st.rerun()
 st.markdown("</div>", unsafe_allow_html=True)
 st.markdown("---")
 
 # =========================================================================
-# ⚖ ... CONFIGURING ACTIVE MODIFIERS INITIALIZATION DEFENSIVE BOUNDS ...
+# ⚖ CONFIGURING ACTIVE MODIFIERS INITIALIZATION DEFENSIVE BOUNDS
 # =========================================================================
 rev_scale, opex_scale, pay_scale = 100, 100, 0
 
@@ -1589,9 +1594,6 @@ if nav_choice == "Data Workspace":
 elif nav_choice == "Analytical Forecast Sheets":
     st.title("📊 Synchronized Statement Reporting Canvas")
 
-    # =========================================================================
-    # 🔮 THE INTERACTIVE "WHAT-IF" TIME MACHINE EXPANDER PANEL
-    # =========================================================================
     with st.expander(
         "🔮 ACTIVATE STRATEGIC SCENARIO STRESS-TESTING ENGINE", expanded=False
     ):
@@ -1625,12 +1627,10 @@ elif nav_choice == "Analytical Forecast Sheets":
             format="%d%%",
         )
 
-    # Translate visual slider values straight to structural mathematical floats
     rev_mod = rev_scale / 100.0
     opex_mod = opex_scale / 100.0
     pay_mod = pay_scale / 100.0
 
-    # Execute simulation loop containing active modifiers on every dashboard lifecycle run
     cuboid_engine = CommercialTrialBalanceCuboid()
     cuboid_engine.process_simulation(
         st.session_state["active_data"],
@@ -1663,9 +1663,6 @@ elif nav_choice == "Analytical Forecast Sheets":
     else:
         range_labels = [f"M{str(i).zfill(2)}" for i in range(1, 37)]
 
-    # =========================================================================
-    # 🚦 THE REALITY CHECK SCOREBOARD PANEL (Warp-Aware)
-    # =========================================================================
     v_analysis = calculate_industry_variance_analysis(
         df_pl, range_labels, st.session_state["active_data"].get("sic_meta")
     )
@@ -1836,7 +1833,6 @@ elif nav_choice == "Analytical Forecast Sheets":
     st.header("🧠 Gemini Corporate Intelligence Desk")
     if st.button("🚀 Synthesize Strategic Executive Report", type="primary"):
         with st.spinner("Processing selected multi-period ledger segments..."):
-            # Handshake the live slider input percentages directly through into the analyst query engine
             st.session_state["cached_report"] = generate_corporate_intelligence(
                 df_pl, df_cf, df_bs, range_labels, rev_scale, opex_scale, pay_scale
             )
