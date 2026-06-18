@@ -1,5 +1,5 @@
 # app.py
-# STRATA SUITE PRODUCTION ENGINE // RESTORED TOTAL CORE SYSTEM v3.5.0-MASTER
+# STRATA SUITE PRODUCTION ENGINE // RESTORED TOTAL CORE SYSTEM v3.6.0-MASTER
 
 import streamlit as st
 import json
@@ -43,7 +43,6 @@ def execute_database_handshake():
         try:
             with conn:
                 with conn.cursor() as cur:
-                    # Assert base table maps exist with raw text fields
                     cur.execute("""
                         CREATE TABLE IF NOT EXISTS strata_projects (
                             project_id SERIAL PRIMARY KEY,
@@ -68,7 +67,6 @@ def execute_database_handshake():
                         );
                     """)
 
-                    # RUN SCHEMA MIGRATIONS: Explicitly alter column definitions to override historical constraints
                     cur.execute(
                         "ALTER TABLE strata_projects ALTER COLUMN project_name TYPE TEXT;"
                     )
@@ -110,10 +108,18 @@ def extract_project_directory_list():
     return []
 
 
-def commit_project_payload_to_storage(project_name, sales, opex, payroll, capital):
+def commit_project_payload_to_storage(
+    project_name, sales, opex, payroll, capital, sic_meta=None
+):
     """Commits compressed scenario structures safely into Neon relational database records."""
     payload_string = json.dumps(
-        {"sales": sales, "opex": opex, "payroll": payroll, "capital": capital}
+        {
+            "sales": sales,
+            "opex": opex,
+            "payroll": payroll,
+            "capital": capital,
+            "sic_meta": sic_meta,
+        }
     )
     conn = get_database_connection()
     if isinstance(conn, str):
@@ -245,6 +251,47 @@ def purge_staging_record_by_id(staging_id):
 
 # Execute database structure migrations on application load initialization
 execute_database_handshake()
+
+
+# =========================================================================
+# 🏛️ STATIC ASSET REGISTRY: UK SIC CODES REGISTRY LOADER
+# =========================================================================
+
+
+def load_uk_sic_benchmarks():
+    """Reads the static CSV asset registry to provide real-world industry baseline anchors."""
+    csv_path = Path("static_data/sic_benchmarks.csv")
+    if not csv_path.exists():
+        return {
+            "00000": {
+                "name": "Generic SaaS Default Baseline",
+                "gross_margin": 0.50,
+                "staff_ratio": 0.30,
+                "net_margin": 0.07,
+            }
+        }
+    try:
+        df = pd.read_csv(csv_path)
+        benchmarks = {}
+        for _, row in df.iterrows():
+            code_str = str(row["sic_code"]).strip()
+            benchmarks[code_str] = {
+                "name": str(row["industry_description"]).strip(),
+                "gross_margin": float(row["target_gross_margin"]),
+                "staff_ratio": float(row["target_staff_to_rev"]),
+                "net_margin": float(row["avg_net_margin"]),
+            }
+        return benchmarks
+    except Exception:
+        return {
+            "00000": {
+                "name": "Generic SaaS Default Baseline",
+                "gross_margin": 0.50,
+                "staff_ratio": 0.30,
+                "net_margin": 0.07,
+            }
+        }
+
 
 # =========================================================================
 # 🏛️ CORE ENGINE: MULTI-YEAR GRANULAR TRANSITIONAL VECTOR LEDGER
@@ -589,7 +636,6 @@ class CommercialTrialBalanceCuboid:
                     if t.debit_acct == "PL_Expense_Depreciation":
                         df_pl.at["Depreciation (£)", m_label] += t.amount
 
-            # --- PREVENT PYTHON SERIES TYPE CONFLICT ALIGNMENT PASS ---
             def get_scalar_val(df, row_lbl, col_lbl):
                 if row_lbl not in df.index:
                     return 0.0
@@ -706,6 +752,58 @@ class CommercialTrialBalanceCuboid:
 
 
 # =========================================================================
+# ⚙️ ADVANCED ANALYTICAL AUXILIARY: UK SIC PERFORMANCE DEVIATION METRICS
+# =========================================================================
+
+
+def calculate_industry_variance_analysis(df_pl, range_labels, target_sic_meta):
+    """Compares simulated financial results with active regional reference guardrails."""
+    if not target_sic_meta or "gross_margin" not in target_sic_meta:
+        return None
+
+    tot_rev = sum(float(df_pl.at["Total Revenue (£)", m]) for m in range_labels)
+    if tot_rev == 0.0:
+        return {
+            "model_gross": 0.0,
+            "target_gross": target_sic_meta["gross_margin"],
+            "gross_var": 0.0,
+            "model_staff": 0.0,
+            "target_staff": target_sic_meta["staff_ratio"],
+            "staff_var": 0.0,
+            "status": "Grey",
+        }
+
+    tot_cogs = sum(float(df_pl.at["COGS (£)", m]) for m in range_labels)
+    tot_payroll = sum(
+        float(df_pl.at["Staff Payroll Overhead (£)", m]) for m in range_labels
+    )
+
+    actual_gross = (tot_rev - tot_cogs) / tot_rev
+    actual_staff = tot_payroll / tot_rev
+
+    gross_var = actual_gross - target_sic_meta["gross_margin"]
+    staff_var = actual_staff - target_sic_meta["staff_ratio"]
+
+    # Traffic light bounds
+    if staff_var > 0.05 or gross_var < -0.05:
+        status = "Red"
+    elif abs(staff_var) > 0.02 or abs(gross_var) > 0.02:
+        status = "Amber"
+    else:
+        status = "Green"
+
+    return {
+        "model_gross": actual_gross,
+        "target_gross": target_sic_meta["gross_margin"],
+        "gross_var": gross_var,
+        "model_staff": actual_staff,
+        "target_staff": target_sic_meta["staff_ratio"],
+        "staff_var": staff_var,
+        "status": status,
+    }
+
+
+# =========================================================================
 # ⚖️ EXECUTIVE ARCHITECTURE PACK: VECTOR PDF COMPILER
 # =========================================================================
 
@@ -761,7 +859,6 @@ class StrataCorporateManagementPack(FPDF):
         self.set_text_color(30, 30, 30)
 
         for idx in dataframe.index:
-            # Force conversion to clean scalar string to avoid ambiguity traps
             clean_idx_str = (
                 str(idx.iloc[0])
                 if isinstance(idx, pd.Index) or isinstance(idx, pd.Series)
@@ -855,7 +952,6 @@ def process_file_ingestion_callback():
             file_ext = uploaded_file.name.split(".")[-1].lower()
             contents_input = []
 
-            # Check file format and build correct payload parts
             if file_ext in ["csv", "xlsx"]:
                 if file_ext == "csv":
                     doc_payload = pd.read_csv(uploaded_file).to_string()
@@ -865,7 +961,6 @@ def process_file_ingestion_callback():
                     ).to_string()
                 contents_input.append(doc_payload)
             elif file_ext == "pdf":
-                # Use Gemini Native Multimodal PDF data mapping
                 pdf_data = uploaded_file.read()
                 contents_input.append(
                     {"mime_type": "application/pdf", "data": pdf_data}
@@ -877,7 +972,6 @@ def process_file_ingestion_callback():
             genai.configure(api_key=api_key)
             model = genai.GenerativeModel("models/gemini-2.5-flash")
 
-            # Refined accounting-aware instructions
             consolidated_prompt = f"""
             You are a Principal Financial Systems Auditor and Data Engineer specializing in UK corporate double-entry software structures.
             Analyze this uploaded forecast statement document carefully.
@@ -903,7 +997,6 @@ def process_file_ingestion_callback():
             """
             contents_input.append(consolidated_prompt)
 
-            # Transmit multimodal payload to the dual engine
             raw_response = model.generate_content(contents_input).text
             split_tokens = raw_response.split("--- DATA MATRIX ARRAY ---")
             st.session_state["cached_document_critique"] = (
@@ -941,7 +1034,7 @@ def process_file_ingestion_callback():
 
 
 # =========================================================================
-# ⚙️ STREAMLIT INTERFACE LAYER & CONFIGURATION DOCK
+# 🔄 INITIALIZE STATE LOGIC CONTROL RUNTIME ARRAYS
 # =========================================================================
 
 if "active_data" not in st.session_state:
@@ -950,10 +1043,8 @@ if "active_data" not in st.session_state:
         "opex": [],
         "payroll": [],
         "capital": [],
+        "sic_meta": None,
     }
-
-if "authenticated" not in st.session_state:
-    st.session_state["authenticated"] = False
 
 if "cached_report" not in st.session_state:
     st.session_state["cached_report"] = ""
@@ -964,8 +1055,67 @@ if "cached_document_critique" not in st.session_state:
 if "active_project_name" not in st.session_state:
     st.session_state["active_project_name"] = "Unsaved_Draft_Scenario"
 
-if "file_upload_success_banner" not in st.session_state:
-    st.session_state["file_upload_success_banner"] = False
+if "onboarding_complete" not in st.session_state:
+    st.session_state["onboarding_complete"] = False
+
+# =========================================================================
+# 🧙‍♂️ INTERSTITIAL ONBOARDING WIZARD GATEWAY
+# =========================================================================
+
+sic_library = load_uk_sic_benchmarks()
+
+if (
+    not st.session_state["onboarding_complete"]
+    and st.session_state["active_project_name"] == "Unsaved_Draft_Scenario"
+    and not st.session_state["active_data"].get("sic_meta")
+):
+    st.title("🧙‍♂️ STRATA // Canvas Configuration Wizard")
+    st.caption("Onboarding Blueprint Registry & Target Guardrail Initialization")
+    st.markdown("---")
+
+    st.markdown(
+        "##### Welcome to STRATA. To tailor your financial simulation layout, please select your primary business classification sector below:"
+    )
+
+    industry_options = [
+        f"{code} - {meta['name']}" for code, meta in sic_library.items()
+    ]
+    selected_wizard_sector = st.selectbox(
+        "Target UK Industry Sector (SIC Library Registry):",
+        options=["-- Click to Expand Official UK Sector Registries --"]
+        + industry_options,
+    )
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    with st.expander("ℹ️ Why is this requested?", expanded=True):
+        st.info(
+            "Selecting a sector automatically arms your background analytics package. Your forecast outputs will be "
+            "actively cross-referenced against authentic UK financial averages for gross margins and staffing thresholds, "
+            "providing non-accounting users an instant visual 'Reality Check'."
+        )
+
+    if st.button(
+        "🚀 Prime Operational Forecast Canvas", type="primary", use_container_width=True
+    ):
+        if (
+            selected_wizard_sector
+            != "-- Click to Expand Official UK Sector Registries --"
+        ):
+            chosen_code = selected_wizard_sector.split(" - ")[0]
+            st.session_state["active_data"]["sic_meta"] = sic_library[chosen_code]
+            st.session_state["onboarding_complete"] = True
+            st.toast(f"🎯 Loaded Baseline Target: {sic_library[chosen_code]['name']}")
+            st.rerun()
+        else:
+            st.warning(
+                "⚠️ Please select a valid classification profile to activate your parameters canvas."
+            )
+    st.stop()
+
+
+# =========================================================================
+# 🎛️ MAIN WORKSPACE DESK AND SIDEBAR LAYOUT ROUTING
+# =========================================================================
 
 st.sidebar.title("🛡️ STRATA // Vector Suite")
 nav_choice = st.sidebar.radio(
@@ -993,7 +1143,6 @@ with proj_col1:
         key="project_blueprint_selector",
     )
 
-    # CRITICAL FIX: Only execute load if selection is a valid blueprint AND it isn't already the active project
     if (
         selected_option != "-- Select Saved Model Blueprint --"
         and selected_option != st.session_state["active_project_name"]
@@ -1002,8 +1151,8 @@ with proj_col1:
         if loaded_payload:
             st.session_state["active_data"] = loaded_payload
             st.session_state["active_project_name"] = selected_option
-            st.session_state["file_upload_success_banner"] = False
             st.session_state["cached_document_critique"] = ""
+            st.session_state["onboarding_complete"] = True
             st.toast(f"✅ Loaded Blueprint: '{selected_option}'")
             st.rerun()
 
@@ -1019,6 +1168,7 @@ with proj_col2:
                 st.session_state["active_data"]["opex"],
                 st.session_state["active_data"]["payroll"],
                 st.session_state["active_data"]["capital"],
+                st.session_state["active_data"].get("sic_meta"),
             )
             if write_status == "SUCCESS":
                 st.session_state["active_project_name"] = save_input_name.strip()
@@ -1028,7 +1178,7 @@ with proj_col2:
                 st.rerun()
             elif write_status == "MISSING_CREDENTIALS":
                 st.error(
-                    "❌ Configuration Error: Environment 'DATABASE_URL' target variable is not defined inside Streamlit secrets."
+                    "❌ Configuration Error: Environment 'DATABASE_URL' target variable is not defined."
                 )
             else:
                 st.error(f"❌ Connection Blocked: {write_status}")
@@ -1047,14 +1197,40 @@ with proj_col3:
             "opex": [],
             "payroll": [],
             "capital": [],
+            "sic_meta": None,
         }
         st.session_state["active_project_name"] = "Unsaved_Draft_Scenario"
-        st.session_state["file_upload_success_banner"] = False
         st.session_state["cached_document_critique"] = ""
+        st.session_state["onboarding_complete"] = False
         st.toast("🧹 Workspace canvas flushed.")
         st.rerun()
 
+# --- THE "CHANGE INDUSTRY" LINK STRIP ---
+st.markdown(
+    "<div style='margin-top: -8px; margin-bottom: 12px;'>", unsafe_allow_html=True
+)
+current_meta = st.session_state["active_data"].get("sic_meta")
+if current_meta:
+    lbl_col, lnk_col = st.columns([6, 5])
+    with lbl_col:
+        st.markdown(
+            f"📊 **Active UK Sector Blueprint Benchmark:** `{current_meta['name']}`"
+        )
+    with lnk_col:
+        if st.button("🔗 Change Industry Sector", type="secondary", small=True):
+            st.session_state["active_data"]["sic_meta"] = None
+            st.session_state["onboarding_complete"] = False
+            st.rerun()
+else:
+    st.markdown(
+        "⚠️ **Active UK Sector Blueprint Benchmark:** `None Assigned` | [🔗 Launch Alignment Wizard](javascript:void(0))"
+    )
+st.markdown("</div>", unsafe_allow_html=True)
 st.markdown("---")
+
+# =========================================================================
+# ⚙️ DESK RENDERING LAYOUT HOOKS
+# =========================================================================
 
 if nav_choice == "Data Workspace":
     st.title("✍️ Parameter Aggregation Workspace")
@@ -1087,8 +1263,6 @@ if nav_choice == "Data Workspace":
                         value=item["line_name"],
                         key=f"st_name_{item['staging_id']}",
                     )
-
-                    # VECTOR SELECTION FIELD (Allows editing the category)
                     valid_types = [
                         "sales",
                         "opex",
@@ -1115,8 +1289,6 @@ if nav_choice == "Data Workspace":
                         value=float(item["base_amount"]),
                         key=f"st_amt_{item['staging_id']}",
                     )
-
-                    # --- DYNAMIC PARAMETER SHIFT FOR TIMING LABELS ---
                     if edit_type in ["capex", "debt", "equity"]:
                         edit_month = st.slider(
                             "Execution Horizon (Month):",
@@ -1135,14 +1307,12 @@ if nav_choice == "Data Workspace":
                             if raw_profile in valid_profiles
                             else 0
                         )
-
                         edit_season = st.selectbox(
                             "Assigned Profile:",
                             options=valid_profiles,
                             index=profile_idx,
                             key=f"st_seas_{item['staging_id']}",
                         )
-                    # --- END OF TIMING SHIFT ---
 
                 with col_i3:
                     edit_delay = st.slider(
@@ -1168,8 +1338,6 @@ if nav_choice == "Data Workspace":
                         use_container_width=True,
                         type="primary",
                     ):
-
-                        # INTELLIGENT ROUTING MATRIX
                         data_map = {
                             "sales": "sales",
                             "opex": "opex",
@@ -1180,7 +1348,6 @@ if nav_choice == "Data Workspace":
                         }
                         target = data_map[edit_type]
 
-                        # STRUCTURE ALIGNMENT FOR THE SIMULATION CUBOID
                         if target == "capital":
                             type_map = {
                                 "capex": "New / Existing Fixed Asset CapEx",
@@ -1429,6 +1596,59 @@ elif nav_choice == "Analytical Forecast Sheets":
         range_labels = [f"M{str(i).zfill(2)}" for i in range(25, 37)]
     else:
         range_labels = [f"M{str(i).zfill(2)}" for i in range(1, 37)]
+
+    # =========================================================================
+    # 🚦 THE REALITY CHECK SCOREBOARD PANEL (SaaS UX HEAVEN)
+    # =========================================================================
+    v_analysis = calculate_industry_variance_analysis(
+        df_pl, range_labels, st.session_state["active_data"].get("sic_meta")
+    )
+    if v_analysis:
+        st.markdown("### 🚦 STRATA Real-World UK Industry Health Check")
+        card_col1, card_col2, card_col3 = st.columns(3)
+
+        with card_col1:
+            gross_delta = v_analysis["gross_var"] * 100
+            status_symbol = (
+                "🟢"
+                if v_analysis["status"] == "Green"
+                else ("🟡" if v_analysis["status"] == "Amber" else "🔴")
+            )
+            st.metric(
+                label=f"{status_symbol} Gross Profit Margin vs Sector Average",
+                value=f"{v_analysis['model_gross']*100:.1f}%",
+                delta=f"{gross_delta:+.1f}% variance vs UK target ({v_analysis['target_gross']*100:.0f}%)",
+            )
+
+        with card_col2:
+            staff_delta = v_analysis["staff_var"] * 100
+            # Staff delta indicator direction inverted (Higher costs are negative delta in score card terms)
+            st.metric(
+                label="👥 Operating Payroll-to-Revenue Ratio",
+                value=f"{v_analysis['model_staff']*100:.1f}%",
+                delta=f"{staff_delta:+.1f}% deviation vs UK target ({v_analysis['target_staff']*100:.0f}%)",
+                delta_color="inverse",
+            )
+
+        with card_col3:
+            st.markdown(
+                "<div style='background-color: #f8f9fa; padding: 12px; border-radius: 6px; border-left: 5px solid #2023d6;'>",
+                unsafe_allow_html=True,
+            )
+            if v_analysis["status"] == "Red":
+                st.markdown(
+                    "**🚨 Critical Sector Variance Alert**\nYour projection metrics deviate significantly from standard UK sector bounds. Review payroll weights or price multipliers."
+                )
+            elif v_analysis["status"] == "Amber":
+                st.markdown(
+                    "**🟡 Minor Operating Variance**\nYour model contains minor operational variances.Ratios are generally stable but tracking closely to threshold boundaries."
+                )
+            else:
+                st.markdown(
+                    "**🟢 Model Aligned to Sector Targets**\nYour structural operational ratios match standard UK commercial parameters. Grounding criteria verified."
+                )
+            st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown("<br>", unsafe_allow_html=True)
 
     exp_col1, exp_col2 = st.columns(2)
     with exp_col1:
