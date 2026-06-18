@@ -1,5 +1,5 @@
 # app.py
-# STRATA SUITE PRODUCTION ENGINE // RESTORED TOTAL CORE SYSTEM v3.6.1-MASTER
+# STRATA SUITE PRODUCTION ENGINE // TOTAL CORE SYSTEM v3.7.0-MASTER
 
 import streamlit as st
 import json
@@ -379,7 +379,14 @@ class CommercialTrialBalanceCuboid:
         )
         return profile[(month_idx - 1) % 12]
 
-    def process_simulation(self, runtime_payload):
+    def process_simulation(
+        self,
+        runtime_payload,
+        revenue_modifier=1.0,
+        opex_modifier=1.0,
+        payroll_modifier=0.0,
+    ):
+        """Processes 60-month multi-year disaggregated tokens with structural What-If multipliers."""
         self.token_pool = []
 
         # Capitalisation Injections
@@ -416,9 +423,9 @@ class CommercialTrialBalanceCuboid:
 
         # Chronological Horizon Loop spanning 5 years
         for m in range(1, 61):
-            # Sales Pipeline
+            # Warped Sales Pipeline
             for sale in runtime_payload.get("sales", []):
-                ann_net = float(sale.get("amount", 0.0))
+                ann_net = float(sale.get("amount", 0.0)) * revenue_modifier
                 profile, debtor_days, vat_app = (
                     sale.get("seasonality", "Flat_Linear"),
                     int(sale.get("debtor_days", 0)),
@@ -448,9 +455,9 @@ class CommercialTrialBalanceCuboid:
                     f"Receipt: {sale.get('name')}",
                 )
 
-            # Overheads Pipeline
+            # Warped Overheads Pipeline
             for opex in runtime_payload.get("opex", []):
-                ann_net_cost = float(opex.get("amount", 0.0))
+                ann_net_cost = float(opex.get("amount", 0.0)) * opex_modifier
                 profile, creditor_days, vat_rec = (
                     opex.get("seasonality", "Flat_Linear"),
                     int(opex.get("creditor_days", 0)),
@@ -485,9 +492,11 @@ class CommercialTrialBalanceCuboid:
                     f"Payment: {opex.get('name')}",
                 )
 
-            # Payroll Pipeline
+            # Warped Payroll Pipeline
             for pay in runtime_payload.get("payroll", []):
-                monthly_gross = float(pay.get("amount", 0.0)) / 12.0
+                monthly_gross = (float(pay.get("amount", 0.0)) / 12.0) * (
+                    1.0 - payroll_modifier
+                )
                 employer_nic = monthly_gross * 0.138
                 paye_deduction = monthly_gross * 0.25
                 self.inject_token(
@@ -757,7 +766,7 @@ class CommercialTrialBalanceCuboid:
 
 
 def calculate_industry_variance_analysis(df_pl, range_labels, target_sic_meta):
-    """Compares simulated financial results with active regional reference guardrails."""
+    """Compares simulated financial results with active reference guardrails."""
     if not target_sic_meta or "gross_margin" not in target_sic_meta:
         return None
 
@@ -784,7 +793,6 @@ def calculate_industry_variance_analysis(df_pl, range_labels, target_sic_meta):
     gross_var = actual_gross - target_sic_meta["gross_margin"]
     staff_var = actual_staff - target_sic_meta["staff_ratio"]
 
-    # Traffic light bounds
     if staff_var > 0.05 or gross_var < -0.05:
         status = "Red"
     elif abs(staff_var) > 0.02 or abs(gross_var) > 0.02:
@@ -891,8 +899,10 @@ class StrataCorporateManagementPack(FPDF):
 # =========================================================================
 
 
-def generate_corporate_intelligence(df_pl, df_cf, df_bs, range_labels):
-    """Transmits the selected multi-year slices through to the Gemini Analytics engine."""
+def generate_corporate_intelligence(
+    df_pl, df_cf, df_bs, range_labels, r_scale, o_scale, p_scale
+):
+    """Transmits active matrix sheets and What-If parameters to the analysis engine."""
     api_key = os.environ.get("GEMINI_API_KEY") or st.secrets.get("GEMINI_API_KEY", None)
     if not api_key:
         return (
@@ -904,18 +914,22 @@ def generate_corporate_intelligence(df_pl, df_cf, df_bs, range_labels):
         compressed_payload = {
             "Selected_P_And_L_Matrix": df_pl[range_labels].to_dict(orient="index"),
             "Selected_Cash_Flow_Matrix": df_cf[range_labels].to_dict(orient="index"),
-            "Selected_Balance_Sheet_Matrix": df_bs[range_labels].to_dict(
-                orient="index"
-            ),
+            "Active_Scenario_Stress_Modifiers": {
+                "Revenue_Scale_Factor": f"{r_scale}%",
+                "Overhead_Cost_Inflation": f"{o_scale}%",
+                "Payroll_Reduction_Threshold": f"{p_scale}%",
+            },
         }
 
         prompt = f"""
-        You are acting as an elite Financial Analyst and Systems Auditor.
-        Review this disaggregated, granular account ledger dataset for the chosen operational horizon:
+        You are acting as an elite Financial Analyst and Systems Auditor specializing in corporate health diagnostics.
+        Review this disaggregated dataset along with the active 'What-If' macro stress-test parameters:
         
         {json.dumps(compressed_payload, indent=2)}
         
-        Provide an executive management pack review using British English spelling. Formulate into these exact sections:
+        Provide a customized strategic management review using British English spelling. 
+        Analyze how their active stress-test adjustments impact long-term runway, viability and safety thresholds. 
+        Formulate into these exact sections:
         ### 🔍 Year-on-Year Operational Growth & Stability Assessment
         ### 🚨 Liquidity Bottlenecks & Credit Vector Risks
         ### 🏛️ Strategic Recommendations for Capital Reservation
@@ -988,12 +1002,12 @@ def process_file_ingestion_callback():
             ]
             
             CRITICAL CLASSIFICATION RULE FOR `vector_type`:
-            - Map all revenue lines (e.g., Court Fees, Room Hire, Café Sales) strictly to "sales".
+            - Map all revenue lines strictly to "sales".
             - Map all operational expenses, purchases, rent, utilities, and insurances strictly to "opex".
-            - Map all wages, staff payroll, and personnel costs (e.g., Canteen Staff, Padel Court Staff) strictly to "payroll".
+            - Map all wages, staff payroll, and personnel costs strictly to "payroll".
             - Map capital asset additions strictly to "capex".
             
-            For 'base_amount', use the annualized total or total value listed for the row. If headers are entirely blank or contain no numerical values, omit them.]
+            For 'base_amount', use the annualized total listed for the row. Omit headers with empty numerical details.]
             """
             contents_input.append(consolidated_prompt)
 
@@ -1205,7 +1219,7 @@ with proj_col3:
         st.toast("🧹 Workspace canvas flushed.")
         st.rerun()
 
-# --- THE "CHANGE INDUSTRY" LINK STRIP FIXED ---
+# --- THE "CHANGE INDUSTRY" LINK STRIP FIXED PANEL ---
 st.markdown(
     "<div style='margin-top: -8px; margin-bottom: 12px;'>", unsafe_allow_html=True
 )
@@ -1217,7 +1231,6 @@ if current_meta:
             f"📊 **Active UK Sector Blueprint Benchmark:** `{current_meta['name']}`"
         )
     with lnk_col:
-        # FIXED: Removed the invalid custom 'small=True' keyword property
         if st.button("🔗 Change Industry Sector", type="secondary"):
             st.session_state["active_data"]["sic_meta"] = None
             st.session_state["onboarding_complete"] = False
@@ -1230,7 +1243,12 @@ st.markdown("</div>", unsafe_allow_html=True)
 st.markdown("---")
 
 # =========================================================================
-# ⚖️ DESK RENDERING LAYOUT HOOKS
+# ⚖ ... CONFIGURING ACTIVE MODIFIERS INITIALIZATION DEFENSIVE BOUNDS ...
+# =========================================================================
+rev_scale, opex_scale, pay_scale = 100, 100, 0
+
+# =========================================================================
+# ⚙️ DESK RENDERING LAYOUT HOOKS
 # =========================================================================
 
 if nav_choice == "Data Workspace":
@@ -1571,8 +1589,55 @@ if nav_choice == "Data Workspace":
 elif nav_choice == "Analytical Forecast Sheets":
     st.title("📊 Synchronized Statement Reporting Canvas")
 
+    # =========================================================================
+    # 🔮 THE INTERACTIVE "WHAT-IF" TIME MACHINE EXPANDER PANEL
+    # =========================================================================
+    with st.expander(
+        "🔮 ACTIVATE STRATEGIC SCENARIO STRESS-TESTING ENGINE", expanded=False
+    ):
+        st.markdown("### 🔮 STRATA // Scenario Time Machine Controls")
+        st.caption(
+            "Adjust the parameters below to see how macro adjustments warp your 3-way cash-runways temporarily."
+        )
+
+        rev_scale = st.slider(
+            "📈 Revenue Factor Pivot (Elasticity / Volume):",
+            min_value=50,
+            max_value=150,
+            value=100,
+            step=5,
+            format="%d%%",
+        )
+        opex_scale = st.slider(
+            "💸 Supply Chain Overhead Burden Shift (Inflation):",
+            min_value=50,
+            max_value=150,
+            value=100,
+            step=5,
+            format="%d%%",
+        )
+        pay_scale = st.slider(
+            "👥 Emergency Headcount / Payroll Compensation Drop:",
+            min_value=0,
+            max_value=80,
+            value=0,
+            step=5,
+            format="%d%%",
+        )
+
+    # Translate visual slider values straight to structural mathematical floats
+    rev_mod = rev_scale / 100.0
+    opex_mod = opex_scale / 100.0
+    pay_mod = pay_scale / 100.0
+
+    # Execute simulation loop containing active modifiers on every dashboard lifecycle run
     cuboid_engine = CommercialTrialBalanceCuboid()
-    cuboid_engine.process_simulation(st.session_state["active_data"])
+    cuboid_engine.process_simulation(
+        st.session_state["active_data"],
+        revenue_modifier=rev_mod,
+        opex_modifier=opex_mod,
+        payroll_modifier=pay_mod,
+    )
 
     df_pl = pd.read_csv("STRATA_Granular_PL.csv", index_col=0)
     df_cf = pd.read_csv("STRATA_Granular_CF.csv", index_col=0)
@@ -1598,6 +1663,9 @@ elif nav_choice == "Analytical Forecast Sheets":
     else:
         range_labels = [f"M{str(i).zfill(2)}" for i in range(1, 37)]
 
+    # =========================================================================
+    # 🚦 THE REALITY CHECK SCOREBOARD PANEL (Warp-Aware)
+    # =========================================================================
     v_analysis = calculate_industry_variance_analysis(
         df_pl, range_labels, st.session_state["active_data"].get("sic_meta")
     )
@@ -1638,7 +1706,7 @@ elif nav_choice == "Analytical Forecast Sheets":
                 )
             elif v_analysis["status"] == "Amber":
                 st.markdown(
-                    "**🟡 Minor Operating Variance**\nYour model contains minor operational variances.Ratios are generally stable but tracking closely to threshold boundaries."
+                    "**🟡 Minor Operating Variance**\nYour model contains minor operational variances. Ratios track close to safety bounds."
                 )
             else:
                 st.markdown(
@@ -1768,8 +1836,9 @@ elif nav_choice == "Analytical Forecast Sheets":
     st.header("🧠 Gemini Corporate Intelligence Desk")
     if st.button("🚀 Synthesize Strategic Executive Report", type="primary"):
         with st.spinner("Processing selected multi-period ledger segments..."):
+            # Handshake the live slider input percentages directly through into the analyst query engine
             st.session_state["cached_report"] = generate_corporate_intelligence(
-                df_pl, df_cf, df_bs, range_labels
+                df_pl, df_cf, df_bs, range_labels, rev_scale, opex_scale, pay_scale
             )
             st.rerun()
 
