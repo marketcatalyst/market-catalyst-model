@@ -164,7 +164,7 @@ with col_n1:
     )
     # Native relative linking routing layout
     st.page_link(
-        "app.py",
+        "pages/app.py",
         label="🚀 Launch Parameter Workspaces Desk",
         use_container_width=True,
     )
