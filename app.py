@@ -1,5 +1,5 @@
 # app.py
-# STRATA SUITE PRODUCTION ENGINE // TOTAL CORE SYSTEM v3.7.1-MASTER
+# STRATA SUITE PRODUCTION ENGINE // TOTAL CORE SYSTEM v3.7.2-MASTER
 
 import streamlit as st
 import json
@@ -1078,11 +1078,10 @@ if "onboarding_complete" not in st.session_state:
 
 sic_library = load_uk_sic_benchmarks()
 
-if (
-    not st.session_state["onboarding_complete"]
-    and st.session_state["active_project_name"] == "Unsaved_Draft_Scenario"
-    and not st.session_state["active_data"].get("sic_meta")
-):
+# ⚡ UNRESTRICTED CORE MIGRATION FOR MULTI-SCENARIO HANDSHAKING
+if not st.session_state.get("onboarding_complete") or not st.session_state[
+    "active_data"
+].get("sic_meta"):
     st.title("🧙‍♂️ STRATA // Canvas Configuration Wizard")
     st.caption("Onboarding Blueprint Registry & Target Guardrail Initialization")
     st.markdown("---")
@@ -1166,7 +1165,7 @@ with proj_col1:
             st.session_state["active_data"] = loaded_payload
             st.session_state["active_project_name"] = selected_option
             st.session_state["cached_document_critique"] = ""
-            # CRITICAL FIX: Automatically flag onboarding complete when loading a pre-saved file from database
+            # Handshake completeness flags automatically on database pull loops
             st.session_state["onboarding_complete"] = True
             st.toast(f"✅ Loaded Blueprint: '{selected_option}'")
             st.rerun()
