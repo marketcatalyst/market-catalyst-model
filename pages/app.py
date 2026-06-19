@@ -1,5 +1,5 @@
 # pages/app.py
-# STRATA SUITE PRODUCTION ENGINE // TOTAL CORE SYSTEM v4.0.3-MASTER
+# STRATA SUITE PRODUCTION ENGINE // TOTAL CORE SYSTEM v4.0.4-MASTER
 
 import streamlit as st
 import json
@@ -12,6 +12,7 @@ from fpdf import FPDF
 import psycopg2
 from psycopg2.extras import RealDictCursor
 import re
+import datetime
 
 # Enforce secure routing context backup check
 if not st.session_state.get("authenticated") or not st.session_state.get(
@@ -1026,7 +1027,7 @@ def process_file_ingestion_callback():
 
 st.title("🛡️ STRATA // Forecast Engineering Workspace")
 st.caption(
-    f"Active Project Blueprint Context: `{st.session_state['active_project_name']}`"
+    f"Active Project Blueprint Context: `{st.session_state.get('active_project_name', 'Unsaved_Draft_Scenario')}`"
 )
 st.page_link("home.py", label="↩️ Exit to Control Command Center")
 st.markdown("---")
@@ -1047,7 +1048,8 @@ with proj_col1:
         options=["-- Select Saved Model Blueprint --"] + available_projects,
         index=(
             0
-            if st.session_state["active_project_name"] == "Unsaved_Draft_Scenario"
+            if st.session_state.get("active_project_name", "Unsaved_Draft_Scenario")
+            == "Unsaved_Draft_Scenario"
             else (
                 available_projects.index(st.session_state["active_project_name"]) + 1
                 if st.session_state["active_project_name"] in available_projects
@@ -1059,7 +1061,7 @@ with proj_col1:
 
     if (
         selected_option != "-- Select Saved Model Blueprint --"
-        and selected_option != st.session_state["active_project_name"]
+        and selected_option != st.session_state.get("active_project_name", "")
     ):
         loaded_payload = pull_project_payload_from_storage(selected_option)
         if loaded_payload:
@@ -1082,10 +1084,15 @@ with proj_col1:
 
 with proj_col2:
     save_input_name = st.text_input(
-        "Name Active Project State:", value=st.session_state["active_project_name"]
+        "Name Active Project State:",
+        value=st.session_state.get("active_project_name", "Unsaved_Draft_Scenario"),
     )
     if st.button("💾 Commit Active State to Storage", use_container_width=True):
-        if save_input_name.strip() and save_input_name != "Unsaved_Draft_Scenario":
+        if (
+            save_input_name.strip()
+            and not save_input_name.strip().startswith("Draft_")
+            and save_input_name != "Unsaved_Draft_Scenario"
+        ):
             write_status = commit_project_payload_to_storage(
                 save_input_name.strip(),
                 st.session_state["active_data"]["sales"],
@@ -1100,10 +1107,15 @@ with proj_col2:
                 st.rerun()
             else:
                 st.error(f"❌ Connection Blocked: {write_status}")
+        else:
+            st.error(
+                "❌ **Naming Constraint:** Please input an explicit production name before saving to relational storage."
+            )
 
 with proj_col3:
     st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
     if st.button("➕ Flush Canvas Instance", use_container_width=True):
+        timestamp_slug = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         st.session_state["active_data"] = {
             "sales": [],
             "opex": [],
@@ -1111,10 +1123,10 @@ with proj_col3:
             "capital": [],
             "sic_meta": None,
         }
-        st.session_state["active_project_name"] = "Unsaved_Draft_Scenario"
+        st.session_state["active_project_name"] = f"Draft_{timestamp_slug}"
         st.session_state["cached_document_critique"] = ""
         st.session_state["onboarding_complete"] = False
-        st.toast("🧹 Workspace canvas flushed.")
+        st.toast("🧹 Workspace canvas flushed with isolated draft ID.")
         st.rerun()
 
 st.markdown("---")
@@ -1136,7 +1148,7 @@ if nav_choice == "Data Workspace":
         st.markdown(st.session_state["cached_document_critique"])
 
     staging_records = extract_staging_schedule_records(
-        st.session_state["active_project_name"]
+        st.session_state.get("active_project_name", "Unsaved_Draft_Scenario")
     )
     if staging_records:
         st.markdown("### 📥 Review Schedule: Ingested Lines Awaiting Verification Gate")
@@ -1694,7 +1706,7 @@ elif nav_choice == "Analytical Forecast Sheets":
             )
         else:
             st.info(
-                "ℹ/️ **Reserves Trend Line:** Chart axis will scale dynamically once cash variance or capital flows are introduced across this period."
+                "ℹ️ **Reserves Trend Line:** Chart axis will scale dynamically once cash variance or capital flows are introduced across this period."
             )
 
     with v_tab3:
