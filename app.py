@@ -1,5 +1,5 @@
 # app.py
-# STRATA SUITE PRODUCTION ENGINE // TOTAL CORE SYSTEM v3.8.0-MASTER
+# STRATA SUITE PRODUCTION ENGINE // TOTAL CORE SYSTEM v4.0.1-MASTER
 
 import streamlit as st
 import json
@@ -12,6 +12,14 @@ from fpdf import FPDF
 import psycopg2
 from psycopg2.extras import RealDictCursor
 import re
+
+# Enforce secure routing context backup check
+if not st.session_state.get("authenticated") or not st.session_state.get(
+    "onboarding_complete"
+):
+    st.warning("⚠️ **Security Intercept:** Route session token context not cleared.")
+    st.page_link("home.py", label="↩️ Return to Access Gateway Portal")
+    st.stop()
 
 # =========================================================================
 # 💾 PERSISTENCE CONTROL LAYER: SERVERLESS NEON POSTGRES PIPELINE
@@ -248,46 +256,6 @@ def purge_staging_record_by_id(staging_id):
 
 # Execute database structure migrations on application load initialization
 execute_database_handshake()
-
-
-# =========================================================================
-# 🏛️ STATIC ASSET REGISTRY: UK SIC CODES REGISTRY LOADER
-# =========================================================================
-
-
-def load_uk_sic_benchmarks():
-    """Reads the static CSV asset registry to provide real-world industry baseline anchors."""
-    csv_path = Path("static_data/sic_benchmarks.csv")
-    if not csv_path.exists():
-        return {
-            "00000": {
-                "name": "Generic SaaS Default Baseline",
-                "gross_margin": 0.50,
-                "staff_ratio": 0.30,
-                "net_margin": 0.07,
-            }
-        }
-    try:
-        df = pd.read_csv(csv_path)
-        benchmarks = {}
-        for _, row in df.iterrows():
-            code_str = str(row["sic_code"]).strip()
-            benchmarks[code_str] = {
-                "name": str(row["industry_description"]).strip(),
-                "gross_margin": float(row["target_gross_margin"]),
-                "staff_ratio": float(row["target_staff_to_rev"]),
-                "net_margin": float(row["avg_net_margin"]),
-            }
-        return benchmarks
-    except Exception:
-        return {
-            "00000": {
-                "name": "Generic SaaS Default Baseline",
-                "gross_margin": 0.50,
-                "staff_ratio": 0.30,
-                "net_margin": 0.07,
-            }
-        }
 
 
 # =========================================================================
@@ -909,7 +877,6 @@ def generate_corporate_intelligence(
     try:
         genai.configure(api_key=api_key)
 
-        # FIX (Matrix Duplication bug): Aggregating identical index labels before dict extraction
         compressed_payload = {
             "Selected_P_And_L_Matrix": df_pl[range_labels]
             .groupby(level=0)
@@ -940,7 +907,6 @@ def generate_corporate_intelligence(
         ### 🏛️ Strategic Recommendations for Capital Reservation
         """
 
-        # FIX (404 Path bug): Canonical identifier naming applied directly to Gemini 2.5 architecture
         model = genai.GenerativeModel("gemini-2.5-flash")
         response = model.generate_content(prompt)
         return response.text
@@ -991,8 +957,6 @@ def process_file_ingestion_callback():
                 contents_input.append(doc_payload)
 
             genai.configure(api_key=api_key)
-
-            # FIX (404 Path bug): Canonical identifier naming applied directly
             model = genai.GenerativeModel("gemini-2.5-flash")
 
             consolidated_prompt = f"""
@@ -1057,132 +1021,20 @@ def process_file_ingestion_callback():
 
 
 # =========================================================================
-# 🔄 INITIALIZE STATE LOGIC CONTROL RUNTIME ARRAYS
+# 🎛️ MAIN WORKSPACE PARAMETERS CANVAS
 # =========================================================================
 
-if "active_data" not in st.session_state:
-    st.session_state["active_data"] = {
-        "sales": [],
-        "opex": [],
-        "payroll": [],
-        "capital": [],
-        "sic_meta": None,
-    }
-
-if "cached_report" not in st.session_state:
-    st.session_state["cached_report"] = ""
-
-if "cached_document_critique" not in st.session_state:
-    st.session_state["cached_document_critique"] = ""
-
-if "active_project_name" not in st.session_state:
-    st.session_state["active_project_name"] = "Unsaved_Draft_Scenario"
-
-if "onboarding_complete" not in st.session_state:
-    st.session_state["onboarding_complete"] = False
-
-if "authenticated" not in st.session_state:
-    st.session_state["authenticated"] = False
-
-
-# =========================================================================
-# 🔐 PRIMARY AUTHENTICATION SECURITY LAYER: PASSPHRASE CHECK GATE
-# =========================================================================
-
-if not st.session_state["authenticated"]:
-    st.title("🛡️ STRATA SUITE // Secure Access Gateway")
-    st.caption("Forecasting Digital Twin Platform Isolation Layer")
-    st.markdown("---")
-
-    st.markdown(
-        "##### Please authenticate with your secure organizational credential keys to open your project simulation desks:"
-    )
-
-    with st.form("auth_gate_form"):
-        entered_passphrase = st.text_input(
-            "Environmental Passphrase Key Target:", type="password"
-        )
-        submit_auth = st.form_submit_button("🔑 Unlock Forecasting Workspaces")
-
-        if submit_auth:
-            if entered_passphrase.strip() == "strata-catalyst-2026":
-                st.session_state["authenticated"] = True
-                st.toast("🔑 Authentication Verified. Core systems un-isolated.")
-                st.rerun()
-            else:
-                st.error(
-                    "❌ **Access Denied:** Invalid organizational passphrase target credentials."
-                )
-    st.stop()
-
-
-# =========================================================================
-# 🧙‍♂️ INTERSTITIAL ONBOARDING WIZARD GATEWAY
-# =========================================================================
-
-sic_library = load_uk_sic_benchmarks()
-
-# ⚡ UNRESTRICTED CORE MIGRATION FOR MULTI-SCENARIO HANDSHAKING
-if not st.session_state.get("onboarding_complete") or not st.session_state[
-    "active_data"
-].get("sic_meta"):
-    st.title("🧙‍♂️ STRATA // Canvas Configuration Wizard")
-    st.caption("Onboarding Blueprint Registry & Target Guardrail Initialization")
-    st.markdown("---")
-
-    st.markdown(
-        "##### Welcome to STRATA. To tailor your financial simulation layout, please select your primary business classification sector below:"
-    )
-
-    industry_options = [
-        f"{code} - {meta['name']}" for code, meta in sic_library.items()
-    ]
-    selected_wizard_sector = st.selectbox(
-        "Target UK Industry Sector (SIC Library Registry):",
-        options=["-- Click to Expand Official UK Sector Registries --"]
-        + industry_options,
-    )
-
-    st.markdown("<br>", unsafe_allow_html=True)
-    with st.expander("ℹ️ Why is this requested?", expanded=True):
-        st.info(
-            "Selecting a sector automatically arms your background analytics package. Your forecast outputs will be "
-            "actively cross-referenced against authentic UK financial averages for gross margins and staffing thresholds, "
-            "providing non-accounting users an instant visual 'Reality Check'."
-        )
-
-    if st.button(
-        "🚀 Prime Operational Forecast Canvas", type="primary", use_container_width=True
-    ):
-        if (
-            selected_wizard_sector
-            != "-- Click to Expand Official UK Sector Registries --"
-        ):
-            chosen_code = selected_wizard_sector.split(" - ")[0]
-            st.session_state["active_data"]["sic_meta"] = sic_library[chosen_code]
-            st.session_state["onboarding_complete"] = True
-            st.toast(f"🎯 Loaded Baseline Target: {sic_library[chosen_code]['name']}")
-            st.rerun()
-        else:
-            st.warning(
-                "⚠️ Please select a valid classification profile to activate your parameters canvas."
-            )
-    st.stop()
-
-
-# =========================================================================
-# 🎛️ MAIN WORKSPACE DESK AND SIDEBAR LAYOUT ROUTING
-# =========================================================================
-
-st.sidebar.title("🛡️ STRATA // Vector Suite")
-nav_choice = st.sidebar.radio(
-    "Navigate Desks:", options=["Data Workspace", "Analytical Forecast Sheets"]
+st.title("🛡️ STRATA // Forecast Engineering Workspace")
+st.caption(
+    f"Active Project Blueprint Context: `{st.session_state['active_project_name']}`"
 )
+st.page_link("home.py", label="↩️ Exit to Control Command Center")
+st.markdown("---")
 
-if st.sidebar.button("🚪 Log Out of Session", use_container_width=True):
-    st.session_state["authenticated"] = False
-    st.session_state["onboarding_complete"] = False
-    st.rerun()
+nav_choice = st.radio(
+    "Navigate Canvas Desks:", options=["Data Workspace", "Analytical Forecast Sheets"]
+)
+st.markdown("---")
 
 # Persistence registry panel
 st.markdown("### 🗂️ Neon Serverless Project Registry Persistence")
@@ -1215,7 +1067,7 @@ with proj_col1:
             st.session_state["active_project_name"] = selected_option
             st.session_state["cached_document_critique"] = ""
 
-            # FIX: If the loaded project missing an industry meta baseline array, attach the default profile
+            # Guard: Attach target baseline parameters if missing from loaded schema arrays
             if not st.session_state["active_data"].get("sic_meta"):
                 st.session_state["active_data"]["sic_meta"] = {
                     "name": "Generic SaaS Default Baseline",
@@ -1224,7 +1076,6 @@ with proj_col1:
                     "net_margin": 0.07,
                 }
 
-            # Handshake completeness flags automatically on database pull loops to skip config wizard
             st.session_state["onboarding_complete"] = True
             st.toast(f"✅ Loaded Blueprint: '{selected_option}'")
             st.rerun()
@@ -1245,26 +1096,14 @@ with proj_col2:
             )
             if write_status == "SUCCESS":
                 st.session_state["active_project_name"] = save_input_name.strip()
-                st.toast(
-                    f"Locked configuration packet: '{save_input_name}' to SQL records."
-                )
+                st.toast(f"Locked configuration packet: '{save_input_name}'")
                 st.rerun()
-            elif write_status == "MISSING_CREDENTIALS":
-                st.error(
-                    "❌ Configuration Error: Environment 'DATABASE_URL' target variable is not defined."
-                )
             else:
                 st.error(f"❌ Connection Blocked: {write_status}")
-        else:
-            st.warning(
-                "⚠️ Provide a distinct scenario identifier name before committing."
-            )
 
 with proj_col3:
     st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
-    if st.button(
-        "➕ Initialize Clean Canvas", type="secondary", use_container_width=True
-    ):
+    if st.button("➕ Flush Canvas Instance", use_container_width=True):
         st.session_state["active_data"] = {
             "sales": [],
             "opex": [],
@@ -1278,41 +1117,9 @@ with proj_col3:
         st.toast("🧹 Workspace canvas flushed.")
         st.rerun()
 
-# --- THE "CHANGE INDUSTRY" LINK STRIP FIXED PANEL ---
-st.markdown(
-    "<div style='margin-top: -8px; margin-bottom: 12px;'>", unsafe_allow_html=True
-)
-current_meta = st.session_state["active_data"].get("sic_meta")
-if current_meta:
-    lbl_col, lnk_col = st.columns([6, 5])
-    with lbl_col:
-        st.markdown(
-            f"📊 **Active UK Sector Blueprint Benchmark:** `{current_meta['name']}`"
-        )
-    with lnk_col:
-        if st.button("🔗 Change Industry Sector", type="secondary"):
-            st.session_state["active_data"]["sic_meta"] = None
-            st.session_state["onboarding_complete"] = False
-            st.rerun()
-else:
-    lbl_col, lnk_col = st.columns([6, 5])
-    with lbl_col:
-        st.markdown("⚠️ **Active UK Sector Blueprint Benchmark:** `None Assigned`")
-    with lnk_col:
-        if st.button("🔗 Launch Alignment Wizard", type="secondary"):
-            st.session_state["onboarding_complete"] = False
-            st.rerun()
-st.markdown("</div>", unsafe_allow_html=True)
 st.markdown("---")
 
-# =========================================================================
-# ⚖ CONFIGURING ACTIVE MODIFIERS INITIALIZATION DEFENSIVE BOUNDS
-# =========================================================================
 rev_scale, opex_scale, pay_scale = 100, 100, 0
-
-# =========================================================================
-# ⚙️ DESK RENDERING LAYOUT HOOKS
-# =========================================================================
 
 if nav_choice == "Data Workspace":
     st.title("✍️ Parameter Aggregation Workspace")
@@ -1876,7 +1683,7 @@ elif nav_choice == "Analytical Forecast Sheets":
         # Extract cash series cleanly
         cash_series = df_cf.iloc[3][range_labels].astype(float)
 
-        # Safeguard against uninitialized empty loops or Infinite axis crashes (Variance boundary analysis checks)
+        # Safeguard against uninitialized empty loops or Infinite axis crashes
         if not cash_series.empty and cash_series.min() != cash_series.max():
             st.line_chart(
                 pd.DataFrame(
