@@ -1,5 +1,5 @@
 # app.py
-# STRATA SUITE PRODUCTION ENGINE // TOTAL CORE SYSTEM v3.7.2-MASTER
+# STRATA SUITE PRODUCTION ENGINE // TOTAL CORE SYSTEM v3.8.0-MASTER
 
 import streamlit as st
 import json
@@ -940,7 +940,7 @@ def generate_corporate_intelligence(
         ### 🏛️ Strategic Recommendations for Capital Reservation
         """
 
-        # FIX (404 Path bug): Canonical identifier naming applied directly
+        # FIX (404 Path bug): Canonical identifier naming applied directly to Gemini 2.5 architecture
         model = genai.GenerativeModel("gemini-2.5-flash")
         response = model.generate_content(prompt)
         return response.text
@@ -1081,6 +1081,41 @@ if "active_project_name" not in st.session_state:
 if "onboarding_complete" not in st.session_state:
     st.session_state["onboarding_complete"] = False
 
+if "authenticated" not in st.session_state:
+    st.session_state["authenticated"] = False
+
+
+# =========================================================================
+# 🔐 PRIMARY AUTHENTICATION SECURITY LAYER: PASSPHRASE CHECK GATE
+# =========================================================================
+
+if not st.session_state["authenticated"]:
+    st.title("🛡️ STRATA SUITE // Secure Access Gateway")
+    st.caption("Forecasting Digital Twin Platform Isolation Layer")
+    st.markdown("---")
+
+    st.markdown(
+        "##### Please authenticate with your secure organizational credential keys to open your project simulation desks:"
+    )
+
+    with st.form("auth_gate_form"):
+        entered_passphrase = st.text_input(
+            "Environmental Passphrase Key Target:", type="password"
+        )
+        submit_auth = st.form_submit_button("🔑 Unlock Forecasting Workspaces")
+
+        if submit_auth:
+            if entered_passphrase.strip() == "strata-catalyst-2026":
+                st.session_state["authenticated"] = True
+                st.toast("🔑 Authentication Verified. Core systems un-isolated.")
+                st.rerun()
+            else:
+                st.error(
+                    "❌ **Access Denied:** Invalid organizational passphrase target credentials."
+                )
+    st.stop()
+
+
 # =========================================================================
 # 🧙‍♂️ INTERSTITIAL ONBOARDING WIZARD GATEWAY
 # =========================================================================
@@ -1144,6 +1179,11 @@ nav_choice = st.sidebar.radio(
     "Navigate Desks:", options=["Data Workspace", "Analytical Forecast Sheets"]
 )
 
+if st.sidebar.button("🚪 Log Out of Session", use_container_width=True):
+    st.session_state["authenticated"] = False
+    st.session_state["onboarding_complete"] = False
+    st.rerun()
+
 # Persistence registry panel
 st.markdown("### 🗂️ Neon Serverless Project Registry Persistence")
 proj_col1, proj_col2, proj_col3 = st.columns([4, 4, 3])
@@ -1174,7 +1214,17 @@ with proj_col1:
             st.session_state["active_data"] = loaded_payload
             st.session_state["active_project_name"] = selected_option
             st.session_state["cached_document_critique"] = ""
-            # Handshake completeness flags automatically on database pull loops
+
+            # FIX: If the loaded project missing an industry meta baseline array, attach the default profile
+            if not st.session_state["active_data"].get("sic_meta"):
+                st.session_state["active_data"]["sic_meta"] = {
+                    "name": "Generic SaaS Default Baseline",
+                    "gross_margin": 0.50,
+                    "staff_ratio": 0.30,
+                    "net_margin": 0.07,
+                }
+
+            # Handshake completeness flags automatically on database pull loops to skip config wizard
             st.session_state["onboarding_complete"] = True
             st.toast(f"✅ Loaded Blueprint: '{selected_option}'")
             st.rerun()
