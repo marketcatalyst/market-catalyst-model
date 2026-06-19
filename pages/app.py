@@ -1,5 +1,5 @@
 # pages/app.py
-# STRATA SUITE PRODUCTION ENGINE // TOTAL CORE SYSTEM v4.0.2-MASTER
+# STRATA SUITE PRODUCTION ENGINE // TOTAL CORE SYSTEM v4.0.3-MASTER
 
 import streamlit as st
 import json
@@ -1131,7 +1131,7 @@ if nav_choice == "Data Workspace":
         on_change=process_file_ingestion_callback,
     )
 
-    if st.session_state["cached_document_critique"]:
+    if st.session_state.get("cached_document_critique", ""):
         st.info("📊 **Gemini Document Architecture Diagnostic Report**")
         st.markdown(st.session_state["cached_document_critique"])
 
@@ -1694,7 +1694,7 @@ elif nav_choice == "Analytical Forecast Sheets":
             )
         else:
             st.info(
-                "ℹ️ **Reserves Trend Line:** Chart axis will scale dynamically once cash variance or capital flows are introduced across this period."
+                "ℹ/️ **Reserves Trend Line:** Chart axis will scale dynamically once cash variance or capital flows are introduced across this period."
             )
 
     with v_tab3:
@@ -1714,5 +1714,5 @@ elif nav_choice == "Analytical Forecast Sheets":
             )
             st.rerun()
 
-    if st.session_state["cached_report"]:
+    if st.session_state.get("cached_report", ""):
         st.markdown(st.session_state["cached_report"])
