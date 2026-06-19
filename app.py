@@ -909,8 +909,14 @@ def generate_corporate_intelligence(
     try:
         genai.configure(api_key=api_key)
         compressed_payload = {
-            "Selected_P_And_L_Matrix": df_pl[range_labels].to_dict(orient="index"),
-            "Selected_Cash_Flow_Matrix": df_cf[range_labels].to_dict(orient="index"),
+            "Selected_P_And_L_Matrix": df_pl[range_labels]
+            .groupby(level=0)
+            .sum()
+            .to_dict(orient="index"),
+            "Selected_Cash_Flow_Matrix": df_cf[range_labels]
+            .groupby(level=0)
+            .sum()
+            .to_dict(orient="index"),
             "Active_Scenario_Stress_Modifiers": {
                 "Revenue_Scale_Factor": f"{r_scale}%",
                 "Overhead_Cost_Inflation": f"{o_scale}%",
