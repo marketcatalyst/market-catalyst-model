@@ -380,7 +380,7 @@ class CommercialTrialBalanceCuboid:
         self,
         runtime_payload,
         revenue_modifier=1.0,
-        opepex_modifier=1.0,
+        opex_modifier=1.0,
         payroll_modifier=0.0,
     ):
         """Processes 60-month multi-year disaggregated tokens with structural What-If multipliers."""
@@ -454,7 +454,7 @@ class CommercialTrialBalanceCuboid:
 
             # Warped Overheads Pipeline
             for opex in runtime_payload.get("opex", []):
-                ann_net_cost = float(opex.get("amount", 0.0)) * opepex_modifier
+                ann_net_cost = float(opex.get("amount", 0.0)) * opex_modifier
                 profile, creditor_days, vat_rec = (
                     opex.get("seasonality", "Flat_Linear"),
                     int(opex.get("creditor_days", 0)),
