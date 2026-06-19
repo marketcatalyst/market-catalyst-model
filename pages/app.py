@@ -1,5 +1,5 @@
 # pages/app.py
-# STRATA SUITE PRODUCTION ENGINE // TOTAL CORE SYSTEM v4.0.4-MASTER
+# STRATA SUITE PRODUCTION ENGINE // TOTAL CORE SYSTEM v4.0.5-MASTER
 
 import streamlit as st
 import json
@@ -564,10 +564,13 @@ class CommercialTrialBalanceCuboid:
             ]
         )
         df_pl = pd.DataFrame(0.0, index=pl_index, columns=self.months)
+
+        # FIXED TABLE DESCRIPTIONS: Isolate customer receipts from capital injections cleanly
         df_cf = pd.DataFrame(
             0.0,
             index=[
-                "Operational Cash Inflows (£)",
+                "Customer Trading Receipts (£)",
+                "Capital & Financing Injections (£)",
                 "Operational Cash Outflows (£)",
                 "Net Cash Movement (£)",
                 "Cash Reserves (£)",
@@ -634,12 +637,22 @@ class CommercialTrialBalanceCuboid:
 
             for t in self.token_pool:
                 if t.month_label == m_label:
+                    # Map customer debtors collections strictly to Trading Receipts
+                    if (
+                        t.debit_acct == "BS_Asset_Cash"
+                        and t.credit_acct == "BS_Asset_Debtors"
+                    ):
+                        df_cf.at["Customer Trading Receipts (£)", m_label] += t.amount
+
+                    # Map structural rounds/debts cleanly to Capital Injections
                     if t.debit_acct == "BS_Asset_Cash" and t.credit_acct in [
-                        "BS_Asset_Debtors",
                         "BS_Equity_Share_Capital",
                         "BS_Liability_Long_Term_Debt",
                     ]:
-                        df_cf.at["Operational Cash Inflows (£)", m_label] += t.amount
+                        df_cf.at[
+                            "Capital & Financing Injections (£)", m_label
+                        ] += t.amount
+
                     if t.credit_acct == "BS_Asset_Cash" and t.debit_acct in [
                         "BS_Liability_Creditors",
                         "BS_Asset_Fixed_Assets",
@@ -650,7 +663,8 @@ class CommercialTrialBalanceCuboid:
                         df_cf.at["Operational Cash Outflows (£)", m_label] += t.amount
 
             df_cf.at["Net Cash Movement (£)", m_label] = (
-                df_cf.at["Operational Cash Inflows (£)", m_label]
+                df_cf.at["Customer Trading Receipts (£)", m_label]
+                + df_cf.at["Capital & Financing Injections (£)", m_label]
                 - df_cf.at["Operational Cash Outflows (£)", m_label]
             )
             df_cf.at["Cash Reserves (£)", m_label] = (
@@ -1480,7 +1494,7 @@ elif nav_choice == "Analytical Forecast Sheets":
         )
 
         rev_scale = st.slider(
-            "📈 Revenue Factor Pivot (Elasticity / Volume):",
+            "📈 Revenue Factor Pivot (Elastic / Volume):",
             min_value=50,
             max_value=150,
             value=100,
@@ -1693,7 +1707,7 @@ elif nav_choice == "Analytical Forecast Sheets":
         )
 
         # Extract cash series cleanly
-        cash_series = df_cf.iloc[3][range_labels].astype(float)
+        cash_series = df_cf.iloc[4][range_labels].astype(float)
 
         # Safeguard against uninitialized empty loops or Infinite axis crashes
         if not cash_series.empty and cash_series.min() != cash_series.max():
