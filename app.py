@@ -1697,7 +1697,6 @@ elif nav_choice == "Analytical Forecast Sheets":
                 label="👥 Operating Payroll-to-Revenue Ratio",
                 value=f"{v_analysis['model_staff']*100:.1f}%",
                 delta=f"{staff_delta:+.1f}% deviation vs UK target ({v_analysis['target_staff']*100:.0f}%)",
-                delta_color="inverse",
             )
 
         with card_col3:
