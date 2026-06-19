@@ -1,5 +1,5 @@
 # pages/app.py
-# STRATA SUITE PRODUCTION ENGINE // TOTAL CORE SYSTEM v4.2.0-MASTER
+# STRATA SUITE PRODUCTION ENGINE // TOTAL CORE SYSTEM v4.3.0-MASTER
 
 import streamlit as st
 import json
@@ -145,6 +145,90 @@ def pull_project_payload_from_storage(project_name):
     return None
 
 
+# =========================================================================
+# 📥 STAGING LAYER PIPELINES: INGESTION BACK-END ENGINE HOOKS
+# =========================================================================
+
+
+def stage_unverified_ingestion_line(
+    project_name,
+    v_type,
+    origin,
+    name,
+    amount,
+    seasonality="Flat_Linear",
+    delay=0,
+    vat=True,
+):
+    conn = get_database_connection()
+    if conn and not isinstance(conn, str):
+        try:
+            with conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        INSERT INTO strata_staging_inputs 
+                        (project_name, vector_type, source_origin, line_name, base_amount, seasonality_profile, terms_delay_days, vat_applicable, is_approved)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, FALSE);
+                    """,
+                        (
+                            str(project_name).strip(),
+                            str(v_type).strip(),
+                            str(origin).strip(),
+                            str(name).strip(),
+                            float(amount),
+                            str(seasonality).strip(),
+                            int(delay),
+                            bool(vat),
+                        ),
+                    )
+            conn.close()
+            return True
+        except Exception:
+            pass
+    return False
+
+
+def extract_staging_schedule_records(project_name):
+    conn = get_database_connection()
+    if conn and not isinstance(conn, str):
+        try:
+            with conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    cur.execute(
+                        """
+                        SELECT * FROM strata_staging_inputs 
+                        WHERE project_name = %s AND is_approved = FALSE 
+                        ORDER BY staging_id ASC;
+                    """,
+                        (project_name,),
+                    )
+                    rows = cur.fetchall()
+            conn.close()
+            return rows
+        except Exception:
+            pass
+    return []
+
+
+def purge_entire_staging_by_project(project_name):
+    """Deletes all temporary staging entries once batch migration finishes."""
+    conn = get_database_connection()
+    if conn and not isinstance(conn, str):
+        try:
+            with conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "DELETE FROM strata_staging_inputs WHERE project_name = %s;",
+                        (project_name,),
+                    )
+            conn.close()
+            return True
+        except Exception:
+            pass
+    return False
+
+
 execute_database_handshake()
 
 
@@ -283,7 +367,6 @@ class CommercialTrialBalanceCuboid:
                     sale.get("vat_applicable", True),
                 )
 
-                # Check for direct override tracking array
                 if profile == "Manual_Direct_Override" and "overrides" in sale:
                     monthly_net = (
                         float(sale["overrides"].get(f"M{str(m).zfill(2)}", 0.0))
@@ -824,6 +907,109 @@ def generate_corporate_intelligence(
 
 
 # =========================================================================
+# 🎛️ CONSOLIDATED SINGLE-CALL MULTIMODAL INGESTION SUITE
+# =========================================================================
+
+
+def process_file_ingestion_callback():
+    """Autonomous AI core scraper mapping scraped values directly to tabular validation indexes."""
+    uploaded_file = st.session_state.get("file_ingestion_key")
+    if uploaded_file is not None:
+        origin_tag = f"AI Ingested: {uploaded_file.name}"
+        active_proj = st.session_state.get(
+            "active_project_name", "Unsaved_Draft_Scenario"
+        )
+        api_key = os.environ.get("GEMINI_API_KEY") or st.secrets.get(
+            "GEMINI_API_KEY", None
+        )
+
+        if not api_key:
+            return
+
+        try:
+            file_ext = uploaded_file.name.split(".")[-1].lower()
+            contents_input = []
+
+            if file_ext in ["csv", "xlsx"]:
+                if file_ext == "csv":
+                    doc_payload = pd.read_csv(uploaded_file).to_string()
+                else:
+                    doc_payload = pd.read_excel(
+                        uploaded_file, engine="openpyxl"
+                    ).to_string()
+                contents_input.append(doc_payload)
+            elif file_ext == "pdf":
+                pdf_data = uploaded_file.read()
+                contents_input.append(
+                    {"mime_type": "application/pdf", "data": pdf_data}
+                )
+            else:
+                doc_payload = str(uploaded_file.read())
+                contents_input.append(doc_payload)
+
+            genai.configure(api_key=api_key)
+            model = genai.GenerativeModel("gemini-2.5-flash")
+
+            consolidated_prompt = f"""
+            You are a Principal Financial Systems Auditor and Data Engineer specializing in UK corporate double-entry software structures.
+            Analyze this uploaded forecast statement document carefully.
+            
+            Execute two specific extraction directives simultaneously. Formulate your output text exactly like this template:
+            
+            --- AUDIT SUMMARY ---
+            [Provide a 3-bullet evaluation in British English analyzing layout clarity, entity context, and named structures like Turnover, Overheads or Direct Costs vs data anomalies.]
+            
+            --- DATA MATRIX ARRAY ---
+            [Extract all financial lines into a strict JSON list of objects matching this formatting model:
+            [
+              {{"vector_type": "sales", "line_name": "Court Fees", "base_amount": 280608.0, "seasonality_profile": "Flat_Linear", "terms_delay_days": 0, "vat_applicable": true}}
+            ]
+            
+            CRITICAL CLASSIFICATION RULE FOR `vector_type`:
+            - Map all revenue lines strictly to "sales".
+            - Map all operational expenses, purchases, rent, utilities, and insurances strictly to "opex".
+            - Map all wages, staff payroll, and personnel costs strictly to "payroll".
+            - Map capital asset additions strictly to "capex".
+            
+            For 'base_amount', use the annualized total listed for the row. Omit headers with empty numerical details.]
+            """
+            contents_input.append(consolidated_prompt)
+
+            raw_response = model.generate_content(contents_input).text
+            split_tokens = raw_response.split("--- DATA MATRIX ARRAY ---")
+            st.session_state["cached_document_critique"] = (
+                split_tokens[0].replace("--- AUDIT SUMMARY ---", "").strip()
+            )
+
+            if len(split_tokens) > 1:
+                match = re.search(r"\[.*\]", split_tokens[1], re.DOTALL)
+                if match:
+                    clean_json = match.group(0).strip()
+                    parsed_vectors = json.loads(clean_json)
+                    for vec in parsed_vectors:
+                        extracted_season = (
+                            vec.get("seasonality_profile")
+                            or vec.get("seasonality")
+                            or "Flat_Linear"
+                        )
+                        extracted_delay = (
+                            vec.get("terms_delay_days") or vec.get("delay_days") or 0
+                        )
+                        stage_unverified_ingestion_line(
+                            project_name=active_proj,
+                            v_type=vec.get("vector_type", "opex"),
+                            origin=origin_tag,
+                            name=vec.get("line_name", "AI Scraped Parameter"),
+                            amount=float(vec.get("base_amount", 0.0)),
+                            seasonality=extracted_season,
+                            delay=int(extracted_delay),
+                            vat=bool(vec.get("vat_applicable", True)),
+                        )
+        except Exception:
+            pass
+
+
+# =========================================================================
 # 🗛 DATA COMPILATION TRANSFORMERS FOR EDITABLE DATA FRAMES
 # =========================================================================
 
@@ -901,10 +1087,8 @@ def build_dataframe_from_state(state_dict):
 
 
 def commit_dataframe_to_state(df, prior_state):
-    """De-serializes tabular rows while safely preserving sub-nested manual direct overrides maps."""
     new_state = {"sales": [], "opex": [], "payroll": [], "capital": []}
 
-    # Build reference lookup maps out of prior arrays to safeguard direct entries
     prior_sales_lookup = {
         s["name"]: s.get("overrides", {}) for s in prior_state.get("sales", [])
     }
@@ -955,7 +1139,12 @@ def commit_dataframe_to_state(df, prior_state):
                 "equity": "Equity Capital / Share Premium Injection",
             }
             new_state["capital"].append(
-                {"name": lbl, "type": t_map[v_type], "value": amt, "month": month}
+                {
+                    "name": lbl,
+                    "type": t_map[v_type],
+                    "value": amt,
+                    "month": month,
+                }
             )
 
     return new_state
@@ -1065,12 +1254,64 @@ rev_scale, opex_scale, pay_scale = 100, 100, 0
 
 if nav_choice == "Data Workspace":
     st.title("✍️ Tabular Trial Balance Ingestion Desk")
-    st.caption(
-        "Paste, append, or modify rows directly in the unified matrix ledger below."
+
+    # Autonomous Ingestion Module Hook Block
+    st.header("📥 Autonomous AI Extraction & Ingestion Gate")
+    st.file_uploader(
+        "Upload Unstructured Operational Document:",
+        type=["pdf", "csv", "xlsx"],
+        key="file_ingestion_key",
+        on_change=process_file_ingestion_callback,
     )
 
-    df_input_source = build_dataframe_from_state(st.session_state["active_data"])
+    if st.session_state.get("cached_document_critique", ""):
+        with st.info("📊 **Gemini Document Architecture Diagnostic Report**"):
+            st.markdown(st.session_state["cached_document_critique"])
 
+    # Pull staging vectors waiting for tabular migration merge
+    active_project_slug = st.session_state.get(
+        "active_project_name", "Unsaved_Draft_Scenario"
+    )
+    staging_records = extract_staging_schedule_records(active_project_slug)
+
+    if staging_records:
+        st.markdown("### 🔮 STAGING BATCH: AI Extracted Vectors Pending Schedule Merge")
+        st.caption(
+            "The following items were parsed by the extraction engine. Review or modify them in the batch array editor below before committing."
+        )
+
+        # Transmute backend Postgres staging schema rows into temporary frontend data frames columns mapping structures
+        staged_rows = []
+        for item in staging_records:
+            v_clean = item["vector_type"]
+            if v_clean not in [
+                "sales",
+                "opex",
+                "payroll",
+                "capex",
+                "debt",
+                "equity",
+            ]:
+                v_clean = "opex"
+            staged_rows.append(
+                {
+                    "Line Identifier Description": item["line_name"],
+                    "Vector Type": v_clean,
+                    "Annualized Baseline (£)": float(item["base_amount"]),
+                    "Seasonality Curve Profile": item.get(
+                        "seasonality_profile", "Flat_Linear"
+                    ),
+                    "Terms Delay (Days)": int(item["terms_delay_days"]),
+                    "VAT Applicable?": bool(item["vat_applicable"]),
+                    "Horizon Month (CapEx)": 1,
+                }
+            )
+        df_base_pool = pd.DataFrame(staged_rows)
+    else:
+        # If no fresh document was uploaded, fall back to compiling whatever is inside active session memory handles
+        df_base_pool = build_dataframe_from_state(st.session_state["active_data"])
+
+    st.markdown("### ✍️ Production Model Ledger Workspace Grid")
     column_rules = {
         "Line Identifier Description": st.column_config.TextColumn(
             "Account Ledger Identifier Description", required=True, width="large"
@@ -1102,16 +1343,14 @@ if nav_choice == "Data Workspace":
     }
 
     edited_dataframe = st.data_editor(
-        df_input_source,
+        df_base_pool,
         column_config=column_rules,
         num_rows="dynamic",
         use_container_width=True,
         key="batch_data_editor_grid",
     )
 
-    # =========================================================================
-    # 🎚️ DISAGGREGATED DIRECT INTERCEPT OVERRIDES MATRIX PANEL
-    # =========================================================================
+    # 60-Month Override Panels Hook Frame Loop block
     override_sales_rows = edited_dataframe[edited_dataframe["Vector Type"] == "sales"]
     override_opex_rows = edited_dataframe[edited_dataframe["Vector Type"] == "opex"]
 
@@ -1125,20 +1364,18 @@ if nav_choice == "Data Workspace":
     if not manual_sales_targets.empty or not manual_opex_targets.empty:
         st.markdown("---")
         with st.expander(
-            "📅 60-Month Granular Rolling Ledger Input Matrix Desks", expanded=True
+            "📅 60-Month Granular Rolling Ledger Input Matrix Desks",
+            expanded=True,
         ):
             st.info(
                 "💡 **Rolling Ledger Input Matrix Active:** Enter month-by-month values below for accounts set to 'Manual_Direct_Override'."
             )
-
-            # Formulate 60 month wide headers schema
             month_labels = [f"M{str(i).zfill(2)}" for i in range(1, 61)]
 
             for _, r in manual_sales_targets.iterrows():
                 lbl = str(r["Line Identifier Description"]).strip()
                 if lbl:
                     st.write(f"📈 **Revenue Overrides Vector: `{lbl}`**")
-                    # Locate existing cache array or build flat skeleton mesh
                     matching_item = next(
                         (
                             s
@@ -1163,7 +1400,6 @@ if nav_choice == "Data Workspace":
                         key=f"override_sales_grid_{lbl}",
                         use_container_width=False,
                     )
-                    # Sync back row modifications directly to memory buffer state thread hooks
                     if matching_item:
                         matching_item["overrides"] = edited_override.iloc[0].to_dict()
 
@@ -1229,11 +1465,12 @@ if nav_choice == "Data Workspace":
                 "capital"
             ]
 
-            if st.session_state["active_project_name"] and not st.session_state[
-                "active_project_name"
-            ].startswith("Draft_"):
+            # Clear temporary database staging tables once records migrated safely into session memory arrays handles
+            purge_entire_staging_by_project(active_project_slug)
+
+            if active_project_slug and not active_project_slug.startswith("Draft_"):
                 commit_project_payload_to_storage(
-                    st.session_state["active_project_name"],
+                    active_project_slug,
                     st.session_state["active_data"]["sales"],
                     st.session_state["active_data"]["opex"],
                     st.session_state["active_data"]["payroll"],
@@ -1242,7 +1479,7 @@ if nav_choice == "Data Workspace":
                 )
 
             st.toast(
-                "⚡ Master ledger batch array ingested successfully with granular month elements!"
+                "⚡ Master ledger batch array ingested successfully with granular document vectors!"
             )
             st.rerun()
 
@@ -1254,7 +1491,12 @@ elif nav_choice == "Analytical Forecast Sheets":
     ):
         st.markdown("### 🔮 STRATA // Scenario Time Machine Controls")
         rev_scale = st.slider(
-            "📈 Revenue Factor Pivot (Elastic / Volume):", 50, 150, 100, 5, "%d%%"
+            "📈 Revenue Factor Pivot (Elastic / Volume):",
+            50,
+            150,
+            100,
+            5,
+            "%d%%",
         )
         opex_scale = st.slider(
             "💸 Supply Chain Overhead Burden Shift (Inflation):",
@@ -1265,7 +1507,12 @@ elif nav_choice == "Analytical Forecast Sheets":
             "%d%%",
         )
         pay_scale = st.slider(
-            "👥 Emergency Headcount / Payroll Compensation Drop:", 0, 80, 0, 5, "%d%%"
+            "👥 Emergency Headcount / Payroll Compensation Drop:",
+            0,
+            80,
+            0,
+            5,
+            "%d%%",
         )
 
     rev_mod = rev_scale / 100.0
