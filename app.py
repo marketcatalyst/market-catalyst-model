@@ -931,7 +931,7 @@ def generate_corporate_intelligence(
         ### 🚨 Liquidity Bottlenecks & Credit Vector Risks
         ### 🏛️ Strategic Recommendations for Capital Reservation
         """
-        model = genai.GenerativeModel("models/gemini-1.5-flash")
+        model = genai.GenerativeModel("gemini-1.5-flash")
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
@@ -981,7 +981,7 @@ def process_file_ingestion_callback():
                 contents_input.append(doc_payload)
 
             genai.configure(api_key=api_key)
-            model = genai.GenerativeModel("models/gemini-2.5-flash")
+            model = genai.GenerativeModel("gemini-2.5-flash")
 
             consolidated_prompt = f"""
             You are a Principal Financial Systems Auditor and Data Engineer specializing in UK corporate double-entry software structures.
