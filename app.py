@@ -1818,16 +1818,25 @@ elif nav_choice == "Analytical Forecast Sheets":
         st.dataframe(
             df_pl[range_labels].style.format("{:,.2f}"), use_container_width=True
         )
-    with v_tab2:
-        st.dataframe(
-            df_cf[range_labels].style.format("{:,.2f}"), use_container_width=True
-        )
+    # 🟢 UPDATED PATCH:
+with v_tab2:
+    st.dataframe(df_cf[range_labels].style.format("{:,.2f}"), use_container_width=True)
+
+    # Extract cash series cleanly
+    cash_series = df_cf.iloc[3][range_labels].astype(float)
+
+    # Safeguard against uninitialized empty loops or Infinite axis crashes
+    if not cash_series.empty and not (cash_series == 0).all():
         st.line_chart(
             pd.DataFrame(
-                df_cf.iloc[3][range_labels].astype(float).values,
+                cash_series.values,
                 index=range_labels,
                 columns=["Cash Reserves (£)"],
             )
+        )
+    else:
+        st.info(
+            "ℹ️ **Reserves Trend Line:** Chart will populate once operational vectors or caped injections are logged."
         )
     with v_tab3:
         st.dataframe(
