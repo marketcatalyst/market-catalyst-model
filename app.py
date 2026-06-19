@@ -927,7 +927,7 @@ def generate_corporate_intelligence(
         }
 
         prompt = f"""
-        You are acting as an elite Financial Analyst and Systems Auditor specializing in corporate health diagnostics.
+        You are acting as an elite Financial Analyst and Systems Auditor specializing in UK corporate double-entry software structures.
         Review this disaggregated dataset along with the active 'What-If' macro stress-test parameters:
         
         {json.dumps(compressed_payload, indent=2)}
@@ -996,7 +996,7 @@ def process_file_ingestion_callback():
             model = genai.GenerativeModel("gemini-2.5-flash")
 
             consolidated_prompt = f"""
-            You are a Principal Financial Financial Systems Auditor and Data Engineer specializing in UK corporate double-entry software structures.
+            You are a Principal Financial Systems Auditor and Data Engineer specializing in UK corporate double-entry software structures.
             Analyze this uploaded forecast statement document carefully.
             
             Execute two specific extraction directives simultaneously. Formulate your output text exactly like this template:
@@ -1827,8 +1827,8 @@ elif nav_choice == "Analytical Forecast Sheets":
         # Extract cash series cleanly
         cash_series = df_cf.iloc[3][range_labels].astype(float)
 
-        # Safeguard against uninitialized empty loops or Infinite axis crashes
-        if not cash_series.empty and not (cash_series == 0).all():
+        # Safeguard against uninitialized empty loops or Infinite axis crashes (Variance boundary analysis checks)
+        if not cash_series.empty and cash_series.min() != cash_series.max():
             st.line_chart(
                 pd.DataFrame(
                     cash_series.values,
@@ -1838,7 +1838,7 @@ elif nav_choice == "Analytical Forecast Sheets":
             )
         else:
             st.info(
-                "ℹ️ **Reserves Trend Line:** Chart will populate once operational vectors or caped injections are logged."
+                "ℹ️ **Reserves Trend Line:** Chart axis will scale dynamically once cash variance or capital flows are introduced across this period."
             )
 
     with v_tab3:
