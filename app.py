@@ -13,9 +13,6 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 import re
 
-# Set page configuration at the absolute top of the script execution layout
-st.set_page_config(layout="wide")
-
 # =========================================================================
 # 💾 PERSISTENCE CONTROL LAYER: SERVERLESS NEON POSTGRES PIPELINE
 # =========================================================================

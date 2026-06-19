@@ -53,6 +53,4 @@ try:
     )
     pg.run()
 except Exception as e:
-    st.error(
-        f"Routing Fault: Streamlit engine could not map the dashboard page files. Details: {str(e)}"
-    )
+    st.error(f"⚠️ Navigation Engine Routing Exception: {str(e)}")
