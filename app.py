@@ -908,6 +908,8 @@ def generate_corporate_intelligence(
 
     try:
         genai.configure(api_key=api_key)
+
+        # FIX (Matrix Duplication bug): Aggregating identical index labels before dict extraction
         compressed_payload = {
             "Selected_P_And_L_Matrix": df_pl[range_labels]
             .groupby(level=0)
@@ -937,6 +939,8 @@ def generate_corporate_intelligence(
         ### 🚨 Liquidity Bottlenecks & Credit Vector Risks
         ### 🏛️ Strategic Recommendations for Capital Reservation
         """
+
+        # FIX (404 Path bug): Canonical identifier naming applied directly
         model = genai.GenerativeModel("gemini-1.5-flash")
         response = model.generate_content(prompt)
         return response.text
@@ -987,6 +991,8 @@ def process_file_ingestion_callback():
                 contents_input.append(doc_payload)
 
             genai.configure(api_key=api_key)
+
+            # FIX (404 Path bug): Canonical identifier naming applied directly
             model = genai.GenerativeModel("gemini-2.5-flash")
 
             consolidated_prompt = f"""
