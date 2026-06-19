@@ -380,7 +380,7 @@ class CommercialTrialBalanceCuboid:
         self,
         runtime_payload,
         revenue_modifier=1.0,
-        opex_modifier=1.0,
+        opepex_modifier=1.0,
         payroll_modifier=0.0,
     ):
         """Processes 60-month multi-year disaggregated tokens with structural What-If multipliers."""
@@ -454,7 +454,7 @@ class CommercialTrialBalanceCuboid:
 
             # Warped Overheads Pipeline
             for opex in runtime_payload.get("opex", []):
-                ann_net_cost = float(opex.get("amount", 0.0)) * opex_modifier
+                ann_net_cost = float(opex.get("amount", 0.0)) * opepex_modifier
                 profile, creditor_days, vat_rec = (
                     opex.get("seasonality", "Flat_Linear"),
                     int(opex.get("creditor_days", 0)),
@@ -996,7 +996,7 @@ def process_file_ingestion_callback():
             model = genai.GenerativeModel("gemini-2.5-flash")
 
             consolidated_prompt = f"""
-            You are a Principal Financial Systems Auditor and Data Engineer specializing in UK corporate double-entry software structures.
+            You are a Principal Financial Financial Systems Auditor and Data Engineer specializing in UK corporate double-entry software structures.
             Analyze this uploaded forecast statement document carefully.
             
             Execute two specific extraction directives simultaneously. Formulate your output text exactly like this template:
@@ -1818,26 +1818,29 @@ elif nav_choice == "Analytical Forecast Sheets":
         st.dataframe(
             df_pl[range_labels].style.format("{:,.2f}"), use_container_width=True
         )
-    # 🟢 UPDATED PATCH:
-with v_tab2:
-    st.dataframe(df_cf[range_labels].style.format("{:,.2f}"), use_container_width=True)
 
-    # Extract cash series cleanly
-    cash_series = df_cf.iloc[3][range_labels].astype(float)
+    with v_tab2:
+        st.dataframe(
+            df_cf[range_labels].style.format("{:,.2f}"), use_container_width=True
+        )
 
-    # Safeguard against uninitialized empty loops or Infinite axis crashes
-    if not cash_series.empty and not (cash_series == 0).all():
-        st.line_chart(
-            pd.DataFrame(
-                cash_series.values,
-                index=range_labels,
-                columns=["Cash Reserves (£)"],
+        # Extract cash series cleanly
+        cash_series = df_cf.iloc[3][range_labels].astype(float)
+
+        # Safeguard against uninitialized empty loops or Infinite axis crashes
+        if not cash_series.empty and not (cash_series == 0).all():
+            st.line_chart(
+                pd.DataFrame(
+                    cash_series.values,
+                    index=range_labels,
+                    columns=["Cash Reserves (£)"],
+                )
             )
-        )
-    else:
-        st.info(
-            "ℹ️ **Reserves Trend Line:** Chart will populate once operational vectors or caped injections are logged."
-        )
+        else:
+            st.info(
+                "ℹ️ **Reserves Trend Line:** Chart will populate once operational vectors or caped injections are logged."
+            )
+
     with v_tab3:
         st.dataframe(
             df_bs[range_labels].style.format("{:,.2f}"), use_container_width=True
