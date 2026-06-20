@@ -1,5 +1,5 @@
 # pages/app.py
-# STRATA SUITE PRODUCTION ENGINE // TOTAL CORE SYSTEM v5.3.0-MASTER
+# STRATA SUITE PRODUCTION ENGINE // TOTAL CORE SYSTEM v5.6.0-MASTER
 
 import streamlit as st
 import json
@@ -20,6 +20,17 @@ if not st.session_state.get("authenticated") or not st.session_state.get(
     st.warning("⚠️ **Security Intercept:** Route session token context not cleared.")
     st.page_link("home.py", label="↩️ Return to Access Gateway Portal")
     st.stop()
+
+# Safeguard profile initialization defaults if accessed directly
+if "sic_profile" not in st.session_state or st.session_state["sic_profile"] is None:
+    st.session_state["sic_profile"] = {
+        "sic_code": "71121",
+        "sector": "Professional R&D Services (Fallback)",
+        "default_vat_type": "Standard 20%",
+        "energy_vat_eligible": False,
+        "base_er_nic_rate": 0.138,
+        "macro_depreciation_baseline": 0.10,
+    }
 
 # Ensure active data payload blocks exist cleanly
 if "active_data" not in st.session_state:
@@ -133,7 +144,7 @@ def pull_project_payload_from_storage(project_name):
 execute_database_handshake()
 
 # =========================================================================
-# 🏛️ CORE ENGINE: Granular Multi-Period Ledger Processor
+# 🏛️ CORE ENGINE: Dynamic Macro-Parameter Trial Balance Cuboid
 # =========================================================================
 
 
@@ -198,6 +209,12 @@ class CommercialTrialBalanceCuboid:
     def run_simulation_engine(self, state, rev_mod=1.0, opex_mod=1.0):
         self.token_pool = []
 
+        # Pull dynamic regulatory guardrails directly from your selected SIC framework
+        sic = st.session_state["sic_profile"]
+        nic_rate = float(sic.get("base_er_nic_rate", 0.138))
+        depr_rate = float(sic.get("macro_depreciation_baseline", 0.10))
+
+        # 1. Equity Funding Inflow
         for eq in state.get("equity_funding", []):
             m = int(eq.get("month", 0))
             self.inject_token(
@@ -208,6 +225,7 @@ class CommercialTrialBalanceCuboid:
                 f"Equity Funding: {eq.get('name')}",
             )
 
+        # 2. Outright CapEx Asset Purchases
         for cap in state.get("outright_capex", []):
             m = int(cap.get("month", 1))
             self.inject_token(
@@ -218,6 +236,7 @@ class CommercialTrialBalanceCuboid:
                 f"Outright CapEx: {cap.get('name')}",
             )
 
+        # 3. Financed Fixed Assets (HP / Lease)
         for fa in state.get("financed_assets", []):
             m_start = int(fa.get("month", 1))
             total_val = float(fa.get("amount", 0.0))
@@ -268,7 +287,9 @@ class CommercialTrialBalanceCuboid:
                         f"HP Interest Charge: {fa.get('name')}",
                     )
 
+        # 60-Month Horizontal Execution Core Loop
         for m in range(1, 61):
+            # Volume Trading Sales Channels
             for sale in state.get("sales", []):
                 val = 0.0
                 if sale.get("overrides", {}).get(f"M{str(m).zfill(2)}", 0.0) > 0:
@@ -316,6 +337,7 @@ class CommercialTrialBalanceCuboid:
                     f"REV Cash Collection: {sale.get('name')}",
                 )
 
+            # Milestone Contract Portfolios
             for ms in state.get("milestones", []):
                 tcv = float(ms.get("tcv", 0.0))
                 duration = int(ms.get("duration", 6))
@@ -369,6 +391,7 @@ class CommercialTrialBalanceCuboid:
                         f"Milestone Balancing Settlement: {ms.get('name')}",
                     )
 
+            # General Indexed Operational Overheads
             for op in state.get("opex", []):
                 val = 0.0
                 if op.get("overrides", {}).get(f"M{str(m).zfill(2)}", 0.0) > 0:
@@ -412,6 +435,7 @@ class CommercialTrialBalanceCuboid:
                         f"VAT IN: {op.get('name')}",
                     )
 
+            # Personnel Payroll Waves (Consuming your Industry base_er_nic_rate parameter)
             for pay in state.get("payroll", []):
                 headcount = int(pay.get("headcount", 1))
                 wage = float(pay.get("monthly_wage", 2000.0))
@@ -420,7 +444,7 @@ class CommercialTrialBalanceCuboid:
 
                 if start <= m <= end:
                     gross_pool = headcount * wage
-                    er_nic = gross_pool * 0.138
+                    er_nic = gross_pool * nic_rate
                     self.inject_token(
                         m,
                         "PL_Expense_Payroll",
@@ -443,6 +467,7 @@ class CommercialTrialBalanceCuboid:
                         "HMRC Remittance Pay",
                     )
 
+            # Automated Asset Depreciation (Consuming your Industry macro_depreciation_baseline parameter)
             if m > 0:
                 current_fa_pool = self.compute_running_balance_to_period(
                     "BS_Asset_Fixed_Assets", m
@@ -452,7 +477,7 @@ class CommercialTrialBalanceCuboid:
                         m,
                         "PL_Expense_Depreciation",
                         "BS_Asset_Accumulated_Depreciation",
-                        (current_fa_pool * 0.10) / 12.0,
+                        (current_fa_pool * depr_rate) / 12.0,
                         "Auto-Depreciation",
                     )
 
@@ -704,55 +729,21 @@ def commit_dataframe_to_state(df):
 # =========================================================================
 
 st.set_page_config(layout="wide")
+
+# Fetch active environment metadata headers directly from the active session config
+active_sic = st.session_state["sic_profile"]
+
 st.title("🏛️ STRATA // Corporate Command Center")
+st.markdown(
+    f"🏭 **Active Industry Scope Framework:** Mapped to Code `{active_sic['sic_code']}` ({active_sic['sector']}) | "
+    f"Depreciation Constraint: `{active_sic['macro_depreciation_baseline']*100}%/yr` | "
+    f"Employer Tax Burden: `{active_sic['base_er_nic_rate']*100}%` ER NIC"
+)
 st.caption(
-    f"Active Tenant Context Model Session: `{st.session_state.get('active_project_name', 'Unsaved_Draft_Scenario')}`"
-)
-
-st.info(
-    "📊 **System Status:** Session authenticated and tracking thresholds successfully mapped to industry parameters."
+    f"Active Project Model State: `{st.session_state.get('active_project_name', 'Unsaved_Draft_Scenario')}`"
 )
 st.markdown("---")
 
-# -------------------------------------------------------------
-# 🎨 REFACTORED INTERACTIVE LINK FRAMES (Symmetry Fix from image_be178c.png)
-# -------------------------------------------------------------
-nav_col1, nav_col2 = st.columns(2)
-
-with nav_col1:
-    st.subheader("✍️ Operational Planning Canvas")
-    st.markdown(
-        "Ingest raw documents via document scanning, append structural ledger "
-        "profiles manually, or load existing database project schemas."
-    )
-    st.write("")
-    # Wrapped inside a crisp full-width bordered button frame to completely clear the asymmetry
-    if st.button(
-        "🚀 Launch Parameter Workspaces Desk",
-        use_container_width=True,
-        key="launch_desk_btn",
-    ):
-        st.toast("Navigating to Parameter Interface...")
-
-with nav_col2:
-    st.subheader("🚪 Workspace Session Control")
-    st.markdown(
-        "Disconnect active ledger matrix memory instances, lock storage "
-        "configurations, or exit active session windows securely."
-    )
-    st.write("")
-
-    if st.button(
-        "🚪 Terminate Session & Log Out",
-        use_container_width=True,
-        key="terminate_logout_btn",
-    ):
-        st.session_state.clear()
-        st.rerun()
-
-st.markdown("---")
-
-# Database File Storage Controller Node
 p_col1, p_col2 = st.columns([6, 6])
 with p_col1:
     avail = extract_project_directory_list()
@@ -791,9 +782,7 @@ st.markdown("---")
 if view_desk == "1. Parameter Entry Panel":
     st.header("✍️ Strategic Operational Parameter Desks")
 
-    # -------------------------------------------------------------
-    # PILLAR 1: VOLUME SALES DRIVER
-    # -------------------------------------------------------------
+    # 1. Volume Sales Driver Panel
     with st.expander(
         "📈 1. THE SALES DRIVER DESK (General & Volume Revenue)", expanded=True
     ):
@@ -822,9 +811,11 @@ if view_desk == "1. Parameter Entry Panel":
                     f"Paid Instantly" if x == 0 else f"{x} Days Credit Delay"
                 ),
             )
+            # Auto-prepopulate default VAT classification option based on dynamic SIC rules
             v_rate = st.selectbox(
                 "UK VAT Classification Rate:",
                 ["Standard 20%", "Reduced 5%", "Exempt / Zero 0%"],
+                index=0 if active_sic["default_vat_type"] == "Standard 20%" else 2,
             )
             if st.form_submit_button("➕ Append Trading Sales Revenue Vector"):
                 if n:
@@ -848,9 +839,7 @@ if view_desk == "1. Parameter Entry Panel":
                     f"✔ {x['name']} - Y1: £{x['y1_baseline']:,.2f} | Shape: {x['seasonality']} | [{x['payment_delay']} Days Terms] | Tax: {x.get('vat_rate_type', 'Standard 20%')}"
                 )
 
-    # -------------------------------------------------------------
-    # PILLAR 2: MILESTONE HIGH-VALUE CONTRACT DESK
-    # -------------------------------------------------------------
+    # 2. Milestone Contract Desk Panel
     with st.expander(
         "💼 2. THE MILESTONE CONTRACT DESK (Decoupled High-Value B2B Deals)"
     ):
@@ -899,9 +888,7 @@ if view_desk == "1. Parameter Entry Panel":
                     f"✔ [Contract] {x['name']} - TCV: £{x['tcv']:,.2f} over {x['duration']} Months starting M{x['start_month']} | Tax: {x.get('vat_rate_type', 'Standard 20%')}"
                 )
 
-    # -------------------------------------------------------------
-    # PILLAR 3: GENERAL OPERATIONAL EXPENSES
-    # -------------------------------------------------------------
+    # 3. General Operational Overheads Panel
     with st.expander("💸 3. THE GENERAL OVERHEAD CARD (Operational Overhead Flexing)"):
         with st.form("opex_form", clear_on_submit=True):
             n = st.text_input(
@@ -953,9 +940,7 @@ if view_desk == "1. Parameter Entry Panel":
                     f"✔ {x['name']} - Y1 Base: £{x['y1_baseline']:,.2f} | Flex: +{x['flex_pct']}% | Tax: {x.get('vat_rate_type', 'Standard 20%')}"
                 )
 
-    # -------------------------------------------------------------
-    # PILLARS 4, 5, 6, 7
-    # -------------------------------------------------------------
+    # 4. Financed HP/Lease Wizard Panel
     with st.expander("🚜 4. THE FINANCED ASSET WIZARD (Hire Purchase & Lease Finance)"):
         with st.form("financed_form", clear_on_submit=True):
             n = st.text_input(
@@ -1003,7 +988,10 @@ if view_desk == "1. Parameter Entry Panel":
                     st.toast("Asset & Facility Framework Initialised!")
                     st.rerun()
 
-    with st.expander("🏢 5. THE OUTRIGHT CAPEX CARD (Direct Asset Purchases)"):
+    # 5. Outright Deployed CapEx Assets
+    with st.expander(
+        "🏢 5. THE OUTRIGHT CAPEX CARD (Direct Company-Funded Cash Asset Purchases)"
+    ):
         with st.form("outright_form", clear_on_submit=True):
             n = st.text_input(
                 "Asset Description Specification:",
@@ -1026,6 +1014,7 @@ if view_desk == "1. Parameter Entry Panel":
                     st.toast("Outright Purchase Logged!")
                     st.rerun()
 
+    # 6. Seasonal Personnel Staffing Waves
     with st.expander("👥 6. THE SEASONAL STAFFING WAVE (Personnel Horizon Volatility)"):
         with st.form("payroll_form", clear_on_submit=True):
             n = st.text_input(
@@ -1056,6 +1045,7 @@ if view_desk == "1. Parameter Entry Panel":
                     st.toast("Workforce Schedule Accrued!")
                     st.rerun()
 
+    # 7. Seed Capital Equity Funding Inflows
     with st.expander(
         "💰 7. THE FUNDING & EQUITY CARD (Corporate Seed Capital Injections)"
     ):
@@ -1081,9 +1071,7 @@ if view_desk == "1. Parameter Entry Panel":
                     st.toast("Capital Placement Logged!")
                     st.rerun()
 
-    # -------------------------------------------------------------
-    # EXCEPTION GATE LAYOUT MATRIX WITH STICKY HEADERS
-    # -------------------------------------------------------------
+    # Continuous 61-Month Interactive Timeline Overrides Gate Matrix
     st.markdown("### 🗺️ Continuous 61-Month Timeline Output Confirmation Matrix")
     st.markdown(
         """
