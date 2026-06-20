@@ -1,5 +1,5 @@
 # pages/app.py
-# STRATA SUITE PRODUCTION ENGINE // TOTAL CORE SYSTEM v6.2.1-PRODUCTION
+# STRATA SUITE PRODUCTION ENGINE // TOTAL CORE SYSTEM v6.3.0-MASTER
 
 import streamlit as st
 import json
@@ -920,9 +920,9 @@ if view_desk == "1. Parameter Entry Panel":
                         st.session_state["active_data"]["milestones"].pop(idx)
                         st.rerun()
 
-    # 8. Production COGS Desk Panel
+    # 📥 RE-ALIGNED CORE SEQUENTIAL CONTAINER: THE PRODUCTION COGS DESK
     with st.expander(
-        "📦 8. THE PRODUCTION COGS DESK (Direct Materials, Subcontractors & Logistics Costs)"
+        "📦 3. THE PRODUCTION COGS DESK (Direct Materials, Subcontractors & Logistics Costs)"
     ):
         with st.form("cogs_form", clear_on_submit=True):
             n = st.text_input(
@@ -978,8 +978,8 @@ if view_desk == "1. Parameter Entry Panel":
                         st.session_state["active_data"]["cogs"].pop(idx)
                         st.rerun()
 
-    # 3. General Operational Overheads Panel
-    with st.expander("💸 3. THE GENERAL OVERHEAD CARD (Operational Overhead Flexing)"):
+    # 4. General Operational Overheads Panel
+    with st.expander("💸 4. THE GENERAL OVERHEAD CARD (Operational Overhead Flexing)"):
         with st.form("opex_form", clear_on_submit=True):
             n = st.text_input(
                 "Operational Expense Title:",
@@ -1041,8 +1041,8 @@ if view_desk == "1. Parameter Entry Panel":
                         st.session_state["active_data"]["opex"].pop(idx)
                         st.rerun()
 
-    # 4. Financed HP/Lease Wizard Panel
-    with st.expander("🚜 4. THE FINANCED ASSET WIZARD (Hire Purchase & Lease Finance)"):
+    # 5. Financed HP/Lease Wizard Panel
+    with st.expander("🚜 5. THE FINANCED ASSET WIZARD (Hire Purchase & Lease Finance)"):
         with st.form("financed_form", clear_on_submit=True):
             n = st.text_input(
                 "Financed Asset Identifier Name:",
@@ -1103,9 +1103,9 @@ if view_desk == "1. Parameter Entry Panel":
                         st.session_state["active_data"]["financed_assets"].pop(idx)
                         st.rerun()
 
-    # 5. Outright Deployed CapEx Assets (Corrected Inline Submit Trigger)
+    # 6. Outright Deployed CapEx Assets
     with st.expander(
-        "🏢 5. THE OUTRIGHT CAPEX CARD (Direct Company-Funded Cash Asset Purchases)"
+        "🏢 6. THE OUTRIGHT CAPEX CARD (Direct Company-Funded Cash Asset Purchases)"
     ):
         with st.form("outright_form", clear_on_submit=True):
             n = st.text_input(
@@ -1143,8 +1143,8 @@ if view_desk == "1. Parameter Entry Panel":
                         st.session_state["active_data"]["outright_capex"].pop(idx)
                         st.rerun()
 
-    # 6. Seasonal Personnel Staffing Waves
-    with st.expander("👥 6. THE SEASONAL STAFFING WAVE (Personnel Horizon Volatility)"):
+    # 7. Seasonal Personnel Staffing Waves
+    with st.expander("👥 7. THE SEASONAL STAFFING WAVE (Personnel Horizon Volatility)"):
         with st.form("payroll_form", clear_on_submit=True):
             n = st.text_input(
                 "Operational Resource Role Group Designation:",
@@ -1188,9 +1188,9 @@ if view_desk == "1. Parameter Entry Panel":
                         st.session_state["active_data"]["payroll"].pop(idx)
                         st.rerun()
 
-    # 7. Seed Capital Equity Funding Inflows
+    # 8. Seed Capital Equity Funding Inflows
     with st.expander(
-        "💰 7. THE FUNDING & EQUITY CARD (Corporate Seed Capital Injections)"
+        "💰 8. THE FUNDING & EQUITY CARD (Corporate Seed Capital Injections)"
     ):
         with st.form("equity_form", clear_on_submit=True):
             n = st.text_input(
