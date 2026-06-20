@@ -1,17 +1,12 @@
 # pages/app.py
-# STRATA SUITE PRODUCTION ENGINE // TOTAL CORE SYSTEM v5.6.0-MASTER
+# STRATA SUITE PRODUCTION ENGINE // TOTAL CORE SYSTEM v6.0.0-MASTER
 
 import streamlit as st
 import json
 import os
 import pandas as pd
-from pathlib import Path
-import google.generativeai as genai
-import io
 import psycopg2
 from psycopg2.extras import RealDictCursor
-import re
-import datetime
 
 # Enforce secure routing context backup check
 if not st.session_state.get("authenticated") or not st.session_state.get(
@@ -32,7 +27,6 @@ if "sic_profile" not in st.session_state or st.session_state["sic_profile"] is N
         "macro_depreciation_baseline": 0.10,
     }
 
-# Ensure active data payload blocks exist cleanly
 if "active_data" not in st.session_state:
     st.session_state["active_data"] = {
         "sales": [],
@@ -44,11 +38,10 @@ if "active_data" not in st.session_state:
         "equity_funding": [],
     }
 
+
 # =========================================================================
 # 💾 PERSISTENCE CONTROL LAYER: SERVERLESS NEON POSTGRES PIPELINE
 # =========================================================================
-
-
 def get_database_connection():
     db_url = (
         os.environ.get("DATABASE_URL")
@@ -143,11 +136,10 @@ def pull_project_payload_from_storage(project_name):
 
 execute_database_handshake()
 
+
 # =========================================================================
 # 🏛️ CORE ENGINE: Dynamic Macro-Parameter Trial Balance Cuboid
 # =========================================================================
-
-
 class JournalToken:
     def __init__(self, month_label, debit_acct, credit_acct, amount, narrative=""):
         self.month_label = month_label
@@ -208,13 +200,10 @@ class CommercialTrialBalanceCuboid:
 
     def run_simulation_engine(self, state, rev_mod=1.0, opex_mod=1.0):
         self.token_pool = []
-
-        # Pull dynamic regulatory guardrails directly from your selected SIC framework
         sic = st.session_state["sic_profile"]
         nic_rate = float(sic.get("base_er_nic_rate", 0.138))
         depr_rate = float(sic.get("macro_depreciation_baseline", 0.10))
 
-        # 1. Equity Funding Inflow
         for eq in state.get("equity_funding", []):
             m = int(eq.get("month", 0))
             self.inject_token(
@@ -225,7 +214,6 @@ class CommercialTrialBalanceCuboid:
                 f"Equity Funding: {eq.get('name')}",
             )
 
-        # 2. Outright CapEx Asset Purchases
         for cap in state.get("outright_capex", []):
             m = int(cap.get("month", 1))
             self.inject_token(
@@ -236,14 +224,12 @@ class CommercialTrialBalanceCuboid:
                 f"Outright CapEx: {cap.get('name')}",
             )
 
-        # 3. Financed Fixed Assets (HP / Lease)
         for fa in state.get("financed_assets", []):
             m_start = int(fa.get("month", 1))
             total_val = float(fa.get("amount", 0.0))
             dep_pct = float(fa.get("deposit_pct", 10.0)) / 100.0
             term = int(fa.get("term_months", 36))
             apr = float(fa.get("interest_rate", 5.0)) / 100.0
-
             deposit_cash = total_val * dep_pct
             financed_balance = total_val - deposit_cash
 
@@ -262,7 +248,6 @@ class CommercialTrialBalanceCuboid:
                     financed_balance,
                     f"HP Asset Addition: {fa.get('name')}",
                 )
-
                 monthly_p_base = financed_balance / term
                 for t in range(1, term + 1):
                     m_curr = m_start + t
@@ -271,7 +256,6 @@ class CommercialTrialBalanceCuboid:
                     interest_charge = (
                         financed_balance - (monthly_p_base * (t - 1))
                     ) * (apr / 12.0)
-
                     self.inject_token(
                         m_curr,
                         "BS_Liability_Long_Term_Debt",
@@ -287,9 +271,7 @@ class CommercialTrialBalanceCuboid:
                         f"HP Interest Charge: {fa.get('name')}",
                     )
 
-        # 60-Month Horizontal Execution Core Loop
         for m in range(1, 61):
-            # Volume Trading Sales Channels
             for sale in state.get("sales", []):
                 val = 0.0
                 if sale.get("overrides", {}).get(f"M{str(m).zfill(2)}", 0.0) > 0:
@@ -297,22 +279,18 @@ class CommercialTrialBalanceCuboid:
                 else:
                     y_idx = 1 if m <= 12 else 2 if m <= 24 else 3
                     y_base = float(sale.get(f"y{y_idx}_baseline", 0.0))
-                    curve = sale.get("seasonality", "Flat_Linear")
                     weights = self.seasonality_profiles.get(
-                        curve, self.seasonality_profiles["Flat_Linear"]
+                        sale.get("seasonality", "Flat_Linear"),
+                        self.seasonality_profiles["Flat_Linear"],
                     )
                     val = y_base * weights[(m - 1) % 12]
-
                 val *= rev_mod
-                vat_mode = sale.get("vat_rate_type", "Standard 20%")
                 vat_pct = (
                     0.20
-                    if vat_mode == "Standard 20%"
-                    else 0.05 if vat_mode == "Reduced 5%" else 0.0
+                    if sale.get("vat_rate_type", "Standard 20%") == "Standard 20%"
+                    else 0.05 if sale.get("vat_rate_type") == "Reduced 5%" else 0.0
                 )
                 vat_quantum = val * vat_pct
-                delay = int(sale.get("payment_delay", 0))
-
                 self.inject_token(
                     m,
                     "BS_Asset_Debtors",
@@ -328,36 +306,32 @@ class CommercialTrialBalanceCuboid:
                         vat_quantum,
                         f"VAT OUT: {sale.get('name')}",
                     )
-
                 self.inject_token(
-                    m + int(delay / 30),
+                    m + int(int(sale.get("payment_delay", 0)) / 30),
                     "BS_Asset_Cash",
                     "BS_Asset_Debtors",
                     val + vat_quantum,
                     f"REV Cash Collection: {sale.get('name')}",
                 )
 
-            # Milestone Contract Portfolios
             for ms in state.get("milestones", []):
                 tcv = float(ms.get("tcv", 0.0))
                 duration = int(ms.get("duration", 6))
                 m_start = int(ms.get("start_month", 1))
                 dep_pct = float(ms.get("deposit_pct", 20.0)) / 100.0
-                vat_mode = ms.get("vat_rate_type", "Standard 20%")
                 vat_pct = (
                     1.20
-                    if vat_mode == "Standard 20%"
-                    else 1.05 if vat_mode == "Reduced 5%" else 1.0
+                    if ms.get("vat_rate_type", "Standard 20%") == "Standard 20%"
+                    else 1.05 if ms.get("vat_rate_type") == "Reduced 5%" else 1.0
                 )
                 vat_flat = (
                     0.20
-                    if vat_mode == "Standard 20%"
-                    else 0.05 if vat_mode == "Reduced 5%" else 0.0
+                    if ms.get("vat_rate_type", "Standard 20%") == "Standard 20%"
+                    else 0.05 if ms.get("vat_rate_type") == "Reduced 5%" else 0.0
                 )
 
                 if m_start <= m < (m_start + duration):
                     monthly_rec = tcv / duration
-                    monthly_vat = monthly_rec * vat_flat
                     self.inject_token(
                         m,
                         "BS_Asset_Debtors",
@@ -365,15 +339,14 @@ class CommercialTrialBalanceCuboid:
                         monthly_rec,
                         f"Milestone Revenue: {ms.get('name')}",
                     )
-                    if monthly_vat > 0:
+                    if monthly_rec * vat_flat > 0:
                         self.inject_token(
                             m,
                             "BS_Asset_Debtors",
                             "BS_Liability_VAT_Payable",
-                            monthly_vat,
+                            monthly_rec * vat_flat,
                             f"Milestone VAT Out: {ms.get('name')}",
                         )
-
                 if m == m_start:
                     self.inject_token(
                         m,
@@ -391,7 +364,6 @@ class CommercialTrialBalanceCuboid:
                         f"Milestone Balancing Settlement: {ms.get('name')}",
                     )
 
-            # General Indexed Operational Overheads
             for op in state.get("opex", []):
                 val = 0.0
                 if op.get("overrides", {}).get(f"M{str(m).zfill(2)}", 0.0) > 0:
@@ -404,21 +376,17 @@ class CommercialTrialBalanceCuboid:
                         if y_idx > 1
                         else 1.0
                     )
-                    curve = op.get("seasonality", "Flat_Linear")
                     weights = self.seasonality_profiles.get(
-                        curve, self.seasonality_profiles["Flat_Linear"]
+                        op.get("seasonality", "Flat_Linear"),
+                        self.seasonality_profiles["Flat_Linear"],
                     )
                     val = y_base * flex * weights[(m - 1) % 12]
-
                 val *= opex_mod
-                vat_mode = op.get("vat_rate_type", "Standard 20%")
                 vat_pct = (
                     0.20
-                    if vat_mode == "Standard 20%"
-                    else 0.05 if vat_mode == "Reduced 5%" else 0.0
+                    if op.get("vat_rate_type", "Standard 20%") == "Standard 20%"
+                    else 0.05 if op.get("vat_rate_type") == "Reduced 5%" else 0.0
                 )
-                vat_input = val * vat_pct
-
                 self.inject_token(
                     m,
                     "PL_Expense_Overheads",
@@ -426,25 +394,20 @@ class CommercialTrialBalanceCuboid:
                     val,
                     f"OPEX: {op.get('name')}",
                 )
-                if vat_input > 0:
+                if val * vat_pct > 0:
                     self.inject_token(
                         m,
                         "BS_Liability_VAT_Payable",
                         "BS_Asset_Cash",
-                        vat_input,
+                        val * vat_pct,
                         f"VAT IN: {op.get('name')}",
                     )
 
-            # Personnel Payroll Waves (Consuming your Industry base_er_nic_rate parameter)
             for pay in state.get("payroll", []):
-                headcount = int(pay.get("headcount", 1))
-                wage = float(pay.get("monthly_wage", 2000.0))
-                start = int(pay.get("start_month", 1))
-                end = int(pay.get("end_month", 12))
-
-                if start <= m <= end:
-                    gross_pool = headcount * wage
-                    er_nic = gross_pool * nic_rate
+                if int(pay.get("start_month", 1)) <= m <= int(pay.get("end_month", 12)):
+                    gross_pool = int(pay.get("headcount", 1)) * float(
+                        pay.get("monthly_wage", 2000.0)
+                    )
                     self.inject_token(
                         m,
                         "PL_Expense_Payroll",
@@ -456,18 +419,17 @@ class CommercialTrialBalanceCuboid:
                         m,
                         "PL_Expense_Payroll",
                         "BS_Liability_PAYE_NIC_Payable",
-                        er_nic,
+                        gross_pool * nic_rate,
                         f"ER NIC Burden: {pay.get('name')}",
                     )
                     self.inject_token(
                         m + 1,
                         "BS_Liability_PAYE_NIC_Payable",
                         "BS_Asset_Cash",
-                        er_nic,
+                        gross_pool * nic_rate,
                         "HMRC Remittance Pay",
                     )
 
-            # Automated Asset Depreciation (Consuming your Industry macro_depreciation_baseline parameter)
             if m > 0:
                 current_fa_pool = self.compute_running_balance_to_period(
                     "BS_Asset_Fixed_Assets", m
@@ -480,7 +442,6 @@ class CommercialTrialBalanceCuboid:
                         (current_fa_pool * depr_rate) / 12.0,
                         "Auto-Depreciation",
                     )
-
                 if m in [
                     3,
                     6,
@@ -582,7 +543,6 @@ class CommercialTrialBalanceCuboid:
                         df_pl.at["Depreciation Overhead (£)", m_lbl] += t.amount
                     if t.debit_acct == "PL_Expense_Interest":
                         df_pl.at["Financing Interest Cost (£)", m_lbl] += t.amount
-
                     if (
                         t.debit_acct == "BS_Asset_Cash"
                         and t.credit_acct == "BS_Asset_Debtors"
@@ -613,7 +573,6 @@ class CommercialTrialBalanceCuboid:
             df_cf.at["Closing Bank Cash Reserves (£)", m_lbl] = (
                 self.compute_running_balance_to_period("BS_Asset_Cash", m_idx)
             )
-
             df_bs.at["Fixed Infrastructure Assets (£)", m_lbl] = (
                 self.compute_running_balance_to_period("BS_Asset_Fixed_Assets", m_idx)
             )
@@ -654,7 +613,6 @@ class CommercialTrialBalanceCuboid:
             for pm in months_labels[1 : m_idx + 1]:
                 h_sum += df_pl.at["Net Operating Profit (EBIT)", pm]
             df_bs.at["Retained Earnings Accumulation (£)", m_lbl] = h_sum
-
             assets = (
                 df_bs.at["Net Book Value Asset Worth (£)", m_lbl]
                 + df_bs.at["Trade Debtors Balance (£)", m_lbl]
@@ -693,9 +651,8 @@ def commit_dataframe_to_state(df):
         lbl = str(r["Line Identifier Description"]).strip()
         if not lbl:
             continue
-        v_type = str(r["Vector Type"])
         overrides_map = {m: float(r[m]) for m in month_labels}
-        if v_type == "sales":
+        if str(r["Vector Type"]) == "sales":
             new_state["sales"].append(
                 {
                     "name": lbl,
@@ -708,7 +665,7 @@ def commit_dataframe_to_state(df):
                     "overrides": overrides_map,
                 }
             )
-        elif v_type == "opex":
+        elif str(r["Vector Type"]) == "opex":
             new_state["opex"].append(
                 {
                     "name": lbl,
@@ -727,10 +684,6 @@ def commit_dataframe_to_state(df):
 # =========================================================================
 # 🎛️ MAIN WORKSPACE INTERFACE CANVAS
 # =========================================================================
-
-st.set_page_config(layout="wide")
-
-# Fetch active environment metadata headers directly from the active session config
 active_sic = st.session_state["sic_profile"]
 
 st.title("🏛️ STRATA // Corporate Command Center")
@@ -782,7 +735,6 @@ st.markdown("---")
 if view_desk == "1. Parameter Entry Panel":
     st.header("✍️ Strategic Operational Parameter Desks")
 
-    # 1. Volume Sales Driver Panel
     with st.expander(
         "📈 1. THE SALES DRIVER DESK (General & Volume Revenue)", expanded=True
     ):
@@ -811,7 +763,6 @@ if view_desk == "1. Parameter Entry Panel":
                     f"Paid Instantly" if x == 0 else f"{x} Days Credit Delay"
                 ),
             )
-            # Auto-prepopulate default VAT classification option based on dynamic SIC rules
             v_rate = st.selectbox(
                 "UK VAT Classification Rate:",
                 ["Standard 20%", "Reduced 5%", "Exempt / Zero 0%"],
@@ -836,10 +787,9 @@ if view_desk == "1. Parameter Entry Panel":
         if st.session_state["active_data"].get("sales"):
             for x in st.session_state["active_data"]["sales"]:
                 st.caption(
-                    f"✔ {x['name']} - Y1: £{x['y1_baseline']:,.2f} | Shape: {x['seasonality']} | [{x['payment_delay']} Days Terms] | Tax: {x.get('vat_rate_type', 'Standard 20%')}"
+                    f"✔ {x['name']} - Y1: £{x['y1_baseline']:,.2f} | Shape: {x['seasonality']} | Tax: {x.get('vat_rate_type', 'Standard 20%')}"
                 )
 
-    # 2. Milestone Contract Desk Panel
     with st.expander(
         "💼 2. THE MILESTONE CONTRACT DESK (Decoupled High-Value B2B Deals)"
     ):
@@ -885,10 +835,9 @@ if view_desk == "1. Parameter Entry Panel":
         if st.session_state["active_data"].get("milestones"):
             for x in st.session_state["active_data"]["milestones"]:
                 st.caption(
-                    f"✔ [Contract] {x['name']} - TCV: £{x['tcv']:,.2f} over {x['duration']} Months starting M{x['start_month']} | Tax: {x.get('vat_rate_type', 'Standard 20%')}"
+                    f"✔ [Contract] {x['name']} - TCV: £{x['tcv']:,.2f} over {x['duration']} Months | Tax: {x.get('vat_rate_type', 'Standard 20%')}"
                 )
 
-    # 3. General Operational Overheads Panel
     with st.expander("💸 3. THE GENERAL OVERHEAD CARD (Operational Overhead Flexing)"):
         with st.form("opex_form", clear_on_submit=True):
             n = st.text_input(
@@ -940,7 +889,6 @@ if view_desk == "1. Parameter Entry Panel":
                     f"✔ {x['name']} - Y1 Base: £{x['y1_baseline']:,.2f} | Flex: +{x['flex_pct']}% | Tax: {x.get('vat_rate_type', 'Standard 20%')}"
                 )
 
-    # 4. Financed HP/Lease Wizard Panel
     with st.expander("🚜 4. THE FINANCED ASSET WIZARD (Hire Purchase & Lease Finance)"):
         with st.form("financed_form", clear_on_submit=True):
             n = st.text_input(
@@ -988,7 +936,6 @@ if view_desk == "1. Parameter Entry Panel":
                     st.toast("Asset & Facility Framework Initialised!")
                     st.rerun()
 
-    # 5. Outright Deployed CapEx Assets
     with st.expander(
         "🏢 5. THE OUTRIGHT CAPEX CARD (Direct Company-Funded Cash Asset Purchases)"
     ):
@@ -1014,7 +961,6 @@ if view_desk == "1. Parameter Entry Panel":
                     st.toast("Outright Purchase Logged!")
                     st.rerun()
 
-    # 6. Seasonal Personnel Staffing Waves
     with st.expander("👥 6. THE SEASONAL STAFFING WAVE (Personnel Horizon Volatility)"):
         with st.form("payroll_form", clear_on_submit=True):
             n = st.text_input(
@@ -1045,7 +991,6 @@ if view_desk == "1. Parameter Entry Panel":
                     st.toast("Workforce Schedule Accrued!")
                     st.rerun()
 
-    # 7. Seed Capital Equity Funding Inflows
     with st.expander(
         "💰 7. THE FUNDING & EQUITY CARD (Corporate Seed Capital Injections)"
     ):
@@ -1071,7 +1016,6 @@ if view_desk == "1. Parameter Entry Panel":
                     st.toast("Capital Placement Logged!")
                     st.rerun()
 
-    # Continuous 61-Month Interactive Timeline Overrides Gate Matrix
     st.markdown("### 🗺️ Continuous 61-Month Timeline Output Confirmation Matrix")
     st.markdown(
         """
