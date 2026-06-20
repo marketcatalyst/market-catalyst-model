@@ -1,5 +1,5 @@
 # pages/app.py
-# STRATA SUITE PRODUCTION ENGINE // TOTAL CORE SYSTEM v5.0.0-MASTER
+# STRATA SUITE PRODUCTION ENGINE // TOTAL CORE SYSTEM v5.2.0-MASTER
 
 import streamlit as st
 import json
@@ -133,7 +133,7 @@ def pull_project_payload_from_storage(project_name):
 execute_database_handshake()
 
 # =========================================================================
-# 🏛️ CORE ENGINE: Granular Multi-Period Ledger Processor
+# 🏛️ CORE ENGINE: Granular Multi-Period Ledger Processor (With Variable VAT)
 # =========================================================================
 
 
@@ -198,7 +198,7 @@ class CommercialTrialBalanceCuboid:
     def run_simulation_engine(self, state, rev_mod=1.0, opex_mod=1.0):
         self.token_pool = []
 
-        # 1. Equity Funding Cards Ingestion
+        # 1. Equity Funding Inflow
         for eq in state.get("equity_funding", []):
             m = int(eq.get("month", 0))
             self.inject_token(
@@ -209,7 +209,7 @@ class CommercialTrialBalanceCuboid:
                 f"Equity Funding: {eq.get('name')}",
             )
 
-        # 2. Outright CapEx Asset Purchasing
+        # 2. Outright CapEx Asset Purchases
         for cap in state.get("outright_capex", []):
             m = int(cap.get("month", 1))
             self.inject_token(
@@ -220,7 +220,7 @@ class CommercialTrialBalanceCuboid:
                 f"Outright CapEx: {cap.get('name')}",
             )
 
-        # 3. Financed Assets (HP / Lease Facility Mechanics)
+        # 3. Financed Fixed Infrastructure Assets (HP / Lease)
         for fa in state.get("financed_assets", []):
             m_start = int(fa.get("month", 1))
             total_val = float(fa.get("amount", 0.0))
@@ -231,7 +231,6 @@ class CommercialTrialBalanceCuboid:
             deposit_cash = total_val * dep_pct
             financed_balance = total_val - deposit_cash
 
-            # Initial Purchase Event
             self.inject_token(
                 m_start,
                 "BS_Asset_Fixed_Assets",
@@ -248,7 +247,6 @@ class CommercialTrialBalanceCuboid:
                     f"HP Asset Addition: {fa.get('name')}",
                 )
 
-                # Monthly Loan Repayments Loop (Principal vs Interest split)
                 monthly_p_base = financed_balance / term
                 for t in range(1, term + 1):
                     m_curr = m_start + t
@@ -273,9 +271,9 @@ class CommercialTrialBalanceCuboid:
                         f"HP Interest Charge: {fa.get('name')}",
                     )
 
-        # 60-Month Horizontal Ledger Processing Loop
+        # 60-Month Timeline Processing Horizon
         for m in range(1, 61):
-            # General Volume Sales Drivers
+            # Volume Trading Sales Channels
             for sale in state.get("sales", []):
                 val = 0.0
                 if sale.get("overrides", {}).get(f"M{str(m).zfill(2)}", 0.0) > 0:
@@ -290,7 +288,15 @@ class CommercialTrialBalanceCuboid:
                     val = y_base * weights[(m - 1) % 12]
 
                 val *= rev_mod
+                vat_mode = sale.get("vat_rate_type", "Standard 20%")
+                vat_pct = (
+                    0.20
+                    if vat_mode == "Standard 20%"
+                    else 0.05 if vat_mode == "Reduced 5%" else 0.0
+                )
+                vat_quantum = val * vat_pct
                 delay = int(sale.get("payment_delay", 0))
+
                 self.inject_token(
                     m,
                     "BS_Asset_Debtors",
@@ -298,39 +304,66 @@ class CommercialTrialBalanceCuboid:
                     val,
                     f"REV: {sale.get('name')}",
                 )
+                if vat_quantum > 0:
+                    self.inject_token(
+                        m,
+                        "BS_Asset_Debtors",
+                        "BS_Liability_VAT_Payable",
+                        vat_quantum,
+                        f"VAT OUT: {sale.get('name')}",
+                    )
+
                 self.inject_token(
                     m + int(delay / 30),
                     "BS_Asset_Cash",
                     "BS_Asset_Debtors",
-                    val,
+                    val + vat_quantum,
                     f"REV Cash Collection: {sale.get('name')}",
                 )
 
-            # Milestone Contract Profiles
+            # Milestone Contract Portfolios
             for ms in state.get("milestones", []):
                 tcv = float(ms.get("tcv", 0.0))
                 duration = int(ms.get("duration", 6))
                 m_start = int(ms.get("start_month", 1))
                 dep_pct = float(ms.get("deposit_pct", 20.0)) / 100.0
+                vat_mode = ms.get("vat_rate_type", "Standard 20%")
+                vat_pct = (
+                    1.20
+                    if vat_mode == "Standard 20%"
+                    else 1.05 if vat_mode == "Reduced 5%" else 1.0
+                )
+                vat_flat = (
+                    0.20
+                    if vat_mode == "Standard 20%"
+                    else 0.05 if vat_mode == "Reduced 5%" else 0.0
+                )
 
-                # Performance Recognitions Spread (P&L)
                 if m_start <= m < (m_start + duration):
                     monthly_rec = tcv / duration
+                    monthly_vat = monthly_rec * vat_flat
                     self.inject_token(
                         m,
                         "BS_Asset_Debtors",
                         "PL_Revenue_Gross",
                         monthly_rec,
-                        f"Milestone Revenue Recognised: {ms.get('name')}",
+                        f"Milestone Revenue: {ms.get('name')}",
                     )
+                    if monthly_vat > 0:
+                        self.inject_token(
+                            m,
+                            "BS_Asset_Debtors",
+                            "BS_Liability_VAT_Payable",
+                            monthly_vat,
+                            f"Milestone VAT Out: {ms.get('name')}",
+                        )
 
-                # Payment Tranche Shifts (Cash Flow sweeps)
                 if m == m_start:
                     self.inject_token(
                         m,
                         "BS_Asset_Cash",
                         "BS_Asset_Debtors",
-                        tcv * dep_pct,
+                        (tcv * dep_pct) * vat_pct,
                         f"Milestone Upfront Deposit: {ms.get('name')}",
                     )
                 if m == (m_start + duration - 1):
@@ -338,11 +371,11 @@ class CommercialTrialBalanceCuboid:
                         m,
                         "BS_Asset_Cash",
                         "BS_Asset_Debtors",
-                        tcv * (1.0 - dep_pct),
+                        (tcv * (1.0 - dep_pct)) * vat_pct,
                         f"Milestone Balancing Settlement: {ms.get('name')}",
                     )
 
-            # General Indexed Opex Drivers
+            # General Indexed Operational Overheads
             for op in state.get("opex", []):
                 val = 0.0
                 if op.get("overrides", {}).get(f"M{str(m).zfill(2)}", 0.0) > 0:
@@ -362,6 +395,14 @@ class CommercialTrialBalanceCuboid:
                     val = y_base * flex * weights[(m - 1) % 12]
 
                 val *= opex_mod
+                vat_mode = op.get("vat_rate_type", "Standard 20%")
+                vat_pct = (
+                    0.20
+                    if vat_mode == "Standard 20%"
+                    else 0.05 if vat_mode == "Reduced 5%" else 0.0
+                )
+                vat_input = val * vat_pct
+
                 self.inject_token(
                     m,
                     "PL_Expense_Overheads",
@@ -369,8 +410,16 @@ class CommercialTrialBalanceCuboid:
                     val,
                     f"OPEX: {op.get('name')}",
                 )
+                if vat_input > 0:
+                    self.inject_token(
+                        m,
+                        "BS_Liability_VAT_Payable",
+                        "BS_Asset_Cash",
+                        vat_input,
+                        f"VAT IN: {op.get('name')}",
+                    )
 
-            # Variable Seasonal Staffing Waves
+            # Variable Staffing Waves
             for pay in state.get("payroll", []):
                 headcount = int(pay.get("headcount", 1))
                 wage = float(pay.get("monthly_wage", 2000.0))
@@ -402,18 +451,53 @@ class CommercialTrialBalanceCuboid:
                         "HMRC Remittance Pay",
                     )
 
-            # Automated Depreciation Engine Checking
-            current_fa_pool = self.compute_running_balance_to_period(
-                "BS_Asset_Fixed_Assets", m
-            )
-            if current_fa_pool > 0:
-                self.inject_token(
-                    m,
-                    "PL_Expense_Depreciation",
-                    "BS_Asset_Accumulated_Depreciation",
-                    (current_fa_pool * 0.10) / 12.0,
-                    "Auto-Depreciation",
+            # Depreciation & Quarterly VAT Clearings
+            if m > 0:
+                current_fa_pool = self.compute_running_balance_to_period(
+                    "BS_Asset_Fixed_Assets", m
                 )
+                if current_fa_pool > 0:
+                    self.inject_token(
+                        m,
+                        "PL_Expense_Depreciation",
+                        "BS_Asset_Accumulated_Depreciation",
+                        (current_fa_pool * 0.10) / 12.0,
+                        "Auto-Depreciation",
+                    )
+
+                if m in [
+                    3,
+                    6,
+                    9,
+                    12,
+                    15,
+                    18,
+                    21,
+                    24,
+                    27,
+                    30,
+                    33,
+                    36,
+                    39,
+                    42,
+                    45,
+                    48,
+                    51,
+                    54,
+                    57,
+                    60,
+                ]:
+                    vat_acc = self.compute_running_balance_to_period(
+                        "BS_Liability_VAT_Payable", m
+                    )
+                    if vat_acc != 0.0:
+                        self.inject_token(
+                            m,
+                            "BS_Liability_VAT_Payable",
+                            "BS_Asset_Cash",
+                            vat_acc,
+                            "Quarterly VAT Return Settlement",
+                        )
 
         return self.compile_financial_matrices(state)
 
@@ -459,6 +543,7 @@ class CommercialTrialBalanceCuboid:
                 "Accumulated Depreciation Reserve (£)",
                 "Net Book Value Asset Worth (£)",
                 "Trade Debtors Balance (£)",
+                "HMRC VAT Reserves Owing (£)",
                 "HMRC PAYE Obligations Liability (£)",
                 "Long Term Facility Debt Liability (£)",
                 "Shareholder Invested Equity Reserves (£)",
@@ -528,6 +613,11 @@ class CommercialTrialBalanceCuboid:
             df_bs.at["Trade Debtors Balance (£)", m_lbl] = (
                 self.compute_running_balance_to_period("BS_Asset_Debtors", m_idx)
             )
+            df_bs.at["HMRC VAT Reserves Owing (£)", m_lbl] = (
+                -self.compute_running_balance_to_period(
+                    "BS_Liability_VAT_Payable", m_idx
+                )
+            )
             df_bs.at["HMRC PAYE Obligations Liability (£)", m_lbl] = (
                 -self.compute_running_balance_to_period(
                     "BS_Liability_PAYE_NIC_Payable", m_idx
@@ -555,7 +645,8 @@ class CommercialTrialBalanceCuboid:
                 + df_cf.at["Closing Bank Cash Reserves (£)", m_lbl]
             )
             liabs = (
-                df_bs.at["HMRC PAYE Obligations Liability (£)", m_lbl]
+                df_bs.at["HMRC VAT Reserves Owing (£)", m_lbl]
+                + df_bs.at["HMRC PAYE Obligations Liability (£)", m_lbl]
                 + df_bs.at["Long Term Facility Debt Liability (£)", m_lbl]
                 + df_bs.at["Shareholder Invested Equity Reserves (£)", m_lbl]
                 + df_bs.at["Retained Earnings Accumulation (£)", m_lbl]
@@ -571,6 +662,90 @@ class CommercialTrialBalanceCuboid:
 
 
 # =========================================================================
+# 🗛 DATA COMPILATION TRANSFORMERS FOR EDITABLE DATA FRAMES
+# =========================================================================
+
+
+def build_dataframe_from_state(state_dict):
+    month_labels = [f"M{str(i).zfill(2)}" for i in range(0, 61)]
+    rows = []
+    for s in state_dict.get("sales", []):
+        base_row = {
+            "Line Identifier Description": s["name"],
+            "Vector Type": "sales",
+            "Year 1 Net (£)": float(s.get("y1_baseline", 0.0)),
+            "Year 2 Net (£)": float(s.get("y2_baseline", 0.0)),
+            "Year 3 Net (£)": float(s.get("y3_baseline", 0.0)),
+            "Curve Profile": s.get("seasonality", "Flat_Linear"),
+            "VAT Configuration Type": s.get("vat_rate_type", "Standard 20%"),
+        }
+        for m in month_labels:
+            base_row[m] = float(s.get("overrides", {}).get(m, 0.0))
+        rows.append(base_row)
+    for o in state_dict.get("opex", []):
+        base_row = {
+            "Line Identifier Description": o["name"],
+            "Vector Type": "opex",
+            "Year 1 Net (£)": float(o.get("y1_baseline", 0.0)),
+            "Year 2 Net (£)": float(o.get("y2_baseline", 0.0)),
+            "Year 3 Net (£)": float(o.get("y3_baseline", 0.0)),
+            "Curve Profile": o.get("seasonality", "Flat_Linear"),
+            "VAT Configuration Type": o.get("vat_rate_type", "Standard 20%"),
+        }
+        for m in month_labels:
+            base_row[m] = float(o.get("overrides", {}).get(m, 0.0))
+        rows.append(base_row)
+    return pd.DataFrame(rows)
+
+
+def commit_dataframe_to_state(df):
+    month_labels = [f"M{str(i).zfill(2)}" for i in range(0, 61)]
+    new_state = {
+        "sales": [],
+        "opex": [],
+        "payroll": [],
+        "capital": [],
+        "milestones": [],
+        "financed_assets": [],
+        "outright_capex": [],
+        "equity_funding": [],
+    }
+    for _, r in df.iterrows():
+        lbl = str(r["Line Identifier Description"]).strip()
+        if not lbl:
+            continue
+        v_type = str(r["Vector Type"])
+        overrides_map = {m: float(r[m]) for m in month_labels}
+        if v_type == "sales":
+            new_state["sales"].append(
+                {
+                    "name": lbl,
+                    "y1_baseline": float(r["Year 1 Net (£)"]),
+                    "y2_baseline": float(r["Year 2 Net (£)"]),
+                    "y3_baseline": float(r["Year 3 Net (£)"]),
+                    "seasonality": str(r["Curve Profile"]),
+                    "vat_rate_type": str(r["VAT Configuration Type"]),
+                    "payment_delay": 0,
+                    "overrides": overrides_map,
+                }
+            )
+        elif v_type == "opex":
+            new_state["opex"].append(
+                {
+                    "name": lbl,
+                    "y1_baseline": float(r["Year 1 Net (£)"]),
+                    "y2_baseline": float(r["Year 2 Net (£)"]),
+                    "y3_baseline": float(r["Year 3 Net (£)"]),
+                    "seasonality": str(r["Curve Profile"]),
+                    "vat_rate_type": str(r["VAT Configuration Type"]),
+                    "flex_pct": 0,
+                    "overrides": overrides_map,
+                }
+            )
+    return new_state
+
+
+# =========================================================================
 # 🎛️ MAIN WORKSPACE INTERFACE CANVAS
 # =========================================================================
 
@@ -581,7 +756,6 @@ st.caption(
 )
 st.markdown("---")
 
-# Persistent Projects Panel Controller
 p_col1, p_col2 = st.columns([6, 6])
 with p_col1:
     avail = extract_project_directory_list()
@@ -619,9 +793,6 @@ st.markdown("---")
 
 if view_desk == "1. Parameter Entry Panel":
     st.header("✍️ Strategic Operational Parameter Desks")
-    st.info(
-        "💡 **Democratisation Principle:** Document your business plan in plain English commercial units below. The math handles the accounting ledger arrays automatically."
-    )
 
     # -------------------------------------------------------------
     # PILLAR 1: VOLUME SALES DRIVER
@@ -632,7 +803,7 @@ if view_desk == "1. Parameter Entry Panel":
         with st.form("sales_form", clear_on_submit=True):
             n = st.text_input(
                 "Sales Line Name / Identifier:",
-                placeholder="e.g. Counter Trading Retail sales",
+                placeholder="e.g. Counter Trading Retail Sales",
             )
             y1 = st.number_input(
                 "Year 1 Expected Net Base Target (£):", min_value=0.0, step=1000.0
@@ -654,6 +825,10 @@ if view_desk == "1. Parameter Entry Panel":
                     f"Paid Instantly" if x == 0 else f"{x} Days Credit Delay"
                 ),
             )
+            v_rate = st.selectbox(
+                "UK VAT Classification Rate:",
+                ["Standard 20%", "Reduced 5%", "Exempt / Zero 0%"],
+            )
             if st.form_submit_button("➕ Append Trading Sales Revenue Vector"):
                 if n:
                     st.session_state["active_data"]["sales"].append(
@@ -664,16 +839,16 @@ if view_desk == "1. Parameter Entry Panel":
                             "y3_baseline": y3,
                             "seasonality": curve,
                             "payment_delay": delay,
+                            "vat_rate_type": v_rate,
                             "overrides": {},
                         }
                     )
                     st.toast("Sales Line Linked!")
                     st.rerun()
         if st.session_state["active_data"].get("sales"):
-            st.markdown("**Active Volumetric Lines Linked:**")
-            for i, x in enumerate(st.session_state["active_data"]["sales"]):
+            for x in st.session_state["active_data"]["sales"]:
                 st.caption(
-                    f"✔ {x['name']} - Y1: £{x['y1_baseline']:,.2f} | Shape: {x['seasonality']} | [{x['payment_delay']} Days Terms]"
+                    f"✔ {x['name']} - Y1: £{x['y1_baseline']:,.2f} | Shape: {x['seasonality']} | [{x['payment_delay']} Days Terms] | Tax: {x.get('vat_rate_type', 'Standard 20%')}"
                 )
 
     # -------------------------------------------------------------
@@ -703,6 +878,10 @@ if view_desk == "1. Parameter Entry Panel":
                 value=1,
             )
             dp = st.slider("Upfront Execution Deposit Inflow Retainer (%):", 0, 100, 20)
+            v_rate = st.selectbox(
+                "UK VAT Classification Rate (Contracts):",
+                ["Standard 20%", "Reduced 5%", "Exempt / Zero 0%"],
+            )
             if st.form_submit_button("➕ Secure Milestone Contract Parameter Block"):
                 if n:
                     st.session_state["active_data"]["milestones"].append(
@@ -712,6 +891,7 @@ if view_desk == "1. Parameter Entry Panel":
                             "duration": dur,
                             "start_month": start,
                             "deposit_pct": dp,
+                            "vat_rate_type": v_rate,
                         }
                     )
                     st.toast("Milestone Schedule Operationalised!")
@@ -719,17 +899,17 @@ if view_desk == "1. Parameter Entry Panel":
         if st.session_state["active_data"].get("milestones"):
             for x in st.session_state["active_data"]["milestones"]:
                 st.caption(
-                    f"✔ [Contract] {x['name']} - TCV: £{x['tcv']:,.2f} over {x['duration']} Months starting M{x['start_month']}"
+                    f"✔ [Contract] {x['name']} - TCV: £{x['tcv']:,.2f} over {x['duration']} Months starting M{x['start_month']} | Tax: {x.get('vat_rate_type', 'Standard 20%')}"
                 )
 
     # -------------------------------------------------------------
-    # PILLAR 3: GENERAL OPERATIONAL EXPENSES
+    # PILLAR 3: GENERAL OPERATIONAL EXPENSES (ENERGY FRIENDLY)
     # -------------------------------------------------------------
     with st.expander("💸 3. THE GENERAL OVERHEAD CARD (Operational Overhead Flexing)"):
         with st.form("opex_form", clear_on_submit=True):
             n = st.text_input(
                 "Operational Expense Title:",
-                placeholder="e.g. Commercial Premises Business Rates",
+                placeholder="e.g. Commercial Utility Electricity & Gas",
             )
             y1 = st.number_input(
                 "Year 1 Starting Base Overhead Burden (£):", min_value=0.0, step=500.0
@@ -750,6 +930,10 @@ if view_desk == "1. Parameter Entry Panel":
                 30,
                 0,
             )
+            v_rate = st.selectbox(
+                "UK VAT Classification Rate (Overheads):",
+                ["Standard 20%", "Reduced 5%", "Exempt / Zero 0%"],
+            )
             if st.form_submit_button("➕ Append Operational Expense Vector"):
                 if n:
                     st.session_state["active_data"]["opex"].append(
@@ -760,6 +944,7 @@ if view_desk == "1. Parameter Entry Panel":
                             "y3_baseline": y3,
                             "seasonality": curve,
                             "flex_pct": flex,
+                            "vat_rate_type": v_rate,
                             "overrides": {},
                         }
                     )
@@ -768,25 +953,23 @@ if view_desk == "1. Parameter Entry Panel":
         if st.session_state["active_data"].get("opex"):
             for x in st.session_state["active_data"]["opex"]:
                 st.caption(
-                    f"✔ {x['name']} - Y1 Base: £{x['y1_baseline']:,.2f} | Flex: +{x['flex_pct']}% Inflation Indexed"
+                    f"✔ {x['name']} - Y1 Base: £{x['y1_baseline']:,.2f} | Flex: +{x['flex_pct']}% | Tax: {x.get('vat_rate_type', 'Standard 20%')}"
                 )
 
     # -------------------------------------------------------------
-    # PILLAR 4: FINANCED ASSET HP/LEASING WIZARD
+    # PILLARS 4, 5, 6, 7 (COMPREHENSIVE BACKUPS)
     # -------------------------------------------------------------
-    with st.expander(
-        "🚜 4. THE FINANCED ASSET WIZARD (Hire Purchase & Lease Allocation Control)"
-    ):
+    with st.expander("🚜 4. THE FINANCED ASSET WIZARD (Hire Purchase & Lease Finance)"):
         with st.form("financed_form", clear_on_submit=True):
             n = st.text_input(
-                "Financed Infrastructure Asset Name:",
-                placeholder="e.g. Master Production Server Core Rig",
+                "Financed Asset Identifier Name:",
+                placeholder="e.g. Commercial Fleet Vehicle / Bottling Plant",
             )
             amt = st.number_input(
-                "Asset Capital Procurement Value (Gross £):", min_value=0.0, step=5000.0
+                "Asset Procurement Invoice Value (£):", min_value=0.0, step=5000.0
             )
             m_start = st.number_input(
-                "Acquisition Timeline Deployment Month (M01-M60):",
+                "Acquisition target Deployment Month:",
                 min_value=1,
                 max_value=60,
                 value=1,
@@ -795,13 +978,13 @@ if view_desk == "1. Parameter Entry Panel":
                 "Upfront Capital Commitment Deposit Percentage (%):", 0, 100, 10
             )
             term = st.number_input(
-                "Amortisation Facility Term Horizon (Months):",
+                "Amortisation Term Horizon (Months):",
                 min_value=3,
                 max_value=60,
                 value=36,
             )
             rate = st.number_input(
-                "Facility Agreement Financing Interest Matrix Rate (APR %):",
+                "Financing Matrix Interest Rate (APR %):",
                 min_value=0.0,
                 value=5.0,
                 step=0.5,
@@ -822,18 +1005,8 @@ if view_desk == "1. Parameter Entry Panel":
                     )
                     st.toast("Asset & Facility Framework Initialised!")
                     st.rerun()
-        if st.session_state["active_data"].get("financed_assets"):
-            for x in st.session_state["active_data"]["financed_assets"]:
-                st.caption(
-                    f"✔ [HP Financed Asset] {x['name']} - Cost: £{x['amount']:,.2f} | Term: {x['term_months']} mo @ {x['interest_rate']}% APR"
-                )
 
-    # -------------------------------------------------------------
-    # PILLAR 5: OUTRIGHT DEPLOYED CAPEX ASSETS
-    # -------------------------------------------------------------
-    with st.expander(
-        "🏢 5. THE OUTRIGHT CAPEX CARD (Direct Company-Funded Cash Asset Purchases)"
-    ):
+    with st.expander("🏢 5. THE OUTRIGHT CAPEX CARD (Direct Asset Purchases)"):
         with st.form("outright_form", clear_on_submit=True):
             n = st.text_input(
                 "Asset Description Specification:",
@@ -855,15 +1028,7 @@ if view_desk == "1. Parameter Entry Panel":
                     )
                     st.toast("Outright Purchase Logged!")
                     st.rerun()
-        if st.session_state["active_data"].get("outright_capex"):
-            for x in st.session_state["active_data"]["outright_capex"]:
-                st.caption(
-                    f"✔ [Outright CapEx] {x['name']} - Cost: £{x['amount']:,.2f} deployed in Month M{x['month']}"
-                )
 
-    # -------------------------------------------------------------
-    # PILLAR 6: PERSONNEL SEASONAL STAFFING WAVES
-    # -------------------------------------------------------------
     with st.expander("👥 6. THE SEASONAL STAFFING WAVE (Personnel Horizon Volatility)"):
         with st.form("payroll_form", clear_on_submit=True):
             n = st.text_input(
@@ -893,15 +1058,7 @@ if view_desk == "1. Parameter Entry Panel":
                     )
                     st.toast("Workforce Schedule Accrued!")
                     st.rerun()
-        if st.session_state["active_data"].get("payroll"):
-            for x in st.session_state["active_data"]["payroll"]:
-                st.caption(
-                    f"✔ [Seasonal Resource] {x['name']} - Count: {x['headcount']} members × £{x['monthly_wage']:,.2f}/mo [M{x['start_month']}-M{x['end_month']}]"
-                )
 
-    # -------------------------------------------------------------
-    # PILLAR 7: EQUITY FUNDING INJECTIONS
-    # -------------------------------------------------------------
     with st.expander(
         "💰 7. THE FUNDING & EQUITY CARD (Corporate Seed Capital Injections)"
     ):
@@ -914,7 +1071,7 @@ if view_desk == "1. Parameter Entry Panel":
                 "Liquid Cash Infusion Funding Quantum (£):", min_value=0.0, step=10000.0
             )
             m_land = st.number_input(
-                "Cash Clearing Target Allocation Month Index (M00 = Opening Baseline Balance):",
+                "Cash Clearing Target Allocation Month Index:",
                 min_value=0,
                 max_value=60,
                 value=0,
@@ -926,42 +1083,35 @@ if view_desk == "1. Parameter Entry Panel":
                     )
                     st.toast("Capital Placement Logged!")
                     st.rerun()
-        if st.session_state["active_data"].get("equity_funding"):
-            for x in st.session_state["active_data"]["equity_funding"]:
-                st.caption(
-                    f"✔ [Equity Inflow] {x['name']} - Influx: £{x['amount']:,.2f} booked into Month M{x['month']}"
-                )
 
     # -------------------------------------------------------------
-    # EXCEPTION GATE: CONTINUOUS READ/WRITE PREVIEW RECONCILIATION HORIZON GRID
+    # EXCEPTION GATE LAYOUT MATRIX WITH STICKY HEADERS
     # -------------------------------------------------------------
     st.markdown("### 🗺️ Continuous 61-Month Timeline Output Confirmation Matrix")
-    st.caption(
-        "🔒 **Read-Only Ledger Projection Space with Inline Exception Overrides.** Type explicit local values here to completely supersede any high-level automated baseline parameters for that cell."
-    )
-
-    # Render Frozen Tracking Headers CSS Injection
     st.markdown(
         """
         <style>
             div[data-testid="stDataEditor"] div.rt-tbody div.rt-tr div.rt-td:nth-child(1),
             div[data-testid="stDataEditor"] div.rt-thead div.rt-tr th:nth-child(1) {
-                position: sticky !important; left: 0px !important; background-color: var(--background-color) !important; z-index: 2 !important;
+                position: sticky !important; left: 0px !important; background-color: white !important; z-index: 2 !important; box-shadow: 2px 0px 5px rgba(0,0,0,0.1);
             }
         </style>
     """,
         unsafe_allow_html=True,
     )
 
-    # Build Flattened Data View Representation Matrix Out for Dynamic Display View
     month_columns = [f"M{str(i).zfill(2)}" for i in range(0, 61)]
     preview_rows = []
-
     for category in ["sales", "opex"]:
         for item in st.session_state["active_data"].get(category, []):
             r_data = {
-                "Nominal Row Description": item["name"],
-                "Category Ledger Vector": category,
+                "Line Identifier Description": item["name"],
+                "Vector Type": category,
+                "Year 1 Net (£)": item.get("y1_baseline", 0.0),
+                "Year 2 Net (£)": item.get("y2_baseline", 0.0),
+                "Year 3 Net (£)": item.get("y3_baseline", 0.0),
+                "Curve Profile": item.get("seasonality", "Flat_Linear"),
+                "VAT Configuration Type": item.get("vat_rate_type", "Standard 20%"),
             }
             for col in month_columns:
                 r_data[col] = float(item.get("overrides", {}).get(col, 0.0))
@@ -970,11 +1120,26 @@ if view_desk == "1. Parameter Entry Panel":
     if preview_rows:
         df_preview = pd.DataFrame(preview_rows)
         cfg = {
-            "Nominal Row Description": st.column_config.TextColumn(
-                "Nominal Line Description Account", disabled=True, width="large"
+            "Line Identifier Description": st.column_config.TextColumn(
+                "Nominal Line", disabled=True, width="large"
             ),
-            "Category Ledger Vector": st.column_config.TextColumn(
-                "Vector Core Type", disabled=True, width="small"
+            "Vector Type": st.column_config.TextColumn(
+                "Type", disabled=True, width="small"
+            ),
+            "Year 1 Net (£)": st.column_config.NumberColumn(
+                "Y1 Target", format="£%,.2f"
+            ),
+            "Year 2 Net (£)": st.column_config.NumberColumn(
+                "Y2 Target", format="£%,.2f"
+            ),
+            "Year 3 Net (£)": st.column_config.NumberColumn(
+                "Y3 Target", format="£%,.2f"
+            ),
+            "Curve Profile": st.column_config.SelectboxColumn(
+                "Curve Profile", options=["Flat_Linear", "Winter_Peak", "Summer_Peak"]
+            ),
+            "VAT Configuration Type": st.column_config.SelectboxColumn(
+                "VAT Rate", options=["Standard 20%", "Reduced 5%", "Exempt / Zero 0%"]
             ),
         }
         for cm in month_columns:
@@ -987,28 +1152,16 @@ if view_desk == "1. Parameter Entry Panel":
             key="exception_hatch_editor",
         )
 
-        if st.button("🚨 Lock In Manual Cell-by-Cell Exception Overrides"):
-            for _, grid_row in edited_grid.iterrows():
-                row_title = grid_row["Nominal Row Description"]
-                v_type = grid_row["Category Ledger Vector"]
-
-                # Re-locate master state storage element context match pointer
-                for master_item in st.session_state["active_data"][v_type]:
-                    if master_item["name"] == row_title:
-                        for cm in month_columns:
-                            if float(grid_row[cm]) > 0.0:
-                                master_item["overrides"][cm] = float(grid_row[cm])
-            st.toast("Cell Exception Matrix Updated!")
+        if st.button("🚨 Lock In Parameter Changes & Exception Overrides"):
+            updated_state = commit_dataframe_to_state(edited_grid)
+            st.session_state["active_data"]["sales"] = updated_state["sales"]
+            st.session_state["active_data"]["opex"] = updated_state["opex"]
+            st.toast("Matrix Alignment Completed successfully!")
             st.rerun()
-    else:
-        st.caption(
-            "No dynamic lines added yet. Add a parameter line above to see the structural projection grid display layout."
-        )
 
 elif view_desk == "2. Consolidated Financial Statements":
     st.title("📊 Reconciled Three-Way Corporate Reporting Canvas")
 
-    # Compute Live Real-Time Double-Entry Balancing Math Vector Execution Simulation
     cuboid_engine = CommercialTrialBalanceCuboid()
     cuboid_engine.run_simulation_engine(st.session_state["active_data"])
 
@@ -1045,16 +1198,19 @@ elif view_desk == "2. Consolidated Financial Statements":
         st.dataframe(df_pl[targets].style.format("{:,.2f}"), use_container_width=True)
     with t2:
         st.dataframe(df_cf[targets].style.format("{:,.2f}"), use_container_width=True)
-        st.line_chart(
-            pd.DataFrame(
-                df_cf.loc[
-                    "Closing Bank Cash Reserves (£)",
-                    [lbl for lbl in targets if lbl != "M00"],
-                ].values,
-                index=[lbl for lbl in targets if lbl != "M00"],
-                columns=["Closing Liquid Runway Cash Balance (£)"],
-            )
-        )
+        trend_labels = [lbl for lbl in targets if lbl != "M00"]
+        if trend_labels:
+            cash_series = df_cf.loc[
+                "Closing Bank Cash Reserves (£)", trend_labels
+            ].astype(float)
+            if not cash_series.empty and cash_series.min() != cash_series.max():
+                st.line_chart(
+                    pd.DataFrame(
+                        cash_series.values,
+                        index=trend_labels,
+                        columns=["Closing Liquid Runway Cash Balance (£)"],
+                    )
+                )
     with t3:
         st.dataframe(df_bs[targets].style.format("{:,.2f}"), use_container_width=True)
         st.success(
