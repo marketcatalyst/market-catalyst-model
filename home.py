@@ -1,5 +1,5 @@
 # home.py
-# STRATA SUITE PRODUCTION ENGINE // ACCESS ROUTER & GATEWAY CORE v5.2.0-MASTER
+# STRATA SUITE PRODUCTION ENGINE // ACCESS ROUTER & GATEWAY CORE v5.3.0-MASTER
 
 import streamlit as st
 import os
@@ -13,7 +13,7 @@ st.set_page_config(
 
 # 2. Global State Hydration Guard
 # Ensures that if a user lands on the root page first, all required data structures
-# are fully initialized in memory so the app never throws a NoneType error.
+# are fully initialized in memory so the app never throws a NoneType error downstream.
 if "active_data" not in st.session_state:
     st.session_state["active_data"] = {
         "sales": [],
@@ -28,14 +28,41 @@ if "active_data" not in st.session_state:
 if "active_project_name" not in st.session_state:
     st.session_state["active_project_name"] = "Unsaved_Draft_Scenario"
 
+# Initialize security status flags if absent
 if "authenticated" not in st.session_state:
-    st.session_state["authenticated"] = True  # Verified Gateway Bypass
+    st.session_state["authenticated"] = False
 
 if "onboarding_complete" not in st.session_state:
-    st.session_state["onboarding_complete"] = True
+    st.session_state["onboarding_complete"] = False
 
 # =========================================================================
-# 🎛️ PORTAL FRONT-END USER INTERFACE CANVAS
+# 🛡️ SECURITY INTERCEPT LAYER: PRODUCTION SECURE PROTOCOL
+# =========================================================================
+# The explicit bypass has been stripped. The engine checks session credentials.
+if not st.session_state["authenticated"] or not st.session_state["onboarding_complete"]:
+    st.error("🔒 **Access Restricted:** Secure session token context not detected.")
+
+    with st.form("security_handshake_gate", clear_on_submit=False):
+        st.subheader("🔑 Relational Tenant Authentication")
+        u_pass = st.text_input("Enter Workspace Security Access Key:", type="password")
+
+        if st.form_submit_button("Verify Credentials & Hydrate Instance"):
+            # Simple server-side env check fallback or secrets validation pattern
+            secure_target = os.environ.get("GATEWAY_KEY") or st.secrets.get(
+                "GATEWAY_KEY", "STRATA_SECURE_2026"
+            )
+
+            if u_pass == secure_target:
+                st.session_state["authenticated"] = True
+                st.session_state["onboarding_complete"] = True
+                st.success("Authorization cleared! Initializing workspace layers...")
+                st.rerun()
+            else:
+                st.error("Invalid security key sequence. Access Denied.")
+    st.stop()
+
+# =========================================================================
+# 🎛️ PORTAL FRONT-END USER INTERFACE CANVAS (ENGAGES ONLY IF AUTHENTICATED)
 # =========================================================================
 
 st.title("🏛️ STRATA // Corporate Command Center")
@@ -88,5 +115,5 @@ with nav_col2:
 
 st.markdown("---")
 st.caption(
-    "🛡️ STRATA Infrastructure Kernel v5.2.0 // Encrypted Session Pipeline Protected Under Relational Tenant Handshakes."
+    "🛡️ STRATA Infrastructure Kernel v5.3.0 // Encrypted Session Pipeline Protected Under Relational Tenant Handshakes."
 )
