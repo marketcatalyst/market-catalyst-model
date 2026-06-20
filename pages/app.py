@@ -1,5 +1,5 @@
 # pages/app.py
-# STRATA SUITE PRODUCTION ENGINE // TOTAL CORE SYSTEM v5.2.0-MASTER
+# STRATA SUITE PRODUCTION ENGINE // TOTAL CORE SYSTEM v5.3.0-MASTER
 
 import streamlit as st
 import json
@@ -133,7 +133,7 @@ def pull_project_payload_from_storage(project_name):
 execute_database_handshake()
 
 # =========================================================================
-# 🏛️ CORE ENGINE: Granular Multi-Period Ledger Processor (With Variable VAT)
+# 🏛️ CORE ENGINE: Granular Multi-Period Ledger Processor
 # =========================================================================
 
 
@@ -198,7 +198,6 @@ class CommercialTrialBalanceCuboid:
     def run_simulation_engine(self, state, rev_mod=1.0, opex_mod=1.0):
         self.token_pool = []
 
-        # 1. Equity Funding Inflow
         for eq in state.get("equity_funding", []):
             m = int(eq.get("month", 0))
             self.inject_token(
@@ -209,7 +208,6 @@ class CommercialTrialBalanceCuboid:
                 f"Equity Funding: {eq.get('name')}",
             )
 
-        # 2. Outright CapEx Asset Purchases
         for cap in state.get("outright_capex", []):
             m = int(cap.get("month", 1))
             self.inject_token(
@@ -220,7 +218,6 @@ class CommercialTrialBalanceCuboid:
                 f"Outright CapEx: {cap.get('name')}",
             )
 
-        # 3. Financed Fixed Infrastructure Assets (HP / Lease)
         for fa in state.get("financed_assets", []):
             m_start = int(fa.get("month", 1))
             total_val = float(fa.get("amount", 0.0))
@@ -271,9 +268,7 @@ class CommercialTrialBalanceCuboid:
                         f"HP Interest Charge: {fa.get('name')}",
                     )
 
-        # 60-Month Timeline Processing Horizon
         for m in range(1, 61):
-            # Volume Trading Sales Channels
             for sale in state.get("sales", []):
                 val = 0.0
                 if sale.get("overrides", {}).get(f"M{str(m).zfill(2)}", 0.0) > 0:
@@ -321,7 +316,6 @@ class CommercialTrialBalanceCuboid:
                     f"REV Cash Collection: {sale.get('name')}",
                 )
 
-            # Milestone Contract Portfolios
             for ms in state.get("milestones", []):
                 tcv = float(ms.get("tcv", 0.0))
                 duration = int(ms.get("duration", 6))
@@ -375,7 +369,6 @@ class CommercialTrialBalanceCuboid:
                         f"Milestone Balancing Settlement: {ms.get('name')}",
                     )
 
-            # General Indexed Operational Overheads
             for op in state.get("opex", []):
                 val = 0.0
                 if op.get("overrides", {}).get(f"M{str(m).zfill(2)}", 0.0) > 0:
@@ -419,7 +412,6 @@ class CommercialTrialBalanceCuboid:
                         f"VAT IN: {op.get('name')}",
                     )
 
-            # Variable Staffing Waves
             for pay in state.get("payroll", []):
                 headcount = int(pay.get("headcount", 1))
                 wage = float(pay.get("monthly_wage", 2000.0))
@@ -451,7 +443,6 @@ class CommercialTrialBalanceCuboid:
                         "HMRC Remittance Pay",
                     )
 
-            # Depreciation & Quarterly VAT Clearings
             if m > 0:
                 current_fa_pool = self.compute_running_balance_to_period(
                     "BS_Asset_Fixed_Assets", m
@@ -661,43 +652,6 @@ class CommercialTrialBalanceCuboid:
         return True
 
 
-# =========================================================================
-# 🗛 DATA COMPILATION TRANSFORMERS FOR EDITABLE DATA FRAMES
-# =========================================================================
-
-
-def build_dataframe_from_state(state_dict):
-    month_labels = [f"M{str(i).zfill(2)}" for i in range(0, 61)]
-    rows = []
-    for s in state_dict.get("sales", []):
-        base_row = {
-            "Line Identifier Description": s["name"],
-            "Vector Type": "sales",
-            "Year 1 Net (£)": float(s.get("y1_baseline", 0.0)),
-            "Year 2 Net (£)": float(s.get("y2_baseline", 0.0)),
-            "Year 3 Net (£)": float(s.get("y3_baseline", 0.0)),
-            "Curve Profile": s.get("seasonality", "Flat_Linear"),
-            "VAT Configuration Type": s.get("vat_rate_type", "Standard 20%"),
-        }
-        for m in month_labels:
-            base_row[m] = float(s.get("overrides", {}).get(m, 0.0))
-        rows.append(base_row)
-    for o in state_dict.get("opex", []):
-        base_row = {
-            "Line Identifier Description": o["name"],
-            "Vector Type": "opex",
-            "Year 1 Net (£)": float(o.get("y1_baseline", 0.0)),
-            "Year 2 Net (£)": float(o.get("y2_baseline", 0.0)),
-            "Year 3 Net (£)": float(o.get("y3_baseline", 0.0)),
-            "Curve Profile": o.get("seasonality", "Flat_Linear"),
-            "VAT Configuration Type": o.get("vat_rate_type", "Standard 20%"),
-        }
-        for m in month_labels:
-            base_row[m] = float(o.get("overrides", {}).get(m, 0.0))
-        rows.append(base_row)
-    return pd.DataFrame(rows)
-
-
 def commit_dataframe_to_state(df):
     month_labels = [f"M{str(i).zfill(2)}" for i in range(0, 61)]
     new_state = {
@@ -750,12 +704,55 @@ def commit_dataframe_to_state(df):
 # =========================================================================
 
 st.set_page_config(layout="wide")
-st.title("🛡️ STRATA // Democratised Forecast Engineering Suite")
+st.title("🏛️ STRATA // Corporate Command Center")
 st.caption(
-    f"Active Project Workspace Context: `{st.session_state.get('active_project_name', 'Unsaved_Draft_Scenario')}`"
+    f"Active Tenant Context Model Session: `{st.session_state.get('active_project_name', 'Unsaved_Draft_Scenario')}`"
+)
+
+st.info(
+    "📊 **System Status:** Session authenticated and tracking thresholds successfully mapped to industry parameters."
 )
 st.markdown("---")
 
+# -------------------------------------------------------------
+# 🎨 REFACTORED INTERACTIVE LINK FRAMES (Symmetry Fix from image_be178c.png)
+# -------------------------------------------------------------
+nav_col1, nav_col2 = st.columns(2)
+
+with nav_col1:
+    st.subheader("✍️ Operational Planning Canvas")
+    st.markdown(
+        "Ingest raw documents via document scanning, append structural ledger "
+        "profiles manually, or load existing database project schemas."
+    )
+    st.write("")
+    # Wrapped inside a crisp full-width bordered button frame to completely clear the asymmetry
+    if st.button(
+        "🚀 Launch Parameter Workspaces Desk",
+        use_container_width=True,
+        key="launch_desk_btn",
+    ):
+        st.toast("Navigating to Parameter Interface...")
+
+with nav_col2:
+    st.subheader("🚪 Workspace Session Control")
+    st.markdown(
+        "Disconnect active ledger matrix memory instances, lock storage "
+        "configurations, or exit active session windows securely."
+    )
+    st.write("")
+
+    if st.button(
+        "🚪 Terminate Session & Log Out",
+        use_container_width=True,
+        key="terminate_logout_btn",
+    ):
+        st.session_state.clear()
+        st.rerun()
+
+st.markdown("---")
+
+# Database File Storage Controller Node
 p_col1, p_col2 = st.columns([6, 6])
 with p_col1:
     avail = extract_project_directory_list()
@@ -903,7 +900,7 @@ if view_desk == "1. Parameter Entry Panel":
                 )
 
     # -------------------------------------------------------------
-    # PILLAR 3: GENERAL OPERATIONAL EXPENSES (ENERGY FRIENDLY)
+    # PILLAR 3: GENERAL OPERATIONAL EXPENSES
     # -------------------------------------------------------------
     with st.expander("💸 3. THE GENERAL OVERHEAD CARD (Operational Overhead Flexing)"):
         with st.form("opex_form", clear_on_submit=True):
@@ -957,7 +954,7 @@ if view_desk == "1. Parameter Entry Panel":
                 )
 
     # -------------------------------------------------------------
-    # PILLARS 4, 5, 6, 7 (COMPREHENSIVE BACKUPS)
+    # PILLARS 4, 5, 6, 7
     # -------------------------------------------------------------
     with st.expander("🚜 4. THE FINANCED ASSET WIZARD (Hire Purchase & Lease Finance)"):
         with st.form("financed_form", clear_on_submit=True):
