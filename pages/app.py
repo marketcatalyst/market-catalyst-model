@@ -1,5 +1,5 @@
 # pages/app.py
-# STRATA SUITE PRODUCTION ENGINE // TOTAL CORE SYSTEM v6.2.0-MASTER
+# STRATA SUITE PRODUCTION ENGINE // TOTAL CORE SYSTEM v6.2.1-PRODUCTION
 
 import streamlit as st
 import json
@@ -39,7 +39,7 @@ if "active_data" not in st.session_state:
         "equity_funding": [],
     }
 
-# Ensure legacy state structures adapt smoothly to the new COGS dictionary block
+# Ensure legacy state structures adapt smoothly to the COGS dictionary block
 if "cogs" not in st.session_state["active_data"]:
     st.session_state["active_data"]["cogs"] = []
 
@@ -369,7 +369,6 @@ class CommercialTrialBalanceCuboid:
                         f"Milestone Balancing Settlement: {ms.get('name')}",
                     )
 
-            # Direct Production Cost of Goods Sold (COGS) Injections
             for c in state.get("cogs", []):
                 val = 0.0
                 if c.get("overrides", {}).get(f"M{str(m).zfill(2)}", 0.0) > 0:
@@ -921,7 +920,7 @@ if view_desk == "1. Parameter Entry Panel":
                         st.session_state["active_data"]["milestones"].pop(idx)
                         st.rerun()
 
-    # ✨ 8. NEW CARD CONTAINER: THE PRODUCTION COGS DESK
+    # 8. Production COGS Desk Panel
     with st.expander(
         "📦 8. THE PRODUCTION COGS DESK (Direct Materials, Subcontractors & Logistics Costs)"
     ):
@@ -1104,7 +1103,7 @@ if view_desk == "1. Parameter Entry Panel":
                         st.session_state["active_data"]["financed_assets"].pop(idx)
                         st.rerun()
 
-    # 5. Outright Deployed CapEx Assets
+    # 5. Outright Deployed CapEx Assets (Corrected Inline Submit Trigger)
     with st.expander(
         "🏢 5. THE OUTRIGHT CAPEX CARD (Direct Company-Funded Cash Asset Purchases)"
     ):
@@ -1122,7 +1121,7 @@ if view_desk == "1. Parameter Entry Panel":
                 max_value=60,
                 value=1,
             )
-            if st.button("➕ Append Direct CapEx Vector"):
+            if st.form_submit_button("➕ Append Direct CapEx Vector"):
                 if n:
                     st.session_state["active_data"]["outright_capex"].append(
                         {"name": n, "amount": amt, "month": m_buy}
