@@ -1,5 +1,5 @@
 # home.py
-# STRATA SUITE PRODUCTION ENGINE // ACCESS ROUTER & GATEWAY CORE v5.7.0-MASTER
+# STRATA SUITE PRODUCTION ENGINE // ACCESS ROUTER & GATEWAY CORE v6.0.0-MASTER
 
 import streamlit as st
 import os
@@ -64,9 +64,6 @@ UK_SIC_REGULATORY_MATRIX = {
 }
 
 
-# =========================================================================
-# 🔑 CREDENTIAL VERIFICATION CALLBACK
-# =========================================================================
 def execute_credential_verification():
     input_value = st.session_state.get("raw_password_token_entry", "")
     secure_target = os.environ.get("GATEWAY_KEY") or st.secrets.get(
@@ -106,9 +103,6 @@ if not st.session_state["onboarding_complete"]:
         "📋 **Onboarding Protocol Active:** Establish your standard industrial parameters before launching workspace environments."
     )
     st.markdown("### 🏗️ Standard Industrial Classification (SIC) Selection")
-    st.info(
-        "The selected industry profile injects sector-specific tax baselines, depreciation thresholds, and VAT configurations automatically."
-    )
 
     selected_sic_label = st.selectbox(
         "Select Active Corporate Mapping Variant (UK SIC Code Grid):",
@@ -121,8 +115,6 @@ if not st.session_state["onboarding_complete"]:
     ):
         if selected_sic_label != "-- Click to Select Verified Sector Profile --":
             profile_data = UK_SIC_REGULATORY_MATRIX[selected_sic_label]
-
-            # Commit the regulatory profile structural array data directly onto the session cache space
             st.session_state["sic_profile"] = profile_data
             st.session_state["onboarding_complete"] = True
             st.success(
@@ -138,7 +130,6 @@ if not st.session_state["onboarding_complete"]:
 # =========================================================================
 # 🎛️ PORTAL FRONT-END USER INTERFACE CANVAS (ENGAGES ONLY IF STEP 1 & 2 CLEAR)
 # =========================================================================
-
 st.title("🏛️ STRATA // Corporate Command Center")
 
 active_sic = st.session_state["sic_profile"]
@@ -154,39 +145,43 @@ st.info(
 st.markdown("---")
 
 # -------------------------------------------------------------
-# 🎨 INTERACTIVE NAVIGATION DESK (Framed, Balanced, Symmetrical)
+# 🎨 THREE-WAY TRAFFIC ROUTING CANVAS (Clean Layout Matrix)
 # -------------------------------------------------------------
-nav_col1, nav_col2 = st.columns(2)
+nav_col1, nav_col2, nav_col3 = st.columns(3)
 
 with nav_col1:
-    st.subheader("✍️ Operational Planning Canvas")
+    st.subheader("📥 Ingestion Gateway")
     st.markdown(
-        "Ingest raw documents via document scanning, append structural ledger "
-        "profiles manually, or load existing database project schemas."
+        "Drop unstructured transaction metrics, PDF supplier agreements, or CSV reports into an isolated sandbox environment."
     )
     st.write("")
-
     if st.button(
-        "🚀 Launch Parameter Workspaces Desk",
-        use_container_width=True,
-        key="gateway_launch_workspaces_btn",
+        "📥 Open AI Scratchpad", use_container_width=True, key="gate_go_to_ingestion"
+    ):
+        st.switch_page("pages/1_Data_Ingestion_Gateway.py")
+
+with nav_col2:
+    st.subheader("✍️ Corporate Canvas")
+    st.markdown(
+        "Manually append custom ledger profiles, modify macro forecasting parameters, or override structural timelines directly."
+    )
+    st.write("")
+    if st.button(
+        "🚀 Launch Command Center", use_container_width=True, key="gate_go_to_dashboard"
     ):
         st.switch_page("pages/app.py")
 
-with nav_col2:
-    st.subheader("🚪 Workspace Session Control")
+with nav_col3:
+    st.subheader("🚪 Workspace Control")
     st.markdown(
-        "Disconnect active ledger matrix memory instances, lock storage "
-        "configurations, or exit active session windows securely."
+        "Disconnect active ledger matrix memory instances, lock storage configurations, or exit active session windows securely."
     )
     st.write("")
-
     if st.button(
         "🚪 Terminate Session & Log Out",
         use_container_width=True,
-        key="gateway_terminate_session_btn",
+        key="gate_terminate_session",
     ):
-        # Explicitly loop and clear state keys to fix the state-retention bug
         keys_to_clear = [k for k in st.session_state.keys()]
         for key in keys_to_clear:
             st.session_state.pop(key)
@@ -195,5 +190,5 @@ with nav_col2:
 
 st.markdown("---")
 st.caption(
-    "🛡️ STRATA Infrastructure Kernel v5.7.0 // Encrypted Session Pipeline Protected Under Relational Tenant Handshakes."
+    "🛡️ STRATA Infrastructure Kernel v6.0.0 // Encrypted Session Pipeline Protected Under Relational Tenant Handshakes."
 )
