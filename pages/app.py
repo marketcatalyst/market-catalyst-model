@@ -1,5 +1,5 @@
 # pages/app.py
-# STRATA SUITE PRODUCTION ENGINE // TOTAL CORE SYSTEM v6.1.0-MASTER
+# STRATA SUITE PRODUCTION ENGINE // TOTAL CORE SYSTEM v6.2.0-MASTER
 
 import streamlit as st
 import json
@@ -31,12 +31,17 @@ if "active_data" not in st.session_state:
     st.session_state["active_data"] = {
         "sales": [],
         "milestones": [],
+        "cogs": [],
         "opex": [],
         "financed_assets": [],
         "outright_capex": [],
         "payroll": [],
         "equity_funding": [],
     }
+
+# Ensure legacy state structures adapt smoothly to the new COGS dictionary block
+if "cogs" not in st.session_state["active_data"]:
+    st.session_state["active_data"]["cogs"] = []
 
 
 # =========================================================================
@@ -364,6 +369,37 @@ class CommercialTrialBalanceCuboid:
                         f"Milestone Balancing Settlement: {ms.get('name')}",
                     )
 
+            # Direct Production Cost of Goods Sold (COGS) Injections
+            for c in state.get("cogs", []):
+                val = 0.0
+                if c.get("overrides", {}).get(f"M{str(m).zfill(2)}", 0.0) > 0:
+                    val = float(c["overrides"][f"M{str(m).zfill(2)}"])
+                else:
+                    y_idx = 1 if m <= 12 else 2 if m <= 24 else 3
+                    weights = self.seasonality_profiles.get(
+                        c.get("seasonality", "Flat_Linear"),
+                        self.seasonality_profiles["Flat_Linear"],
+                    )
+                    val = (
+                        float(c.get(f"y{y_idx}_baseline", 0.0)) * weights[(m - 1) % 12]
+                    )
+                vat_pct = (
+                    0.20
+                    if c.get("vat_rate_type", "Standard 20%") == "Standard 20%"
+                    else 0.05 if c.get("vat_rate_type") == "Reduced 5%" else 0.0
+                )
+                self.inject_token(
+                    m, "PL_Expense_COGS", "BS_Asset_Cash", val, f"COGS: {c.get('name')}"
+                )
+                if val * vat_pct > 0:
+                    self.inject_token(
+                        m,
+                        "BS_Liability_VAT_Payable",
+                        "BS_Asset_Cash",
+                        val * vat_pct,
+                        f"VAT IN COGS: {c.get('name')}",
+                    )
+
             for op in state.get("opex", []):
                 val = 0.0
                 if op.get("overrides", {}).get(f"M{str(m).zfill(2)}", 0.0) > 0:
@@ -494,6 +530,8 @@ class CommercialTrialBalanceCuboid:
             0.0,
             index=[
                 "Total Revenue (£)",
+                "Cost of Goods Sold (COGS) (£)",
+                "Gross Profit Margin (£)",
                 "Operational Overheads (£)",
                 "Staff Payroll Overhead (£)",
                 "Depreciation Overhead (£)",
@@ -535,6 +573,8 @@ class CommercialTrialBalanceCuboid:
                 if t.month_label == m_lbl:
                     if t.credit_acct == "PL_Revenue_Gross":
                         df_pl.at["Total Revenue (£)", m_lbl] += t.amount
+                    if t.debit_acct == "PL_Expense_COGS":
+                        df_pl.at["Cost of Goods Sold (COGS) (£)", m_lbl] += t.amount
                     if t.debit_acct == "PL_Expense_Overheads":
                         df_pl.at["Operational Overheads (£)", m_lbl] += t.amount
                     if t.debit_acct == "PL_Expense_Payroll":
@@ -558,8 +598,12 @@ class CommercialTrialBalanceCuboid:
                     if t.credit_acct == "BS_Asset_Cash":
                         df_cf.at["Operational Cash Outflows (£)", m_lbl] += t.amount
 
-            df_pl.at["Net Operating Profit (EBIT)", m_lbl] = (
+            df_pl.at["Gross Profit Margin (£)", m_lbl] = (
                 df_pl.at["Total Revenue (£)", m_lbl]
+                - df_pl.at["Cost of Goods Sold (COGS) (£)", m_lbl]
+            )
+            df_pl.at["Net Operating Profit (EBIT)", m_lbl] = (
+                df_pl.at["Gross Profit Margin (£)", m_lbl]
                 - df_pl.at["Operational Overheads (£)", m_lbl]
                 - df_pl.at["Staff Payroll Overhead (£)", m_lbl]
                 - df_pl.at["Depreciation Overhead (£)", m_lbl]
@@ -639,10 +683,11 @@ def commit_dataframe_to_state(df):
     month_labels = [f"M{str(i).zfill(2)}" for i in range(0, 61)]
     new_state = {
         "sales": [],
+        "milestones": [],
+        "cogs": [],
         "opex": [],
         "payroll": [],
         "capital": [],
-        "milestones": [],
         "financed_assets": [],
         "outright_capex": [],
         "equity_funding": [],
@@ -662,6 +707,18 @@ def commit_dataframe_to_state(df):
                     "seasonality": str(r["Curve Profile"]),
                     "vat_rate_type": str(r["VAT Configuration Type"]),
                     "payment_delay": 0,
+                    "overrides": overrides_map,
+                }
+            )
+        elif str(r["Vector Type"]) == "cogs":
+            new_state["cogs"].append(
+                {
+                    "name": lbl,
+                    "y1_baseline": float(r["Year 1 Net (£)"]),
+                    "y2_baseline": float(r["Year 2 Net (£)"]),
+                    "y3_baseline": float(r["Year 3 Net (£)"]),
+                    "seasonality": str(r["Curve Profile"]),
+                    "vat_rate_type": str(r["VAT Configuration Type"]),
                     "overrides": overrides_map,
                 }
             )
@@ -710,6 +767,8 @@ with p_col1:
         payload = pull_project_payload_from_storage(sel)
         if payload:
             st.session_state["active_data"] = payload
+            if "cogs" not in st.session_state["active_data"]:
+                st.session_state["active_data"]["cogs"] = []
             st.session_state["active_project_name"] = sel
             st.toast(f"Loaded Core State: {sel}")
             st.rerun()
@@ -757,6 +816,7 @@ if view_desk == "1. Parameter Entry Panel":
             curve = st.selectbox(
                 "Timeline Seasonal Shape Curve:",
                 ["Flat_Linear", "Winter_Peak", "Summer_Peak"],
+                key="sales_curve",
             )
             delay = st.selectbox(
                 "Commercial Credit Terms Delay:",
@@ -769,6 +829,7 @@ if view_desk == "1. Parameter Entry Panel":
                 "UK VAT Classification Rate:",
                 ["Standard 20%", "Reduced 5%", "Exempt / Zero 0%"],
                 index=0 if active_sic["default_vat_type"] == "Standard 20%" else 2,
+                key="sales_vat",
             )
             if st.form_submit_button("➕ Append Trading Sales Revenue Vector"):
                 if n:
@@ -829,6 +890,7 @@ if view_desk == "1. Parameter Entry Panel":
             v_rate = st.selectbox(
                 "UK VAT Classification Rate (Contracts):",
                 ["Standard 20%", "Reduced 5%", "Exempt / Zero 0%"],
+                key="ms_vat",
             )
             if st.form_submit_button("➕ Secure Milestone Contract Parameter Block"):
                 if n:
@@ -859,6 +921,64 @@ if view_desk == "1. Parameter Entry Panel":
                         st.session_state["active_data"]["milestones"].pop(idx)
                         st.rerun()
 
+    # ✨ 8. NEW CARD CONTAINER: THE PRODUCTION COGS DESK
+    with st.expander(
+        "📦 8. THE PRODUCTION COGS DESK (Direct Materials, Subcontractors & Logistics Costs)"
+    ):
+        with st.form("cogs_form", clear_on_submit=True):
+            n = st.text_input(
+                "Direct Production Cost Title / Identifier:",
+                placeholder="e.g. Raw Carbon Fibre Composite Materials Allocation",
+            )
+            y1 = st.number_input(
+                "Year 1 Direct Target Production Cost (£):", min_value=0.0, step=500.0
+            )
+            y2 = st.number_input(
+                "Year 2 Direct Target Production Cost (£):", min_value=0.0, step=500.0
+            )
+            y3 = st.number_input(
+                "Year 3 Direct Target Production Cost (£):", min_value=0.0, step=500.0
+            )
+            curve = st.selectbox(
+                "Cost Seasonal Volatility Shape Profile:",
+                ["Flat_Linear", "Winter_Peak", "Summer_Peak"],
+                key="cogs_curve",
+            )
+            v_rate = st.selectbox(
+                "Supply Chain VAT Rate Profile:",
+                ["Standard 20%", "Reduced 5%", "Exempt / Zero 0%"],
+                key="cogs_vat",
+            )
+            if st.form_submit_button("➕ Append Direct Production COGS Vector"):
+                if n:
+                    st.session_state["active_data"]["cogs"].append(
+                        {
+                            "name": n,
+                            "y1_baseline": y1,
+                            "y2_baseline": y2,
+                            "y3_baseline": y3,
+                            "seasonality": curve,
+                            "vat_rate_type": v_rate,
+                            "overrides": {},
+                        }
+                    )
+                    st.toast("Production COGS Vector Added Successfully!")
+                    st.rerun()
+        if st.session_state["active_data"].get("cogs"):
+            st.markdown("**Active Production Cost Rows:**")
+            for idx, x in enumerate(st.session_state["active_data"]["cogs"]):
+                row_col1, row_col2 = st.columns([10, 2])
+                with row_col1:
+                    st.caption(
+                        f"✔ [COGS] {x['name']} - Y1 Allocation: £{x['y1_baseline']:,.2f} | Curve: {x['seasonality']} | Tax: {x.get('vat_rate_type', 'Standard 20%')}"
+                    )
+                with row_col2:
+                    if st.button(
+                        "🗑️ Delete", key=f"del_cogs_{idx}", use_container_width=True
+                    ):
+                        st.session_state["active_data"]["cogs"].pop(idx)
+                        st.rerun()
+
     # 3. General Operational Overheads Panel
     with st.expander("💸 3. THE GENERAL OVERHEAD CARD (Operational Overhead Flexing)"):
         with st.form("opex_form", clear_on_submit=True):
@@ -878,6 +998,7 @@ if view_desk == "1. Parameter Entry Panel":
             curve = st.selectbox(
                 "Overhead Seasonality Distribution Curve:",
                 ["Flat_Linear", "Winter_Peak", "Summer_Peak"],
+                key="opex_curve",
             )
             flex = st.slider(
                 "Annual Macro Supply Chain Inflation Indexation Shift (Flex %):",
@@ -888,6 +1009,7 @@ if view_desk == "1. Parameter Entry Panel":
             v_rate = st.selectbox(
                 "UK VAT Classification Rate (Overheads):",
                 ["Standard 20%", "Reduced 5%", "Exempt / Zero 0%"],
+                key="opex_vat",
             )
             if st.form_submit_button("➕ Append Operational Expense Vector"):
                 if n:
@@ -1000,7 +1122,7 @@ if view_desk == "1. Parameter Entry Panel":
                 max_value=60,
                 value=1,
             )
-            if st.form_submit_button("➕ Append Direct CapEx Vector"):
+            if st.button("➕ Append Direct CapEx Vector"):
                 if n:
                     st.session_state["active_data"]["outright_capex"].append(
                         {"name": n, "amount": amt, "month": m_buy}
@@ -1111,7 +1233,7 @@ if view_desk == "1. Parameter Entry Panel":
     st.markdown("### 🗺️ Continuous 61-Month Timeline Output Confirmation Matrix")
     month_columns = [f"M{str(i).zfill(2)}" for i in range(0, 61)]
     preview_rows = []
-    for category in ["sales", "opex"]:
+    for category in ["sales", "cogs", "opex"]:
         for item in st.session_state["active_data"].get(category, []):
             r_data = {
                 "Line Identifier Description": item["name"],
@@ -1164,6 +1286,7 @@ if view_desk == "1. Parameter Entry Panel":
         if st.button("🚨 Lock In Parameter Changes & Exception Overrides"):
             updated_state = commit_dataframe_to_state(edited_grid)
             st.session_state["active_data"]["sales"] = updated_state["sales"]
+            st.session_state["active_data"]["cogs"] = updated_state["cogs"]
             st.session_state["active_data"]["opex"] = updated_state["opex"]
             st.toast("Matrix Alignment Completed successfully!")
             st.rerun()
