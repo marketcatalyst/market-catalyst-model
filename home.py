@@ -1,5 +1,5 @@
 # home.py
-# STRATA SUITE PRODUCTION ENGINE // ACCESS ROUTER & GATEWAY CORE v5.3.0-MASTER
+# STRATA SUITE PRODUCTION ENGINE // ACCESS ROUTER & GATEWAY CORE v5.5.0-MASTER
 
 import streamlit as st
 import os
@@ -12,8 +12,6 @@ st.set_page_config(
 )
 
 # 2. Global State Hydration Guard
-# Ensures that if a user lands on the root page first, all required data structures
-# are fully initialized in memory so the app never throws a NoneType error downstream.
 if "active_data" not in st.session_state:
     st.session_state["active_data"] = {
         "sales": [],
@@ -28,37 +26,53 @@ if "active_data" not in st.session_state:
 if "active_project_name" not in st.session_state:
     st.session_state["active_project_name"] = "Unsaved_Draft_Scenario"
 
-# Initialize security status flags if absent
 if "authenticated" not in st.session_state:
     st.session_state["authenticated"] = False
 
 if "onboarding_complete" not in st.session_state:
     st.session_state["onboarding_complete"] = False
 
+
 # =========================================================================
-# 🛡️ SECURITY INTERCEPT LAYER: PRODUCTION SECURE PROTOCOL
+# 🔑 CREDENTIAL VERIFICATION CALLBACK (Guarantees Instant State Hydration)
 # =========================================================================
-# The explicit bypass has been stripped. The engine checks session credentials.
+def execute_credential_verification():
+    input_value = st.session_state.get("raw_password_token_entry", "")
+    secure_target = os.environ.get("GATEWAY_KEY") or st.secrets.get(
+        "GATEWAY_KEY", "STRATA_SECURE_2026"
+    )
+
+    if input_value == secure_target:
+        st.session_state["authenticated"] = True
+        st.session_state["onboarding_complete"] = True
+    else:
+        st.session_state["auth_error_trigger"] = True
+
+
+# =========================================================================
+# 🛡️ SECURITY INTERCEPT LAYER
+# =========================================================================
 if not st.session_state["authenticated"] or not st.session_state["onboarding_complete"]:
     st.error("🔒 **Access Restricted:** Secure session token context not detected.")
 
-    with st.form("security_handshake_gate", clear_on_submit=False):
-        st.subheader("🔑 Relational Tenant Authentication")
-        u_pass = st.text_input("Enter Workspace Security Access Key:", type="password")
+    st.markdown("### 🔑 Relational Tenant Authentication")
+    st.info(
+        "💡 Type your key sequence below and press **Enter** to authorize this instance space."
+    )
 
-        if st.form_submit_button("Verify Credentials & Hydrate Instance"):
-            # Simple server-side env check fallback or secrets validation pattern
-            secure_target = os.environ.get("GATEWAY_KEY") or st.secrets.get(
-                "GATEWAY_KEY", "STRATA_SECURE_2026"
-            )
+    # Handshake tied directly to an immediate on_change execution context callback
+    st.text_input(
+        "Enter Workspace Security Access Key:",
+        type="password",
+        key="raw_password_token_entry",
+        on_change=execute_credential_verification,
+    )
 
-            if u_pass == secure_target:
-                st.session_state["authenticated"] = True
-                st.session_state["onboarding_complete"] = True
-                st.success("Authorization cleared! Initializing workspace layers...")
-                st.rerun()
-            else:
-                st.error("Invalid security key sequence. Access Denied.")
+    if st.session_state.get("auth_error_trigger", False):
+        st.error("Invalid security key sequence. Access Denied.")
+        # Reset flag to clear state space for the next attempt
+        st.session_state["auth_error_trigger"] = False
+
     st.stop()
 
 # =========================================================================
@@ -76,7 +90,7 @@ st.info(
 st.markdown("---")
 
 # -------------------------------------------------------------
-# 🎨 REFACTORED INTERACTIVE NAVIGATION DESK (Balanced Frame Symmetrical Alignment)
+# 🎨 REFACTORED INTERACTIVE NAVIGATION DESK
 # -------------------------------------------------------------
 nav_col1, nav_col2 = st.columns(2)
 
@@ -86,9 +100,8 @@ with nav_col1:
         "Ingest raw documents via document scanning, append structural ledger "
         "profiles manually, or load existing database project schemas."
     )
-    st.write("")  # Layout spacer alignment padding
+    st.write("")
 
-    # Corrected element: Fixed full-width bordered interactive button frame to ensure side-by-side symmetry
     if st.button(
         "🚀 Launch Parameter Workspaces Desk",
         use_container_width=True,
@@ -102,7 +115,7 @@ with nav_col2:
         "Disconnect active ledger matrix memory instances, lock storage "
         "configurations, or exit active session windows securely."
     )
-    st.write("")  # Layout spacer alignment padding
+    st.write("")
 
     if st.button(
         "🚪 Terminate Session & Log Out",
@@ -115,5 +128,5 @@ with nav_col2:
 
 st.markdown("---")
 st.caption(
-    "🛡️ STRATA Infrastructure Kernel v5.3.0 // Encrypted Session Pipeline Protected Under Relational Tenant Handshakes."
+    "🛡️ STRATA Infrastructure Kernel v5.5.0 // Encrypted Session Pipeline Protected Under Relational Tenant Handshakes."
 )
