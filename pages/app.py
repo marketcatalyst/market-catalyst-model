@@ -1,5 +1,5 @@
 # pages/app.py
-# STRATA SUITE PRODUCTION ENGINE // TOTAL CORE SYSTEM v6.0.0-MASTER
+# STRATA SUITE PRODUCTION ENGINE // TOTAL CORE SYSTEM v6.1.0-MASTER
 
 import streamlit as st
 import json
@@ -695,6 +695,7 @@ st.markdown(
 st.caption(
     f"Active Project Model State: `{st.session_state.get('active_project_name', 'Unsaved_Draft_Scenario')}`"
 )
+st.page_link("home.py", label="↩️ Return to Access Gateway Portal")
 st.markdown("---")
 
 p_col1, p_col2 = st.columns([6, 6])
@@ -735,6 +736,7 @@ st.markdown("---")
 if view_desk == "1. Parameter Entry Panel":
     st.header("✍️ Strategic Operational Parameter Desks")
 
+    # 1. Volume Sales Driver Panel
     with st.expander(
         "📈 1. THE SALES DRIVER DESK (General & Volume Revenue)", expanded=True
     ):
@@ -785,11 +787,21 @@ if view_desk == "1. Parameter Entry Panel":
                     st.toast("Sales Line Linked!")
                     st.rerun()
         if st.session_state["active_data"].get("sales"):
-            for x in st.session_state["active_data"]["sales"]:
-                st.caption(
-                    f"✔ {x['name']} - Y1: £{x['y1_baseline']:,.2f} | Shape: {x['seasonality']} | Tax: {x.get('vat_rate_type', 'Standard 20%')}"
-                )
+            st.markdown("**Active Vector Rows:**")
+            for idx, x in enumerate(st.session_state["active_data"]["sales"]):
+                row_col1, row_col2 = st.columns([10, 2])
+                with row_col1:
+                    st.caption(
+                        f"✔ {x['name']} - Y1: £{x['y1_baseline']:,.2f} | Shape: {x['seasonality']} | Tax: {x.get('vat_rate_type', 'Standard 20%')}"
+                    )
+                with row_col2:
+                    if st.button(
+                        "🗑️ Delete", key=f"del_sales_{idx}", use_container_width=True
+                    ):
+                        st.session_state["active_data"]["sales"].pop(idx)
+                        st.rerun()
 
+    # 2. Milestone Contract Desk Panel
     with st.expander(
         "💼 2. THE MILESTONE CONTRACT DESK (Decoupled High-Value B2B Deals)"
     ):
@@ -833,11 +845,21 @@ if view_desk == "1. Parameter Entry Panel":
                     st.toast("Milestone Schedule Operationalised!")
                     st.rerun()
         if st.session_state["active_data"].get("milestones"):
-            for x in st.session_state["active_data"]["milestones"]:
-                st.caption(
-                    f"✔ [Contract] {x['name']} - TCV: £{x['tcv']:,.2f} over {x['duration']} Months | Tax: {x.get('vat_rate_type', 'Standard 20%')}"
-                )
+            st.markdown("**Active Vector Rows:**")
+            for idx, x in enumerate(st.session_state["active_data"]["milestones"]):
+                row_col1, row_col2 = st.columns([10, 2])
+                with row_col1:
+                    st.caption(
+                        f"✔ [Contract] {x['name']} - TCV: £{x['tcv']:,.2f} over {x['duration']} Months | Tax: {x.get('vat_rate_type', 'Standard 20%')}"
+                    )
+                with row_col2:
+                    if st.button(
+                        "🗑️ Delete", key=f"del_ms_{idx}", use_container_width=True
+                    ):
+                        st.session_state["active_data"]["milestones"].pop(idx)
+                        st.rerun()
 
+    # 3. General Operational Overheads Panel
     with st.expander("💸 3. THE GENERAL OVERHEAD CARD (Operational Overhead Flexing)"):
         with st.form("opex_form", clear_on_submit=True):
             n = st.text_input(
@@ -884,11 +906,21 @@ if view_desk == "1. Parameter Entry Panel":
                     st.toast("Opex Stream Mapped!")
                     st.rerun()
         if st.session_state["active_data"].get("opex"):
-            for x in st.session_state["active_data"]["opex"]:
-                st.caption(
-                    f"✔ {x['name']} - Y1 Base: £{x['y1_baseline']:,.2f} | Flex: +{x['flex_pct']}% | Tax: {x.get('vat_rate_type', 'Standard 20%')}"
-                )
+            st.markdown("**Active Vector Rows:**")
+            for idx, x in enumerate(st.session_state["active_data"]["opex"]):
+                row_col1, row_col2 = st.columns([10, 2])
+                with row_col1:
+                    st.caption(
+                        f"✔ {x['name']} - Y1 Base: £{x['y1_baseline']:,.2f} | Flex: +{x['flex_pct']}% | Tax: {x.get('vat_rate_type', 'Standard 20%')}"
+                    )
+                with row_col2:
+                    if st.button(
+                        "🗑️ Delete", key=f"del_opex_{idx}", use_container_width=True
+                    ):
+                        st.session_state["active_data"]["opex"].pop(idx)
+                        st.rerun()
 
+    # 4. Financed HP/Lease Wizard Panel
     with st.expander("🚜 4. THE FINANCED ASSET WIZARD (Hire Purchase & Lease Finance)"):
         with st.form("financed_form", clear_on_submit=True):
             n = st.text_input(
@@ -935,7 +967,22 @@ if view_desk == "1. Parameter Entry Panel":
                     )
                     st.toast("Asset & Facility Framework Initialised!")
                     st.rerun()
+        if st.session_state["active_data"].get("financed_assets"):
+            st.markdown("**Active Vector Rows:**")
+            for idx, x in enumerate(st.session_state["active_data"]["financed_assets"]):
+                row_col1, row_col2 = st.columns([10, 2])
+                with row_col1:
+                    st.caption(
+                        f"✔ {x['name']} - Value: £{x['amount']:,.2f} | Term: {x['term_months']}m | APR: {x['interest_rate']}%"
+                    )
+                with row_col2:
+                    if st.button(
+                        "🗑️ Delete", key=f"del_fin_{idx}", use_container_width=True
+                    ):
+                        st.session_state["active_data"]["financed_assets"].pop(idx)
+                        st.rerun()
 
+    # 5. Outright Deployed CapEx Assets
     with st.expander(
         "🏢 5. THE OUTRIGHT CAPEX CARD (Direct Company-Funded Cash Asset Purchases)"
     ):
@@ -960,7 +1007,22 @@ if view_desk == "1. Parameter Entry Panel":
                     )
                     st.toast("Outright Purchase Logged!")
                     st.rerun()
+        if st.session_state["active_data"].get("outright_capex"):
+            st.markdown("**Active Vector Rows:**")
+            for idx, x in enumerate(st.session_state["active_data"]["outright_capex"]):
+                row_col1, row_col2 = st.columns([10, 2])
+                with row_col1:
+                    st.caption(
+                        f"✔ {x['name']} - Outright Cost: £{x['amount']:,.2f} in M{x['month']}"
+                    )
+                with row_col2:
+                    if st.button(
+                        "🗑️ Delete", key=f"del_capex_{idx}", use_container_width=True
+                    ):
+                        st.session_state["active_data"]["outright_capex"].pop(idx)
+                        st.rerun()
 
+    # 6. Seasonal Personnel Staffing Waves
     with st.expander("👥 6. THE SEASONAL STAFFING WAVE (Personnel Horizon Volatility)"):
         with st.form("payroll_form", clear_on_submit=True):
             n = st.text_input(
@@ -990,7 +1052,22 @@ if view_desk == "1. Parameter Entry Panel":
                     )
                     st.toast("Workforce Schedule Accrued!")
                     st.rerun()
+        if st.session_state["active_data"].get("payroll"):
+            st.markdown("**Active Vector Rows:**")
+            for idx, x in enumerate(st.session_state["active_data"]["payroll"]):
+                row_col1, row_col2 = st.columns([10, 2])
+                with row_col1:
+                    st.caption(
+                        f"✔ {x['name']} - Headcount: {x['headcount']} | Wage: £{x['monthly_wage']:,.2f}/mo | Period: M{x['start_month']}-M{x['end_month']}"
+                    )
+                with row_col2:
+                    if st.button(
+                        "🗑️ Delete", key=f"del_pay_{idx}", use_container_width=True
+                    ):
+                        st.session_state["active_data"]["payroll"].pop(idx)
+                        st.rerun()
 
+    # 7. Seed Capital Equity Funding Inflows
     with st.expander(
         "💰 7. THE FUNDING & EQUITY CARD (Corporate Seed Capital Injections)"
     ):
@@ -1015,20 +1092,23 @@ if view_desk == "1. Parameter Entry Panel":
                     )
                     st.toast("Capital Placement Logged!")
                     st.rerun()
+        if st.session_state["active_data"].get("equity_funding"):
+            st.markdown("**Active Vector Rows:**")
+            for idx, x in enumerate(st.session_state["active_data"]["equity_funding"]):
+                row_col1, row_col2 = st.columns([10, 2])
+                with row_col1:
+                    st.caption(
+                        f"✔ {x['name']} - Injection: £{x['amount']:,.2f} in M{x['month']}"
+                    )
+                with row_col2:
+                    if st.button(
+                        "🗑️ Delete", key=f"del_eq_{idx}", use_container_width=True
+                    ):
+                        st.session_state["active_data"]["equity_funding"].pop(idx)
+                        st.rerun()
 
+    # Continuous 61-Month Interactive Timeline Overrides Gate Matrix
     st.markdown("### 🗺️ Continuous 61-Month Timeline Output Confirmation Matrix")
-    st.markdown(
-        """
-        <style>
-            div[data-testid="stDataEditor"] div.rt-tbody div.rt-tr div.rt-td:nth-child(1),
-            div[data-testid="stDataEditor"] div.rt-thead div.rt-tr th:nth-child(1) {
-                position: sticky !important; left: 0px !important; background-color: white !important; z-index: 2 !important; box-shadow: 2px 0px 5px rgba(0,0,0,0.1);
-            }
-        </style>
-    """,
-        unsafe_allow_html=True,
-    )
-
     month_columns = [f"M{str(i).zfill(2)}" for i in range(0, 61)]
     preview_rows = []
     for category in ["sales", "opex"]:
