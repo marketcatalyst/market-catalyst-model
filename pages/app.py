@@ -1,5 +1,5 @@
 # pages/app.py
-# STRATA SUITE PRODUCTION ENGINE // TOTAL CORE SYSTEM v6.3.0-MASTER
+# STRATA SUITE PRODUCTION ENGINE // TOTAL CORE SYSTEM v6.4.0-MASTER
 
 import streamlit as st
 import json
@@ -439,7 +439,7 @@ class CommercialTrialBalanceCuboid:
                     )
 
             for pay in state.get("payroll", []):
-                if int(pay.get("start_month", 1)) <= m <= int(pay.get("end_month", 12)):
+                if int(pay.get("start_month", 1)) <= m <= int(pay.get("end_month", 60)):
                     gross_pool = int(pay.get("headcount", 1)) * float(
                         pay.get("monthly_wage", 2000.0)
                     )
@@ -920,7 +920,7 @@ if view_desk == "1. Parameter Entry Panel":
                         st.session_state["active_data"]["milestones"].pop(idx)
                         st.rerun()
 
-    # 📥 RE-ALIGNED CORE SEQUENTIAL CONTAINER: THE PRODUCTION COGS DESK
+    # 3. Production COGS Desk Panel
     with st.expander(
         "📦 3. THE PRODUCTION COGS DESK (Direct Materials, Subcontractors & Logistics Costs)"
     ):
@@ -1143,13 +1143,25 @@ if view_desk == "1. Parameter Entry Panel":
                         st.session_state["active_data"]["outright_capex"].pop(idx)
                         st.rerun()
 
-    # 7. Seasonal Personnel Staffing Waves
-    with st.expander("👥 7. THE SEASONAL STAFFING WAVE (Personnel Horizon Volatility)"):
+    # 👥 7. REFACTORED WORKFORCE PROTOCOL DESK
+    with st.expander(
+        "👥 7. THE PERSONNEL HORIZON DESK (Permanent Base & Staffing Waves)"
+    ):
         with st.form("payroll_form", clear_on_submit=True):
             n = st.text_input(
-                "Operational Resource Role Group Designation:",
-                placeholder="e.g. Summer Vacation High-Peak Casuals",
+                "Operational Resource Group Designation:",
+                placeholder="e.g. Sales Engineering Director",
             )
+
+            # Conversational UX Split Layer
+            staff_type = st.radio(
+                "Select Position Structural Nature:",
+                [
+                    "Permanent Core Staff (Continuous Baseline)",
+                    "Temporary Staffing Wave (Seasonal / Finite Contract)",
+                ],
+            )
+
             hc = st.number_input(
                 "Target Resource Workforce Headcount:", min_value=1, value=1
             )
@@ -1158,13 +1170,24 @@ if view_desk == "1. Parameter Entry Panel":
                 min_value=0.0,
                 step=100.0,
             )
-            m_in = st.slider("Onboarding Activation Start Month:", 1, 60, 3)
-            m_out = st.slider("Offboarding Termination Expiry Month:", 1, 60, 5)
-            if st.form_submit_button("➕ Launch Workforce Wave Vector"):
+            m_in = st.slider("Onboarding Activation Start Month:", 1, 60, 1)
+
+            # Condition render based on intent vector
+            if staff_type == "Temporary Staffing Wave (Seasonal / Finite Contract)":
+                m_out = st.slider("Offboarding Termination Expiry Month:", 1, 60, 12)
+            else:
+                m_out = 60  # Silent system routing mapping bypasses the clunky sliders entirely
+
+            if st.form_submit_button("➕ Launch Workforce Alignment Vector"):
                 if n:
                     st.session_state["active_data"]["payroll"].append(
                         {
-                            "name": n,
+                            "name": (
+                                f"[Permanent] {n}"
+                                if staff_type
+                                == "Permanent Core Staff (Continuous Baseline)"
+                                else f"[Seasonal] {n}"
+                            ),
                             "headcount": hc,
                             "monthly_wage": wage,
                             "start_month": m_in,
@@ -1178,8 +1201,13 @@ if view_desk == "1. Parameter Entry Panel":
             for idx, x in enumerate(st.session_state["active_data"]["payroll"]):
                 row_col1, row_col2 = st.columns([10, 2])
                 with row_col1:
+                    period_str = (
+                        f"From M{x['start_month']} Continuous"
+                        if int(x["end_month"]) == 60
+                        else f"Period: M{x['start_month']}-M{x['end_month']}"
+                    )
                     st.caption(
-                        f"✔ {x['name']} - Headcount: {x['headcount']} | Wage: £{x['monthly_wage']:,.2f}/mo | Period: M{x['start_month']}-M{x['end_month']}"
+                        f"✔ {x['name']} - Headcount: {x['headcount']} | Wage: £{x['monthly_wage']:,.2f}/mo | {period_str}"
                     )
                 with row_col2:
                     if st.button(
