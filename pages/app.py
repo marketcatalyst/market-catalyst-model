@@ -1,5 +1,5 @@
 # pages/app.py
-# STRATA SUITE PRODUCTION ENGINE // TOTAL CORE SYSTEM v6.4.0-MASTER
+# STRATA SUITE PRODUCTION ENGINE // TOTAL CORE SYSTEM v6.5.1-PRODUCTION
 
 import streamlit as st
 import json
@@ -284,11 +284,16 @@ class CommercialTrialBalanceCuboid:
                 else:
                     y_idx = 1 if m <= 12 else 2 if m <= 24 else 3
                     y_base = float(sale.get(f"y{y_idx}_baseline", 0.0))
+                    flex = (
+                        1.0 + (float(sale.get("flex_pct", 0.0)) / 100.0)
+                        if y_idx > 1
+                        else 1.0
+                    )
                     weights = self.seasonality_profiles.get(
                         sale.get("seasonality", "Flat_Linear"),
                         self.seasonality_profiles["Flat_Linear"],
                     )
-                    val = y_base * weights[(m - 1) % 12]
+                    val = y_base * flex * weights[(m - 1) % 12]
                 val *= rev_mod
                 vat_pct = (
                     0.20
@@ -375,12 +380,19 @@ class CommercialTrialBalanceCuboid:
                     val = float(c["overrides"][f"M{str(m).zfill(2)}"])
                 else:
                     y_idx = 1 if m <= 12 else 2 if m <= 24 else 3
+                    flex = (
+                        1.0 + (float(c.get("flex_pct", 0.0)) / 100.0)
+                        if y_idx > 1
+                        else 1.0
+                    )
                     weights = self.seasonality_profiles.get(
                         c.get("seasonality", "Flat_Linear"),
                         self.seasonality_profiles["Flat_Linear"],
                     )
                     val = (
-                        float(c.get(f"y{y_idx}_baseline", 0.0)) * weights[(m - 1) % 12]
+                        float(c.get(f"y{y_idx}_baseline", 0.0))
+                        * flex
+                        * weights[(m - 1) % 12]
                     )
                 vat_pct = (
                     0.20
@@ -706,6 +718,7 @@ def commit_dataframe_to_state(df):
                     "seasonality": str(r["Curve Profile"]),
                     "vat_rate_type": str(r["VAT Configuration Type"]),
                     "payment_delay": 0,
+                    "flex_pct": float(r.get("Flex %", 0.0)),
                     "overrides": overrides_map,
                 }
             )
@@ -718,6 +731,7 @@ def commit_dataframe_to_state(df):
                     "y3_baseline": float(r["Year 3 Net (£)"]),
                     "seasonality": str(r["Curve Profile"]),
                     "vat_rate_type": str(r["VAT Configuration Type"]),
+                    "flex_pct": float(r.get("Flex %", 0.0)),
                     "overrides": overrides_map,
                 }
             )
@@ -730,7 +744,7 @@ def commit_dataframe_to_state(df):
                     "y3_baseline": float(r["Year 3 Net (£)"]),
                     "seasonality": str(r["Curve Profile"]),
                     "vat_rate_type": str(r["VAT Configuration Type"]),
-                    "flex_pct": 0,
+                    "flex_pct": float(r.get("Flex %", 0.0)),
                     "overrides": overrides_map,
                 }
             )
@@ -824,6 +838,13 @@ if view_desk == "1. Parameter Entry Panel":
                     f"Paid Instantly" if x == 0 else f"{x} Days Credit Delay"
                 ),
             )
+            flex = st.slider(
+                "Annual Pricing Indexation Escalator Shift (Sales Flex %):",
+                -10,
+                30,
+                0,
+                key="sales_flex_slider",
+            )
             v_rate = st.selectbox(
                 "UK VAT Classification Rate:",
                 ["Standard 20%", "Reduced 5%", "Exempt / Zero 0%"],
@@ -840,6 +861,7 @@ if view_desk == "1. Parameter Entry Panel":
                             "y3_baseline": y3,
                             "seasonality": curve,
                             "payment_delay": delay,
+                            "flex_pct": flex,
                             "vat_rate_type": v_rate,
                             "overrides": {},
                         }
@@ -852,7 +874,7 @@ if view_desk == "1. Parameter Entry Panel":
                 row_col1, row_col2 = st.columns([10, 2])
                 with row_col1:
                     st.caption(
-                        f"✔ {x['name']} - Y1: £{x['y1_baseline']:,.2f} | Shape: {x['seasonality']} | Tax: {x.get('vat_rate_type', 'Standard 20%')}"
+                        f"✔ {x['name']} - Y1: £{x['y1_baseline']:,.2f} | Flex: +{x.get('flex_pct', 0.0)}% | Shape: {x['seasonality']}"
                     )
                 with row_col2:
                     if st.button(
@@ -943,6 +965,13 @@ if view_desk == "1. Parameter Entry Panel":
                 ["Flat_Linear", "Winter_Peak", "Summer_Peak"],
                 key="cogs_curve",
             )
+            flex = st.slider(
+                "Annual Macro Supply Chain Inflation Indexation Shift (COGS Flex %):",
+                -10,
+                30,
+                0,
+                key="cogs_flex_slider",
+            )
             v_rate = st.selectbox(
                 "Supply Chain VAT Rate Profile:",
                 ["Standard 20%", "Reduced 5%", "Exempt / Zero 0%"],
@@ -957,6 +986,7 @@ if view_desk == "1. Parameter Entry Panel":
                             "y2_baseline": y2,
                             "y3_baseline": y3,
                             "seasonality": curve,
+                            "flex_pct": flex,
                             "vat_rate_type": v_rate,
                             "overrides": {},
                         }
@@ -969,7 +999,7 @@ if view_desk == "1. Parameter Entry Panel":
                 row_col1, row_col2 = st.columns([10, 2])
                 with row_col1:
                     st.caption(
-                        f"✔ [COGS] {x['name']} - Y1 Allocation: £{x['y1_baseline']:,.2f} | Curve: {x['seasonality']} | Tax: {x.get('vat_rate_type', 'Standard 20%')}"
+                        f"✔ [COGS] {x['name']} - Y1 Allocation: £{x['y1_baseline']:,.2f} | Flex: +{x.get('flex_pct', 0.0)}% | Curve: {x['seasonality']}"
                     )
                 with row_col2:
                     if st.button(
@@ -1000,10 +1030,11 @@ if view_desk == "1. Parameter Entry Panel":
                 key="opex_curve",
             )
             flex = st.slider(
-                "Annual Macro Supply Chain Inflation Indexation Shift (Flex %):",
+                "Annual Macro Supply Chain Inflation Indexation Shift (OpEx Flex %):",
                 -10,
                 30,
                 0,
+                key="opex_flex_slider",
             )
             v_rate = st.selectbox(
                 "UK VAT Classification Rate (Overheads):",
@@ -1143,7 +1174,7 @@ if view_desk == "1. Parameter Entry Panel":
                         st.session_state["active_data"]["outright_capex"].pop(idx)
                         st.rerun()
 
-    # 👥 7. REFACTORED WORKFORCE PROTOCOL DESK
+    # 7. Refactored Workforce Horizon Desk Panel
     with st.expander(
         "👥 7. THE PERSONNEL HORIZON DESK (Permanent Base & Staffing Waves)"
     ):
@@ -1152,8 +1183,6 @@ if view_desk == "1. Parameter Entry Panel":
                 "Operational Resource Group Designation:",
                 placeholder="e.g. Sales Engineering Director",
             )
-
-            # Conversational UX Split Layer
             staff_type = st.radio(
                 "Select Position Structural Nature:",
                 [
@@ -1161,7 +1190,6 @@ if view_desk == "1. Parameter Entry Panel":
                     "Temporary Staffing Wave (Seasonal / Finite Contract)",
                 ],
             )
-
             hc = st.number_input(
                 "Target Resource Workforce Headcount:", min_value=1, value=1
             )
@@ -1171,13 +1199,10 @@ if view_desk == "1. Parameter Entry Panel":
                 step=100.0,
             )
             m_in = st.slider("Onboarding Activation Start Month:", 1, 60, 1)
-
-            # Condition render based on intent vector
             if staff_type == "Temporary Staffing Wave (Seasonal / Finite Contract)":
                 m_out = st.slider("Offboarding Termination Expiry Month:", 1, 60, 12)
             else:
-                m_out = 60  # Silent system routing mapping bypasses the clunky sliders entirely
-
+                m_out = 60
             if st.form_submit_button("➕ Launch Workforce Alignment Vector"):
                 if n:
                     st.session_state["active_data"]["payroll"].append(
@@ -1268,6 +1293,7 @@ if view_desk == "1. Parameter Entry Panel":
                 "Year 1 Net (£)": item.get("y1_baseline", 0.0),
                 "Year 2 Net (£)": item.get("y2_baseline", 0.0),
                 "Year 3 Net (£)": item.get("y3_baseline", 0.0),
+                "Flex %": item.get("flex_pct", 0.0),
                 "Curve Profile": item.get("seasonality", "Flat_Linear"),
                 "VAT Configuration Type": item.get("vat_rate_type", "Standard 20%"),
             }
@@ -1293,6 +1319,7 @@ if view_desk == "1. Parameter Entry Panel":
             "Year 3 Net (£)": st.column_config.NumberColumn(
                 "Y3 Target", format="£%,.2f"
             ),
+            "Flex %": st.column_config.NumberColumn("Flex %", format="%f"),
             "Curve Profile": st.column_config.SelectboxColumn(
                 "Curve Profile", options=["Flat_Linear", "Winter_Peak", "Summer_Peak"]
             ),
