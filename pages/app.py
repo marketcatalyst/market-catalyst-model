@@ -1,5 +1,5 @@
 # pages/app.py
-# STRATA SUITE PRODUCTION ENGINE // TOTAL CORE SYSTEM v6.5.1-PRODUCTION
+# STRATA SUITE PRODUCTION ENGINE // TOTAL CORE SYSTEM v6.6.0-MASTER
 
 import streamlit as st
 import json
@@ -452,8 +452,16 @@ class CommercialTrialBalanceCuboid:
 
             for pay in state.get("payroll", []):
                 if int(pay.get("start_month", 1)) <= m <= int(pay.get("end_month", 60)):
-                    gross_pool = int(pay.get("headcount", 1)) * float(
-                        pay.get("monthly_wage", 2000.0)
+                    y_idx = 1 if m <= 12 else 2 if m <= 24 else 3
+                    flex = (
+                        1.0 + (float(pay.get("flex_pct", 0.0)) / 100.0)
+                        if y_idx > 1
+                        else 1.0
+                    )
+                    gross_pool = (
+                        int(pay.get("headcount", 1))
+                        * float(pay.get("monthly_wage", 2000.0))
+                        * flex
                     )
                     self.inject_token(
                         m,
@@ -1174,7 +1182,7 @@ if view_desk == "1. Parameter Entry Panel":
                         st.session_state["active_data"]["outright_capex"].pop(idx)
                         st.rerun()
 
-    # 7. Refactored Workforce Horizon Desk Panel
+    # 👥 7. Refactored Workforce Horizon Desk Panel (With Standardized Indexation Controls)
     with st.expander(
         "👥 7. THE PERSONNEL HORIZON DESK (Permanent Base & Staffing Waves)"
     ):
@@ -1199,6 +1207,13 @@ if view_desk == "1. Parameter Entry Panel":
                 step=100.0,
             )
             m_in = st.slider("Onboarding Activation Start Month:", 1, 60, 1)
+            flex = st.slider(
+                "Annual Macro Wage Inflation Indexation Shift (Payroll Flex %):",
+                -10,
+                30,
+                0,
+                key="payroll_flex_slider",
+            )
             if staff_type == "Temporary Staffing Wave (Seasonal / Finite Contract)":
                 m_out = st.slider("Offboarding Termination Expiry Month:", 1, 60, 12)
             else:
@@ -1217,6 +1232,7 @@ if view_desk == "1. Parameter Entry Panel":
                             "monthly_wage": wage,
                             "start_month": m_in,
                             "end_month": m_out,
+                            "flex_pct": flex,
                         }
                     )
                     st.toast("Workforce Schedule Accrued!")
@@ -1232,7 +1248,7 @@ if view_desk == "1. Parameter Entry Panel":
                         else f"Period: M{x['start_month']}-M{x['end_month']}"
                     )
                     st.caption(
-                        f"✔ {x['name']} - Headcount: {x['headcount']} | Wage: £{x['monthly_wage']:,.2f}/mo | {period_str}"
+                        f"✔ {x['name']} - Headcount: {x['headcount']} | Wage: £{x['monthly_wage']:,.2f}/mo | Flex: +{x.get('flex_pct', 0.0)}% | {period_str}"
                     )
                 with row_col2:
                     if st.button(
