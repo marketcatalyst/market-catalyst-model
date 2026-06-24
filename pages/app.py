@@ -1,5 +1,5 @@
 # pages/app.py
-# STRATA SUITE PRODUCTION ENGINE // TOTAL CORE SYSTEM v6.7.2-PRODUCTION
+# STRATA SUITE PRODUCTION ENGINE // TOTAL CORE SYSTEM v6.7.3-PRODUCTION
 
 import streamlit as st
 import json
@@ -1012,7 +1012,7 @@ if view_desk == "1. Parameter Entry Panel":
                         st.session_state["active_data"]["cogs"].pop(idx)
                         st.rerun()
 
-    # 💸 4. FULLY RECONCILED SYNCHRONOUS MULTI-YEAR HORIZON MATRIX DESK
+    # 💸 4. THE GENERAL OVERHEAD CARD (12 × 5 Time-Mastery Grid Canvas)
     with st.expander(
         "💸 4. THE GENERAL OVERHEAD CARD (12 × 5 Time-Mastery Grid Canvas)",
         expanded=True,
@@ -1061,30 +1061,51 @@ if view_desk == "1. Parameter Entry Panel":
                 )
 
                 f_col1, f_col2, f_col3, f_col4 = st.columns(4)
-                op["flex_rates"]["Y2"] = f_col1.number_input(
+                # Capture changes to flex rates directly and trigger a calculation rerun if clicked
+                y2_f = f_col1.number_input(
                     f"Y2 Flex % ({op['name']})",
                     value=float(op.get("flex_rates", {}).get("Y2", 0.0)),
                     step=0.5,
                     key=f"f2_{idx}",
                 )
-                op["flex_rates"]["Y3"] = f_col2.number_input(
+                y3_f = f_col2.number_input(
                     f"Y3 Flex % ({op['name']})",
                     value=float(op.get("flex_rates", {}).get("Y3", 0.0)),
                     step=0.5,
                     key=f"f3_{idx}",
                 )
-                op["flex_rates"]["Y4"] = f_col3.number_input(
+                y4_f = f_col3.number_input(
                     f"Y4 Flex % ({op['name']})",
                     value=float(op.get("flex_rates", {}).get("Y4", 0.0)),
                     step=0.5,
                     key=f"f4_{idx}",
                 )
-                op["flex_rates"]["Y5"] = f_col4.number_input(
+                y5_f = f_col4.number_input(
                     f"Y5 Flex % ({op['name']})",
                     value=float(op.get("flex_rates", {}).get("Y5", 0.0)),
                     step=0.5,
                     key=f"f5_{idx}",
                 )
+
+                if (
+                    y2_f != op["flex_rates"]["Y2"]
+                    or y3_f != op["flex_rates"]["Y3"]
+                    or y4_f != op["flex_rates"]["Y4"]
+                    or y5_f != op["flex_rates"]["Y5"]
+                ):
+                    op["flex_rates"] = {"Y2": y2_f, "Y3": y3_f, "Y4": y4_f, "Y5": y5_f}
+                    # Force recalc cascade immediately on flex shift
+                    m_data = op["matrix_data"]
+                    for r in range(12):
+                        if f"Y2_M{r}" not in m_data["overwrites"]:
+                            m_data["Y2"][r] = m_data["Y1"][r] * (1.0 + (y2_f / 100.0))
+                        if f"Y3_M{r}" not in m_data["overwrites"]:
+                            m_data["Y3"][r] = m_data["Y2"][r] * (1.0 + (y3_f / 100.0))
+                        if f"Y4_M{r}" not in m_data["overwrites"]:
+                            m_data["Y4"][r] = m_data["Y3"][r] * (1.0 + (y4_f / 100.0))
+                        if f"Y5_M{r}" not in m_data["overwrites"]:
+                            m_data["Y5"][r] = m_data["Y4"][r] * (1.0 + (y5_f / 100.0))
+                    st.rerun()
 
                 months_index = [f"Month {str(m).zfill(2)}" for m in range(1, 13)]
                 m_data = op.get(
@@ -1123,63 +1144,82 @@ if view_desk == "1. Parameter Entry Panel":
                     key=f"grid_ed_{idx}",
                 )
 
+                # 🚀 RESOLVED ONE-STEP LAG: Synchronously process data editor changes into the matrix instantly
                 has_changed = False
                 for r_idx in range(12):
-                    y1_val = float(edited_matrix_df.iloc[r_idx, 0])
-                    y2_val = float(edited_matrix_df.iloc[r_idx, 1])
-                    y3_val = float(edited_matrix_df.iloc[r_idx, 2])
-                    y4_val = float(edited_matrix_df.iloc[r_idx, 3])
-                    y5_val = float(edited_matrix_df.iloc[r_idx, 4])
+                    new_y1 = float(edited_matrix_df.iloc[r_idx, 0])
+                    new_y2 = float(edited_matrix_df.iloc[r_idx, 1])
+                    new_y3 = float(edited_matrix_df.iloc[r_idx, 2])
+                    new_y4 = float(edited_matrix_df.iloc[r_idx, 3])
+                    new_y5 = float(edited_matrix_df.iloc[r_idx, 4])
 
-                    if y1_val != m_data["Y1"][r_idx]:
-                        m_data["Y1"][r_idx] = y1_val
+                    # 1. Check if Year 1 base input changed
+                    if new_y1 != m_data["Y1"][r_idx]:
+                        m_data["Y1"][r_idx] = new_y1
                         has_changed = True
+                        # Auto-cascade downstream years immediately for this specific row if no overwrite blocks them
+                        if f"Y2_M{r_idx}" not in m_data["overwrites"]:
+                            m_data["Y2"][r_idx] = new_y1 * (
+                                1.0 + (op["flex_rates"]["Y2"] / 100.0)
+                            )
+                        if f"Y3_M{r_idx}" not in m_data["overwrites"]:
+                            m_data["Y3"][r_idx] = m_data["Y2"][r_idx] * (
+                                1.0 + (op["flex_rates"]["Y3"] / 100.0)
+                            )
+                        if f"Y4_M{r_idx}" not in m_data["overwrites"]:
+                            m_data["Y4"][r_idx] = m_data["Y3"][r_idx] * (
+                                1.0 + (op["flex_rates"]["Y4"] / 100.0)
+                            )
+                        if f"Y5_M{r_idx}" not in m_data["overwrites"]:
+                            m_data["Y5"][r_idx] = m_data["Y4"][r_idx] * (
+                                1.0 + (op["flex_rates"]["Y5"] / 100.0)
+                            )
 
-                    if y2_val != df_matrix.iloc[r_idx, 1]:
-                        m_data["overwrites"][f"Y2_M{r_idx}"] = y2_val
-                        m_data["Y2"][r_idx] = y2_val
+                    # 2. Check for explicit manual overrides in downstream years
+                    if new_y2 != df_matrix.iloc[r_idx, 1]:
+                        m_data["overwrites"][f"Y2_M{r_idx}"] = new_y2
+                        m_data["Y2"][r_idx] = new_y2
                         has_changed = True
-                    elif f"Y2_M{r_idx}" not in m_data["overwrites"]:
-                        new_y2 = y1_val * (1.0 + (op["flex_rates"]["Y2"] / 100.0))
-                        if new_y2 != m_data["Y2"][r_idx]:
-                            m_data["Y2"][r_idx] = new_y2
-                            has_changed = True
+                        # Force cascade from this override forward
+                        if f"Y3_M{r_idx}" not in m_data["overwrites"]:
+                            m_data["Y3"][r_idx] = new_y2 * (
+                                1.0 + (op["flex_rates"]["Y3"] / 100.0)
+                            )
+                        if f"Y4_M{r_idx}" not in m_data["overwrites"]:
+                            m_data["Y4"][r_idx] = m_data["Y3"][r_idx] * (
+                                1.0 + (op["flex_rates"]["Y4"] / 100.0)
+                            )
+                        if f"Y5_M{r_idx}" not in m_data["overwrites"]:
+                            m_data["Y5"][r_idx] = m_data["Y4"][r_idx] * (
+                                1.0 + (op["flex_rates"]["Y5"] / 100.0)
+                            )
 
-                    if y3_val != df_matrix.iloc[r_idx, 2]:
-                        m_data["overwrites"][f"Y3_M{r_idx}"] = y3_val
-                        m_data["Y3"][r_idx] = y3_val
+                    if new_y3 != df_matrix.iloc[r_idx, 2]:
+                        m_data["overwrites"][f"Y3_M{r_idx}"] = new_y3
+                        m_data["Y3"][r_idx] = new_y3
                         has_changed = True
-                    elif f"Y3_M{r_idx}" not in m_data["overwrites"]:
-                        new_y3 = m_data["Y2"][r_idx] * (
-                            1.0 + (op["flex_rates"]["Y3"] / 100.0)
-                        )
-                        if new_y3 != m_data["Y3"][r_idx]:
-                            m_data["Y3"][r_idx] = new_y3
-                            has_changed = True
+                        if f"Y4_M{r_idx}" not in m_data["overwrites"]:
+                            m_data["Y4"][r_idx] = new_y3 * (
+                                1.0 + (op["flex_rates"]["Y4"] / 100.0)
+                            )
+                        if f"Y5_M{r_idx}" not in m_data["overwrites"]:
+                            m_data["Y5"][r_idx] = m_data["Y4"][r_idx] * (
+                                1.0 + (op["flex_rates"]["Y5"] / 100.0)
+                            )
 
-                    if y4_val != df_matrix.iloc[r_idx, 3]:
-                        m_data["overwrites"][f"Y4_M{r_idx}"] = y4_val
-                        m_data["Y4"][r_idx] = y4_val
+                    if new_y4 != df_matrix.iloc[r_idx, 3]:
+                        m_data["overwrites"][f"Y4_M{r_idx}"] = new_y4
+                        m_data["Y4"][r_idx] = new_y4
                         has_changed = True
-                    elif f"Y4_M{r_idx}" not in m_data["overwrites"]:
-                        new_y4 = m_data["Y3"][r_idx] * (
-                            1.0 + (op["flex_rates"]["Y4"] / 100.0)
-                        )
-                        if new_y4 != m_data["Y4"][r_idx]:
-                            m_data["Y4"][r_idx] = new_y4
-                            has_changed = True
+                        if f"Y5_M{r_idx}" not in m_data["overwrites"]:
+                            m_data["Y5"][r_idx] = new_y4 * (
+                                1.0 + (op["flex_rates"]["Y5"] / 100.0)
+                            )
 
-                    if y5_val != df_matrix.iloc[r_idx, 4]:
-                        m_data["overwrites"][f"Y5_M{r_idx}"] = y5_val
-                        m_data["Y5"][r_idx] = y5_val
+                    if new_y5 != df_matrix.iloc[r_idx, 4]:
+                        m_data["overwrites"][f"Y5_M{r_idx}"] = new_y5
+                        m_data["Y5"][r_idx] = new_y5
                         has_changed = True
-                    elif f"Y5_M{r_idx}" not in m_data["overwrites"]:
-                        new_y5 = m_data["Y4"][r_idx] * (
-                            1.0 + (op["flex_rates"]["Y5"] / 100.0)
-                        )
-                        if new_y5 != m_data["Y5"][r_idx]:
-                            m_data["Y5"][r_idx] = new_y5
-                            has_changed = True
 
                 if has_changed:
                     op["matrix_data"] = m_data
