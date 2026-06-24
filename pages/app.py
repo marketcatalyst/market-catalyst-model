@@ -1,5 +1,5 @@
 # pages/app.py
-# STRATA SUITE PRODUCTION ENGINE // TOTAL CORE SYSTEM v6.7.0-PRODUCTION
+# STRATA SUITE PRODUCTION ENGINE // TOTAL CORE SYSTEM v6.7.2-PRODUCTION
 
 import streamlit as st
 import json
@@ -413,10 +413,8 @@ class CommercialTrialBalanceCuboid:
                         f"VAT IN COGS: {c.get('name')}",
                     )
 
-            # 🛠️ STAGE 1 CHRONOLOGICAL GRID FLATTENER ENGINE FOR OPEX
             for op in state.get("opex", []):
                 val = 0.0
-                # Fallback safeguard map if matrix data doesn't exist
                 if "matrix_data" in op:
                     y_key = f"Y{((m - 1) // 12) + 1}"
                     r_idx = (m - 1) % 12
@@ -1014,7 +1012,7 @@ if view_desk == "1. Parameter Entry Panel":
                         st.session_state["active_data"]["cogs"].pop(idx)
                         st.rerun()
 
-    # 💸 4. REFACTORED: 12x5 OPERATIONAL OVERHEAD MATRIX DESK (STAGE 1 LAUNCH)
+    # 💸 4. FULLY RECONCILED SYNCHRONOUS MULTI-YEAR HORIZON MATRIX DESK
     with st.expander(
         "💸 4. THE GENERAL OVERHEAD CARD (12 × 5 Time-Mastery Grid Canvas)",
         expanded=True,
@@ -1036,7 +1034,6 @@ if view_desk == "1. Parameter Entry Panel":
             )
             if st.form_submit_button("➕ Initialise Empty 12 × 5 Corporate Matrix Row"):
                 if n:
-                    # Inject fresh 12x5 zero structure
                     blank_matrix = {
                         "name": n,
                         "vat_rate_type": v_rate,
@@ -1063,41 +1060,33 @@ if view_desk == "1. Parameter Entry Panel":
                     f"#### 📦 Account Row: **{op['name']}** ({op['vat_rate_type']})"
                 )
 
-                # Annual Indexation Row Controls at the Head of columns
                 f_col1, f_col2, f_col3, f_col4 = st.columns(4)
-                with f_col1:
-                    op["flex_rates"]["Y2"] = st.number_input(
-                        f"Y2 Flex % ({op['name']})",
-                        value=float(op.get("flex_rates", {}).get("Y2", 0.0)),
-                        step=0.5,
-                        key=f"f2_{idx}",
-                    )
-                with f_col2:
-                    op["flex_rates"]["Y3"] = st.number_input(
-                        f"Y3 Flex % ({op['name']})",
-                        value=float(op.get("flex_rates", {}).get("Y3", 0.0)),
-                        step=0.5,
-                        key=f"f3_{idx}",
-                    )
-                with f_col3:
-                    op["flex_rates"]["Y4"] = st.number_input(
-                        f"Y4 Flex % ({op['name']})",
-                        value=float(op.get("flex_rates", {}).get("Y4", 0.0)),
-                        step=0.5,
-                        key=f"f4_{idx}",
-                    )
-                with f_col4:
-                    op["flex_rates"]["Y5"] = st.number_input(
-                        f"Y5 Flex % ({op['name']})",
-                        value=float(op.get("flex_rates", {}).get("Y5", 0.0)),
-                        step=0.5,
-                        key=f"f5_{idx}",
-                    )
+                op["flex_rates"]["Y2"] = f_col1.number_input(
+                    f"Y2 Flex % ({op['name']})",
+                    value=float(op.get("flex_rates", {}).get("Y2", 0.0)),
+                    step=0.5,
+                    key=f"f2_{idx}",
+                )
+                op["flex_rates"]["Y3"] = f_col2.number_input(
+                    f"Y3 Flex % ({op['name']})",
+                    value=float(op.get("flex_rates", {}).get("Y3", 0.0)),
+                    step=0.5,
+                    key=f"f3_{idx}",
+                )
+                op["flex_rates"]["Y4"] = f_col3.number_input(
+                    f"Y4 Flex % ({op['name']})",
+                    value=float(op.get("flex_rates", {}).get("Y4", 0.0)),
+                    step=0.5,
+                    key=f"f4_{idx}",
+                )
+                op["flex_rates"]["Y5"] = f_col4.number_input(
+                    f"Y5 Flex % ({op['name']})",
+                    value=float(op.get("flex_rates", {}).get("Y5", 0.0)),
+                    step=0.5,
+                    key=f"f5_{idx}",
+                )
 
-                # Build the Dataframe for 12 Months x 5 Years Matrix view
                 months_index = [f"Month {str(m).zfill(2)}" for m in range(1, 13)]
-
-                # Check calculation defaults from state arrays
                 m_data = op.get(
                     "matrix_data",
                     {
@@ -1121,7 +1110,6 @@ if view_desk == "1. Parameter Entry Panel":
                     index=months_index,
                 )
 
-                # Render data editor for direct 12x5 manipulation
                 grid_cfg = {
                     col: st.column_config.NumberColumn(
                         col, format="£%,.2f", width="medium"
@@ -1135,67 +1123,68 @@ if view_desk == "1. Parameter Entry Panel":
                     key=f"grid_ed_{idx}",
                 )
 
-                # Internal Cascading calculation loop processor
-                # If Year 1 row updates, auto calculate cascade if no manual overwrite exists
-                for r_idx, m_lbl in enumerate(months_index):
-                    # Year 1 base capture
-                    m_data["Y1"][r_idx] = float(edited_matrix_df.iloc[r_idx, 0])
+                has_changed = False
+                for r_idx in range(12):
+                    y1_val = float(edited_matrix_df.iloc[r_idx, 0])
+                    y2_val = float(edited_matrix_df.iloc[r_idx, 1])
+                    y3_val = float(edited_matrix_df.iloc[r_idx, 2])
+                    y4_val = float(edited_matrix_df.iloc[r_idx, 3])
+                    y5_val = float(edited_matrix_df.iloc[r_idx, 4])
 
-                    # Year 2 Cascade calculation check
-                    y2_cell_tag = f"Y2_M{r_idx}"
-                    if y2_cell_tag in m_data.get("overwrites", {}):
-                        m_data["Y2"][r_idx] = float(m_data["overwrites"][y2_cell_tag])
-                    else:
-                        m_data["Y2"][r_idx] = (
-                            float(edited_matrix_df.iloc[r_idx, 1])
-                            if float(edited_matrix_df.iloc[r_idx, 1])
-                            != float(df_matrix.iloc[r_idx, 1])
-                            else m_data["Y1"][r_idx]
-                            * (1.0 + (op["flex_rates"]["Y2"] / 100.0))
+                    if y1_val != m_data["Y1"][r_idx]:
+                        m_data["Y1"][r_idx] = y1_val
+                        has_changed = True
+
+                    if y2_val != df_matrix.iloc[r_idx, 1]:
+                        m_data["overwrites"][f"Y2_M{r_idx}"] = y2_val
+                        m_data["Y2"][r_idx] = y2_val
+                        has_changed = True
+                    elif f"Y2_M{r_idx}" not in m_data["overwrites"]:
+                        new_y2 = y1_val * (1.0 + (op["flex_rates"]["Y2"] / 100.0))
+                        if new_y2 != m_data["Y2"][r_idx]:
+                            m_data["Y2"][r_idx] = new_y2
+                            has_changed = True
+
+                    if y3_val != df_matrix.iloc[r_idx, 2]:
+                        m_data["overwrites"][f"Y3_M{r_idx}"] = y3_val
+                        m_data["Y3"][r_idx] = y3_val
+                        has_changed = True
+                    elif f"Y3_M{r_idx}" not in m_data["overwrites"]:
+                        new_y3 = m_data["Y2"][r_idx] * (
+                            1.0 + (op["flex_rates"]["Y3"] / 100.0)
                         )
+                        if new_y3 != m_data["Y3"][r_idx]:
+                            m_data["Y3"][r_idx] = new_y3
+                            has_changed = True
 
-                    # Year 3 Cascade calculation check
-                    y3_cell_tag = f"Y3_M{r_idx}"
-                    if y3_cell_tag in m_data.get("overwrites", {}):
-                        m_data["Y3"][r_idx] = float(m_data["overwrites"][y3_cell_tag])
-                    else:
-                        m_data["Y3"][r_idx] = (
-                            float(edited_matrix_df.iloc[r_idx, 2])
-                            if float(edited_matrix_df.iloc[r_idx, 2])
-                            != float(df_matrix.iloc[r_idx, 2])
-                            else m_data["Y2"][r_idx]
-                            * (1.0 + (op["flex_rates"]["Y3"] / 100.0))
+                    if y4_val != df_matrix.iloc[r_idx, 3]:
+                        m_data["overwrites"][f"Y4_M{r_idx}"] = y4_val
+                        m_data["Y4"][r_idx] = y4_val
+                        has_changed = True
+                    elif f"Y4_M{r_idx}" not in m_data["overwrites"]:
+                        new_y4 = m_data["Y3"][r_idx] * (
+                            1.0 + (op["flex_rates"]["Y4"] / 100.0)
                         )
+                        if new_y4 != m_data["Y4"][r_idx]:
+                            m_data["Y4"][r_idx] = new_y4
+                            has_changed = True
 
-                    # Year 4 Cascade calculation check
-                    y4_cell_tag = f"Y4_M{r_idx}"
-                    if y4_cell_tag in m_data.get("overwrites", {}):
-                        m_data["Y4"][r_idx] = float(m_data["overwrites"][y4_cell_tag])
-                    else:
-                        m_data["Y4"][r_idx] = (
-                            float(edited_matrix_df.iloc[r_idx, 3])
-                            if float(edited_matrix_df.iloc[r_idx, 3])
-                            != float(df_matrix.iloc[r_idx, 3])
-                            else m_data["Y3"][r_idx]
-                            * (1.0 + (op["flex_rates"]["Y4"] / 100.0))
+                    if y5_val != df_matrix.iloc[r_idx, 4]:
+                        m_data["overwrites"][f"Y5_M{r_idx}"] = y5_val
+                        m_data["Y5"][r_idx] = y5_val
+                        has_changed = True
+                    elif f"Y5_M{r_idx}" not in m_data["overwrites"]:
+                        new_y5 = m_data["Y4"][r_idx] * (
+                            1.0 + (op["flex_rates"]["Y5"] / 100.0)
                         )
+                        if new_y5 != m_data["Y5"][r_idx]:
+                            m_data["Y5"][r_idx] = new_y5
+                            has_changed = True
 
-                    # Year 5 Cascade calculation check
-                    y5_cell_tag = f"Y5_M{r_idx}"
-                    if y5_cell_tag in m_data.get("overwrites", {}):
-                        m_data["Y5"][r_idx] = float(m_data["overwrites"][y5_cell_tag])
-                    else:
-                        m_data["Y5"][r_idx] = (
-                            float(edited_matrix_df.iloc[r_idx, 4])
-                            if float(edited_matrix_df.iloc[r_idx, 4])
-                            != float(df_matrix.iloc[r_idx, 4])
-                            else m_data["Y4"][r_idx]
-                            * (1.0 + (op["flex_rates"]["Y5"] / 100.0))
-                        )
+                if has_changed:
+                    op["matrix_data"] = m_data
+                    st.rerun()
 
-                op["matrix_data"] = m_data
-
-                # Single action delete line block
                 if st.button("🗑️ Sever Overhead Vector Node", key=f"del_mat_op_{idx}"):
                     st.session_state["active_data"]["opex"].pop(idx)
                     st.rerun()
