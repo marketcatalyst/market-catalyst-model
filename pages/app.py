@@ -1,5 +1,5 @@
 # pages/app.py
-# STRATA SUITE PRODUCTION ENGINE // TOTAL CORE SYSTEM v6.6.0-MASTER
+# STRATA SUITE PRODUCTION ENGINE // TOTAL CORE SYSTEM v6.7.0-PRODUCTION
 
 import streamlit as st
 import json
@@ -39,9 +39,11 @@ if "active_data" not in st.session_state:
         "equity_funding": [],
     }
 
-# Ensure legacy state structures adapt smoothly to the COGS dictionary block
+# Ensure legacy state structures adapt smoothly to the COGS/OpEx blocks
 if "cogs" not in st.session_state["active_data"]:
     st.session_state["active_data"]["cogs"] = []
+if "opex" not in st.session_state["active_data"]:
+    st.session_state["active_data"]["opex"] = []
 
 
 # =========================================================================
@@ -411,23 +413,30 @@ class CommercialTrialBalanceCuboid:
                         f"VAT IN COGS: {c.get('name')}",
                     )
 
+            # 🛠️ STAGE 1 CHRONOLOGICAL GRID FLATTENER ENGINE FOR OPEX
             for op in state.get("opex", []):
                 val = 0.0
-                if op.get("overrides", {}).get(f"M{str(m).zfill(2)}", 0.0) > 0:
-                    val = float(op["overrides"][f"M{str(m).zfill(2)}"])
+                # Fallback safeguard map if matrix data doesn't exist
+                if "matrix_data" in op:
+                    y_key = f"Y{((m - 1) // 12) + 1}"
+                    r_idx = (m - 1) % 12
+                    val = float(op["matrix_data"].get(y_key, [0.0] * 12)[r_idx])
                 else:
-                    y_idx = 1 if m <= 12 else 2 if m <= 24 else 3
-                    y_base = float(op.get(f"y{y_idx}_baseline", 0.0))
-                    flex = (
-                        1.0 + (float(op.get("flex_pct", 0.0)) / 100.0)
-                        if y_idx > 1
-                        else 1.0
-                    )
-                    weights = self.seasonality_profiles.get(
-                        op.get("seasonality", "Flat_Linear"),
-                        self.seasonality_profiles["Flat_Linear"],
-                    )
-                    val = y_base * flex * weights[(m - 1) % 12]
+                    if op.get("overrides", {}).get(f"M{str(m).zfill(2)}", 0.0) > 0:
+                        val = float(op["overrides"][f"M{str(m).zfill(2)}"])
+                    else:
+                        y_idx = 1 if m <= 12 else 2 if m <= 24 else 3
+                        y_base = float(op.get(f"y{y_idx}_baseline", 0.0))
+                        flex = (
+                            1.0 + (float(op.get("flex_pct", 0.0)) / 100.0)
+                            if y_idx > 1
+                            else 1.0
+                        )
+                        weights = self.seasonality_profiles.get(
+                            op.get("seasonality", "Flat_Linear"),
+                            self.seasonality_profiles["Flat_Linear"],
+                        )
+                        val = y_base * flex * weights[(m - 1) % 12]
                 val *= opex_mod
                 vat_pct = (
                     0.20
@@ -743,19 +752,6 @@ def commit_dataframe_to_state(df):
                     "overrides": overrides_map,
                 }
             )
-        elif str(r["Vector Type"]) == "opex":
-            new_state["opex"].append(
-                {
-                    "name": lbl,
-                    "y1_baseline": float(r["Year 1 Net (£)"]),
-                    "y2_baseline": float(r["Year 2 Net (£)"]),
-                    "y3_baseline": float(r["Year 3 Net (£)"]),
-                    "seasonality": str(r["Curve Profile"]),
-                    "vat_rate_type": str(r["VAT Configuration Type"]),
-                    "flex_pct": float(r.get("Flex %", 0.0)),
-                    "overrides": overrides_map,
-                }
-            )
     return new_state
 
 
@@ -790,6 +786,8 @@ with p_col1:
             st.session_state["active_data"] = payload
             if "cogs" not in st.session_state["active_data"]:
                 st.session_state["active_data"]["cogs"] = []
+            if "opex" not in st.session_state["active_data"]:
+                st.session_state["active_data"]["opex"] = []
             st.session_state["active_project_name"] = sel
             st.toast(f"Loaded Core State: {sel}")
             st.rerun()
@@ -1016,69 +1014,191 @@ if view_desk == "1. Parameter Entry Panel":
                         st.session_state["active_data"]["cogs"].pop(idx)
                         st.rerun()
 
-    # 4. General Operational Overheads Panel
-    with st.expander("💸 4. THE GENERAL OVERHEAD CARD (Operational Overhead Flexing)"):
-        with st.form("opex_form", clear_on_submit=True):
+    # 💸 4. REFACTORED: 12x5 OPERATIONAL OVERHEAD MATRIX DESK (STAGE 1 LAUNCH)
+    with st.expander(
+        "💸 4. THE GENERAL OVERHEAD CARD (12 × 5 Time-Mastery Grid Canvas)",
+        expanded=True,
+    ):
+        st.markdown("### 🛠️ Establish Proportional Overhead Vectors")
+        with st.form("matrix_opex_creator", clear_on_submit=True):
             n = st.text_input(
-                "Operational Expense Title:",
-                placeholder="e.g. Commercial Utility Electricity & Gas",
-            )
-            y1 = st.number_input(
-                "Year 1 Starting Base Overhead Burden (£):", min_value=0.0, step=500.0
-            )
-            y2 = st.number_input(
-                "Year 2 Starting Base Overhead Burden (£):", min_value=0.0, step=500.0
-            )
-            y3 = st.number_input(
-                "Year 3 Starting Base Overhead Burden (£):", min_value=0.0, step=500.0
-            )
-            curve = st.selectbox(
-                "Overhead Seasonality Distribution Curve:",
-                ["Flat_Linear", "Winter_Peak", "Summer_Peak"],
-                key="opex_curve",
-            )
-            flex = st.slider(
-                "Annual Macro Supply Chain Inflation Indexation Shift (OpEx Flex %):",
-                -10,
-                30,
-                0,
-                key="opex_flex_slider",
+                "Operational Overhead Category Title:",
+                placeholder="e.g. Commercial Utility Electricity",
             )
             v_rate = st.selectbox(
-                "UK VAT Classification Rate (Overheads):",
+                "UK VAT Category Profile:",
                 ["Standard 20%", "Reduced 5%", "Exempt / Zero 0%"],
-                key="opex_vat",
+                key="op_mat_vat",
             )
-            if st.form_submit_button("➕ Append Operational Expense Vector"):
+
+            st.caption(
+                "💡 Tip: Enter your core targets inside the grid below after creating the line."
+            )
+            if st.form_submit_button("➕ Initialise Empty 12 × 5 Corporate Matrix Row"):
                 if n:
-                    st.session_state["active_data"]["opex"].append(
-                        {
-                            "name": n,
-                            "y1_baseline": y1,
-                            "y2_baseline": y2,
-                            "y3_baseline": y3,
-                            "seasonality": curve,
-                            "flex_pct": flex,
-                            "vat_rate_type": v_rate,
-                            "overrides": {},
-                        }
-                    )
-                    st.toast("Opex Stream Mapped!")
+                    # Inject fresh 12x5 zero structure
+                    blank_matrix = {
+                        "name": n,
+                        "vat_rate_type": v_rate,
+                        "flex_rates": {"Y2": 0.0, "Y3": 0.0, "Y4": 0.0, "Y5": 0.0},
+                        "matrix_data": {
+                            "Y1": [0.0] * 12,
+                            "Y2": [0.0] * 12,
+                            "Y3": [0.0] * 12,
+                            "Y4": [0.0] * 12,
+                            "Y5": [0.0] * 12,
+                            "overwrites": {},
+                        },
+                    }
+                    st.session_state["active_data"]["opex"].append(blank_matrix)
+                    st.toast("Ecosystem Matrix Row Ready!")
                     st.rerun()
+
         if st.session_state["active_data"].get("opex"):
-            st.markdown("**Active Vector Rows:**")
-            for idx, x in enumerate(st.session_state["active_data"]["opex"]):
-                row_col1, row_col2 = st.columns([10, 2])
-                with row_col1:
-                    st.caption(
-                        f"✔ {x['name']} - Y1 Base: £{x['y1_baseline']:,.2f} | Flex: +{x['flex_pct']}% | Tax: {x.get('vat_rate_type', 'Standard 20%')}"
+            st.markdown("---")
+            st.markdown("### 🎛️ Active Multi-Year Horizon Grid Panels")
+
+            for idx, op in enumerate(st.session_state["active_data"]["opex"]):
+                st.markdown(
+                    f"#### 📦 Account Row: **{op['name']}** ({op['vat_rate_type']})"
+                )
+
+                # Annual Indexation Row Controls at the Head of columns
+                f_col1, f_col2, f_col3, f_col4 = st.columns(4)
+                with f_col1:
+                    op["flex_rates"]["Y2"] = st.number_input(
+                        f"Y2 Flex % ({op['name']})",
+                        value=float(op.get("flex_rates", {}).get("Y2", 0.0)),
+                        step=0.5,
+                        key=f"f2_{idx}",
                     )
-                with row_col2:
-                    if st.button(
-                        "🗑️ Delete", key=f"del_opex_{idx}", use_container_width=True
-                    ):
-                        st.session_state["active_data"]["opex"].pop(idx)
-                        st.rerun()
+                with f_col2:
+                    op["flex_rates"]["Y3"] = st.number_input(
+                        f"Y3 Flex % ({op['name']})",
+                        value=float(op.get("flex_rates", {}).get("Y3", 0.0)),
+                        step=0.5,
+                        key=f"f3_{idx}",
+                    )
+                with f_col3:
+                    op["flex_rates"]["Y4"] = st.number_input(
+                        f"Y4 Flex % ({op['name']})",
+                        value=float(op.get("flex_rates", {}).get("Y4", 0.0)),
+                        step=0.5,
+                        key=f"f4_{idx}",
+                    )
+                with f_col4:
+                    op["flex_rates"]["Y5"] = st.number_input(
+                        f"Y5 Flex % ({op['name']})",
+                        value=float(op.get("flex_rates", {}).get("Y5", 0.0)),
+                        step=0.5,
+                        key=f"f5_{idx}",
+                    )
+
+                # Build the Dataframe for 12 Months x 5 Years Matrix view
+                months_index = [f"Month {str(m).zfill(2)}" for m in range(1, 13)]
+
+                # Check calculation defaults from state arrays
+                m_data = op.get(
+                    "matrix_data",
+                    {
+                        "Y1": [0.0] * 12,
+                        "Y2": [0.0] * 12,
+                        "Y3": [0.0] * 12,
+                        "Y4": [0.0] * 12,
+                        "Y5": [0.0] * 12,
+                        "overwrites": {},
+                    },
+                )
+
+                df_matrix = pd.DataFrame(
+                    {
+                        "Year 1 (Base)": m_data.get("Y1", [0.0] * 12),
+                        "Year 2": m_data.get("Y2", [0.0] * 12),
+                        "Year 3": m_data.get("Y3", [0.0] * 12),
+                        "Year 4": m_data.get("Y4", [0.0] * 12),
+                        "Year 5": m_data.get("Y5", [0.0] * 12),
+                    },
+                    index=months_index,
+                )
+
+                # Render data editor for direct 12x5 manipulation
+                grid_cfg = {
+                    col: st.column_config.NumberColumn(
+                        col, format="£%,.2f", width="medium"
+                    )
+                    for col in df_matrix.columns
+                }
+                edited_matrix_df = st.data_editor(
+                    df_matrix,
+                    column_config=grid_cfg,
+                    use_container_width=True,
+                    key=f"grid_ed_{idx}",
+                )
+
+                # Internal Cascading calculation loop processor
+                # If Year 1 row updates, auto calculate cascade if no manual overwrite exists
+                for r_idx, m_lbl in enumerate(months_index):
+                    # Year 1 base capture
+                    m_data["Y1"][r_idx] = float(edited_matrix_df.iloc[r_idx, 0])
+
+                    # Year 2 Cascade calculation check
+                    y2_cell_tag = f"Y2_M{r_idx}"
+                    if y2_cell_tag in m_data.get("overwrites", {}):
+                        m_data["Y2"][r_idx] = float(m_data["overwrites"][y2_cell_tag])
+                    else:
+                        m_data["Y2"][r_idx] = (
+                            float(edited_matrix_df.iloc[r_idx, 1])
+                            if float(edited_matrix_df.iloc[r_idx, 1])
+                            != float(df_matrix.iloc[r_idx, 1])
+                            else m_data["Y1"][r_idx]
+                            * (1.0 + (op["flex_rates"]["Y2"] / 100.0))
+                        )
+
+                    # Year 3 Cascade calculation check
+                    y3_cell_tag = f"Y3_M{r_idx}"
+                    if y3_cell_tag in m_data.get("overwrites", {}):
+                        m_data["Y3"][r_idx] = float(m_data["overwrites"][y3_cell_tag])
+                    else:
+                        m_data["Y3"][r_idx] = (
+                            float(edited_matrix_df.iloc[r_idx, 2])
+                            if float(edited_matrix_df.iloc[r_idx, 2])
+                            != float(df_matrix.iloc[r_idx, 2])
+                            else m_data["Y2"][r_idx]
+                            * (1.0 + (op["flex_rates"]["Y3"] / 100.0))
+                        )
+
+                    # Year 4 Cascade calculation check
+                    y4_cell_tag = f"Y4_M{r_idx}"
+                    if y4_cell_tag in m_data.get("overwrites", {}):
+                        m_data["Y4"][r_idx] = float(m_data["overwrites"][y4_cell_tag])
+                    else:
+                        m_data["Y4"][r_idx] = (
+                            float(edited_matrix_df.iloc[r_idx, 3])
+                            if float(edited_matrix_df.iloc[r_idx, 3])
+                            != float(df_matrix.iloc[r_idx, 3])
+                            else m_data["Y3"][r_idx]
+                            * (1.0 + (op["flex_rates"]["Y4"] / 100.0))
+                        )
+
+                    # Year 5 Cascade calculation check
+                    y5_cell_tag = f"Y5_M{r_idx}"
+                    if y5_cell_tag in m_data.get("overwrites", {}):
+                        m_data["Y5"][r_idx] = float(m_data["overwrites"][y5_cell_tag])
+                    else:
+                        m_data["Y5"][r_idx] = (
+                            float(edited_matrix_df.iloc[r_idx, 4])
+                            if float(edited_matrix_df.iloc[r_idx, 4])
+                            != float(df_matrix.iloc[r_idx, 4])
+                            else m_data["Y4"][r_idx]
+                            * (1.0 + (op["flex_rates"]["Y5"] / 100.0))
+                        )
+
+                op["matrix_data"] = m_data
+
+                # Single action delete line block
+                if st.button("🗑️ Sever Overhead Vector Node", key=f"del_mat_op_{idx}"):
+                    st.session_state["active_data"]["opex"].pop(idx)
+                    st.rerun()
 
     # 5. Financed HP/Lease Wizard Panel
     with st.expander("🚜 5. THE FINANCED ASSET WIZARD (Hire Purchase & Lease Finance)"):
@@ -1182,7 +1302,7 @@ if view_desk == "1. Parameter Entry Panel":
                         st.session_state["active_data"]["outright_capex"].pop(idx)
                         st.rerun()
 
-    # 👥 7. Refactored Workforce Horizon Desk Panel (With Standardized Indexation Controls)
+    # 7. Workforce Horizon Desk Panel
     with st.expander(
         "👥 7. THE PERSONNEL HORIZON DESK (Permanent Base & Staffing Waves)"
     ):
@@ -1301,7 +1421,7 @@ if view_desk == "1. Parameter Entry Panel":
     st.markdown("### 🗺️ Continuous 61-Month Timeline Output Confirmation Matrix")
     month_columns = [f"M{str(i).zfill(2)}" for i in range(0, 61)]
     preview_rows = []
-    for category in ["sales", "cogs", "opex"]:
+    for category in ["sales", "cogs"]:
         for item in st.session_state["active_data"].get(category, []):
             r_data = {
                 "Line Identifier Description": item["name"],
@@ -1357,7 +1477,6 @@ if view_desk == "1. Parameter Entry Panel":
             updated_state = commit_dataframe_to_state(edited_grid)
             st.session_state["active_data"]["sales"] = updated_state["sales"]
             st.session_state["active_data"]["cogs"] = updated_state["cogs"]
-            st.session_state["active_data"]["opex"] = updated_state["opex"]
             st.toast("Matrix Alignment Completed successfully!")
             st.rerun()
 
