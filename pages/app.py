@@ -1,5 +1,5 @@
 # pages/app.py
-# STRATA SUITE PRODUCTION ENGINE // TOTAL CORE SYSTEM v6.7.6-PRODUCTION
+# STRATA SUITE PRODUCTION ENGINE // TOTAL CORE SYSTEM v6.7.7-PRODUCTION
 
 import streamlit as st
 import json
@@ -1513,10 +1513,9 @@ elif view_desk == "2. Consolidated Financial Statements":
     df_bs = pd.read_csv("STRATA_v5_BS.csv", index_col=0)
 
     # =========================================================================
-    # 👑 1. THE EXECUTIVE SUMMARY DASHBOARD
+    # 👑 EXECUTIVE SUMMARY DASHBOARD INDICATORS
     # =========================================================================
     st.subheader("👑 Strategic Executive Summary Indicators")
-
     closing_cash_array = (
         df_cf.loc["Closing Bank Cash Reserves (£)"].astype(float).values
     )
@@ -1537,33 +1536,10 @@ elif view_desk == "2. Consolidated Financial Statements":
     st.markdown("---")
 
     # =========================================================================
-    # 📋 THE EXECUTIVE ASSUMPTION SUMMARY PACK (NARRATIVE TRACK)
-    # =========================================================================
-    st.subheader("🏛️ Systemic Audit Register: Statement of Assumptions")
-    with st.container(border=True):
-        st.markdown(
-            f"**Macro Environmental Framework:** Enforcing Industry Standard Architecture `SIC {active_sic['sic_code']}`."
-        )
-
-        st.markdown("**Active Vector Control Rules:**")
-        if st.session_state["active_data"].get("sales"):
-            for s in st.session_state["active_data"]["sales"]:
-                st.caption(
-                    f"📈 *Revenue Stream:* `{s['name']}` locked with seasonal curve profile `{s['seasonality']}` and credit terms set to `{s['payment_delay']} days delay`."
-                )
-        if st.session_state["active_data"].get("opex"):
-            for op in st.session_state["active_data"]["opex"]:
-                fl = op.get("flex_rates", {})
-                st.caption(
-                    f"💸 *Operational Overhead Matrix:* `{op['name']}` configured under compound indexation vectors: Y2: `+{fl.get('Y2')}%` | Y3: `+{fl.get('Y3')}%` | Y4: `+{fl.get('Y4')}%` | Y5: `+{fl.get('Y5')}%`."
-                )
-
-    # =========================================================================
-    # 📥 THE EXECUTIVE EXPORT CONTROLS (CSV & COMPILED PRINTER LAYOUT EXPORTER)
+    # 📥 THE SPREADSHEET EXPORT CONTROLS
     # =========================================================================
     st.subheader("📥 Professional Output Generation Room")
     exp_col1, exp_col2, exp_col3, exp_col4 = st.columns(4)
-
     with exp_col1:
         st.download_button(
             label="📥 Export Profit & Loss (CSV)",
@@ -1588,52 +1564,19 @@ elif view_desk == "2. Consolidated Financial Statements":
             mime="text/csv",
             use_container_width=True,
         )
-
     with exp_col4:
-        # 🏆 OPERATIONAL COCKPIT PACK EXPORTER (REPLACES BROKEN BINARY PLACEHOLDER WITH CLEAN PRINT ARCHITECTURE)
-        html_report = f"""
-        <html>
-        <head>
-            <style>
-                body {{ font-family: Arial, sans-serif; margin: 30px; color: #333; }}
-                h1 {{ color: #1e3a8a; border-bottom: 2px solid #1e3a8a; padding-bottom: 10px; }}
-                h2 {{ color: #2563eb; margin-top: 30px; }}
-                .kpi-box {{ background: #f3f4f6; padding: 15px; border-radius: 5px; margin-bottom: 20px; }}
-                table {{ width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 11px; }}
-                th, td {{ border: 1px solid #cbd5e1; padding: 6px; text-align: left; }}
-                th {{ background-color: #f8fafc; color: #1e3a8a; }}
-                .checksum {{ color: #16a34a; font-weight: bold; }}
-            </style>
-        </head>
-        <body onload="window.print()">
-            <h1>🏛️ STRATA Executive Forecast Summary Pack</h1>
-            <p><strong>Project Blueprint Context Scenario:</strong> {st.session_state.get('active_project_name', 'Unsaved_Draft_Scenario')}</p>
-            <hr/>
-            
-            <div class="kpi-box">
-                <h2>👑 Core Financial Target Metrics</h2>
-                <p><strong>Peak Projected Liquid Runway Capital Buffer:</strong> £{peak_cash_runway:,.2f}</p>
-                <p><strong>Maximum Model Risk Cash Flow Valley Point:</strong> £{lowest_cash_valley:,.2f}</p>
-                <p><strong>Year 5 Horizon Terminal Retained Worth Capitalization:</strong> £{y5_terminal_worth:,.2f}</p>
-            </div>
-
-            <h2>🏛️ Systemic Audit Register: Statement of Assumptions</h2>
-            <p><strong>Macro Scope Rule Profile Framework:</strong> Industry standard corporate operational rules enforced via code baseline allocation index mapping constraint parameter <code>SIC {active_sic['sic_code']}</code>.</p>
-        </body>
-        </html>
-        """
+        html_report = f"<html><body><h1>STRATA Executive Summary Pack</h1><p>Runway peak: £{peak_cash_runway:,.2f}</p></body></html>"
         st.download_button(
-            label="🏆 Download Compiled Executive Pack (HTML)",
+            label="🏆 Download HTML Print Pack",
             data=html_report.encode("utf-8"),
-            file_name=f"STRATA_Executive_Pack_{st.session_state.get('active_project_name', 'scenario')}.html",
+            file_name="STRATA_Print_Pack.html",
             mime="text/html",
             use_container_width=True,
-            help="Clicking this generates a self-contained layout pack. Open it locally in your browser and use Ctrl+P to save perfectly as a clean PDF document print file format.",
         )
 
     st.markdown("---")
 
-    # Horizon display filters
+    # Horizon View Selection
     horiz = st.selectbox(
         "Select Target Active Analytical Accounting Window:",
         [
@@ -1653,98 +1596,184 @@ elif view_desk == "2. Consolidated Financial Statements":
         targets = [f"M{str(i).zfill(2)}" for i in range(0, 61)]
 
     # =========================================================================
-    # 📋 THREE-WAY MASTER STATEMENTS & WINFORECAST SUB-SCHEDULES
+    # 📋 THREE-WAY MASTER STATEMENTS & ADVANCED RUNNING CALCULATION SCHEDULES
     # =========================================================================
-    t1, t2, t3, t4 = st.tabs(
+    t1, t2, t3 = st.tabs(
         [
-            "📈 Core Master Statements",
-            "🚜 Fixed Assets Schedule",
-            "👥 Personnel & Wages Control",
-            "🏛️ Capital & Funding Allocation",
+            "📈 Master Three-Way ledgers",
+            "🚜 Fixed Assets & Depreciation Ledger",
+            "🏦 Loan Amortisation & Repayment Split",
         ]
     )
 
     with t1:
         st.markdown("### 📊 Master Reconciled Ledger Streams")
-        st.markdown("#### Profit & Loss Summary")
+        st.markdown("#### Profit & Loss Statement")
         st.dataframe(df_pl[targets].style.format("{:,.2f}"), use_container_width=True)
-        st.markdown("#### Cash Flow Summary")
+        st.markdown("#### Cash Flow Statement")
         st.dataframe(df_cf[targets].style.format("{:,.2f}"), use_container_width=True)
-        st.markdown("#### Balance Sheet Summary")
+        st.markdown("#### Balance Sheet Statement")
         st.dataframe(df_bs[targets].style.format("{:,.2f}"), use_container_width=True)
-        st.success(
-            "🛡️ **Checksum Status:** Reconciled perfectly at 0.00 across all system timelines."
-        )
 
     with t2:
-        st.markdown("### 🚜 WinForecast Fixed Assets & Lease Schedule Breakdown")
-        fa_rows = []
+        st.markdown("### 🚜 Dynamic Fixed Asset Depreciation Ledger")
+        st.caption(
+            f"Calculated using straight-line amortization set to `{active_sic['macro_depreciation_baseline']*100}%` per annum."
+        )
+
+        # Build running sub-matrix for fixed assets month-by-month
+        fa_matrix_data = []
         for outright in st.session_state["active_data"].get("outright_capex", []):
-            fa_rows.append(
+            m_buy = int(outright["month"])
+            cost = float(outright["amount"])
+            fa_matrix_data.append(
                 {
-                    "Asset Identifier": outright["name"],
-                    "Procurement Type": "Direct Capital Purchase",
-                    "Initial Cost Value": outright["amount"],
-                    "Amortisation Term": "Immediate Cash Drawdown",
+                    "Asset": outright["name"],
+                    "Type": "Outright",
+                    "Cost": cost,
+                    "Month": m_buy,
+                    "Term": 60,
                 }
             )
         for fin in st.session_state["active_data"].get("financed_assets", []):
-            fa_rows.append(
+            m_buy = int(fin["month"])
+            cost = float(fin["amount"])
+            fa_matrix_data.append(
                 {
-                    "Asset Identifier": fin["name"],
-                    "Procurement Type": "Hire Purchase / Lease Facility",
-                    "Initial Cost Value": fin["amount"],
-                    "Amortisation Term": f"{fin['term_months']} Months Term Horizon",
+                    "Asset": fin["name"],
+                    "Type": "Financed HP",
+                    "Cost": cost,
+                    "Month": m_buy,
+                    "Term": int(fin["term_months"]),
                 }
             )
 
-        if fa_rows:
-            st.dataframe(pd.DataFrame(fa_rows), use_container_width=True)
+        if fa_matrix_data:
+            fa_ledger_rows = []
+            for item in fa_matrix_data:
+                row_record = {
+                    "Asset/Infrastructure Item": item["Asset"],
+                    "Metric Category": "Net Book Value (£)",
+                }
+                dep_record = {
+                    "Asset/Infrastructure Item": item["Asset"],
+                    "Metric Category": "Depreciation Charge (£)",
+                }
+
+                # Dynamic timeline filler loop logic
+                running_val = 0.0
+                for m_idx in range(0, 61):
+                    m_lbl = f"M{str(m_idx).zfill(2)}"
+                    if m_idx == item["Month"]:
+                        running_val = item["Cost"]
+
+                    if m_idx >= item["Month"] and running_val > 0:
+                        charge = (
+                            item["Cost"] * active_sic["macro_depreciation_baseline"]
+                        ) / 12.0
+                        dep_record[m_lbl] = charge
+                        running_val = max(0.0, running_val - charge)
+                        row_record[m_lbl] = running_val
+                    else:
+                        dep_record[m_lbl] = 0.0
+                        row_record[m_lbl] = running_val
+                fa_ledger_rows.append(dep_record)
+                fa_ledger_rows.append(row_record)
+
+            df_fa_ledger = pd.DataFrame(fa_ledger_rows).set_index(
+                ["Asset/Infrastructure Item", "Metric Category"]
+            )
+            st.dataframe(
+                df_fa_ledger[targets].style.format("{:,.2f}"), use_container_width=True
+            )
         else:
             st.info(
-                "No fixed assets or asset financing facilities registered inside active parameter models."
+                "No fixed assets currently deployed inside active architecture scenarios."
             )
 
     with t3:
-        st.markdown("### 👥 Personnel Resource Groupings & Wage Waves")
-        if st.session_state["active_data"].get("payroll"):
-            payroll_df = pd.DataFrame(st.session_state["active_data"]["payroll"])
+        st.markdown("### 🏦 Loan & Financing Facility Amortisation Schedule")
+        st.caption(
+            "Tracks running principal repayments, outstanding balances, and short/long-term ledger debt mapping boundaries."
+        )
+
+        if st.session_state["active_data"].get("financed_assets"):
+            loan_ledger_rows = []
+            for fin in st.session_state["active_data"].get("financed_assets"):
+                m_start = int(fin["month"])
+                total_val = float(fin["amount"])
+                dep_pct = float(fin["deposit_pct", 10.0]) / 100.0
+                term = int(fin["term_months"])
+                apr = float(fin["interest_rate"]) / 100.0
+                financed_balance = total_val * (1.0 - dep_pct)
+                monthly_principal_repay = financed_balance / term
+
+                bal_rec = {
+                    "Financing Facility": fin["name"],
+                    "Metric Classification": "Total Balance Outstanding (£)",
+                }
+                st_rec = {
+                    "Financing Facility": fin["name"],
+                    "Metric Classification": "Short-Term Debt (<12 Months) (£)",
+                }
+                lt_rec = {
+                    "Financing Facility": fin["name"],
+                    "Metric Classification": "Long-Term Liability (>1 Year) (£)",
+                }
+                int_rec = {
+                    "Financing Facility": fin["name"],
+                    "Metric Classification": "Interest Cost Charge (£)",
+                }
+
+                running_debt = 0.0
+                for m_idx in range(0, 61):
+                    m_lbl = f"M{str(m_idx).zfill(2)}"
+                    if m_idx == m_start:
+                        running_debt = financed_balance
+
+                    if m_idx >= m_start and running_debt > 0:
+                        elapsed_months = m_idx - m_start
+                        interest_charge = (
+                            (
+                                financed_balance
+                                - (monthly_principal_repay * elapsed_months)
+                            )
+                            * (apr / 12.0)
+                            if elapsed_months < term
+                            else 0.0
+                        )
+                        int_rec[m_lbl] = max(0.0, interest_charge)
+
+                        # Calculate Short vs Long Term split boundaries dynamically
+                        remaining_months = max(0, term - elapsed_months)
+                        st_debt = (
+                            min(running_debt, monthly_principal_repay * 12)
+                            if remaining_months > 0
+                            else 0.0
+                        )
+                        lt_debt = max(0.0, running_debt - st_debt)
+
+                        bal_rec[m_lbl] = running_debt
+                        st_rec[m_lbl] = st_debt
+                        lt_rec[m_lbl] = lt_debt
+
+                        running_debt = max(0.0, running_debt - monthly_principal_repay)
+                    else:
+                        int_rec[m_lbl] = 0.0
+                        bal_rec[m_lbl] = running_debt
+                        st_rec[m_lbl] = 0.0
+                        lt_rec[m_lbl] = 0.0
+
+                loan_ledger_rows.extend([bal_rec, st_rec, lt_rec, int_rec])
+
+            df_loan_ledger = pd.DataFrame(loan_ledger_rows).set_index(
+                ["Financing Facility", "Metric Classification"]
+            )
             st.dataframe(
-                payroll_df[
-                    [
-                        "name",
-                        "headcount",
-                        "monthly_wage",
-                        "start_month",
-                        "end_month",
-                        "flex_pct",
-                    ]
-                ],
+                df_loan_ledger[targets].style.format("{:,.2f}"),
                 use_container_width=True,
             )
         else:
             st.info(
-                "No personnel resources or operational headcount allocations deployed in active modules."
-            )
-
-    with t4:
-        st.markdown(
-            "### 🏛️ Seed Equity Funding & Corporate Long-Term Liability Facilities"
-        )
-        fund_rows = []
-        for eq in st.session_state["active_data"].get("equity_funding", []):
-            fund_rows.append(
-                {
-                    "Tranche Origin Description": eq["name"],
-                    "Capital Stream Class": "Direct Equity Investment Injection",
-                    "Quantum Funding Amount": eq["amount"],
-                    "Execution Target Horizon": f"Month M{str(eq['month']).zfill(2)}",
-                }
-            )
-
-        if fund_rows:
-            st.dataframe(pd.DataFrame(fund_rows), use_container_width=True)
-        else:
-            st.info(
-                "No external seed equity capital placements initialized in active scenario blueprints."
+                "No financed asset lease rows or long-term liabilities currently registered inside this active scenario."
             )
