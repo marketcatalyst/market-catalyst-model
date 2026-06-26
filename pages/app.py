@@ -1,5 +1,5 @@
 # pages/app.py
-# STRATA SUITE PRODUCTION ENGINE // TOTAL CORE SYSTEM v6.7.5-PRODUCTION
+# STRATA SUITE PRODUCTION ENGINE // TOTAL CORE SYSTEM v6.7.6-PRODUCTION
 
 import streamlit as st
 import json
@@ -7,7 +7,6 @@ import os
 import pandas as pd
 import psycopg2
 from psycopg2.extras import RealDictCursor
-from io import BytesIO
 
 # Enforce secure routing context backup check
 if not st.session_state.get("authenticated") or not st.session_state.get(
@@ -754,16 +753,6 @@ def commit_dataframe_to_state(df):
     return new_state
 
 
-def pseudo_pdf_compile_buffer():
-    # Emulates clean binary compilation of reports via temporary BytesIO streams safely
-    buf = BytesIO()
-    buf.write(
-        b"%PDF-1.4 mock summary data context stream binary validation placeholder block"
-    )
-    buf.seek(0)
-    return buf
-
-
 # =========================================================================
 # 🎛️ MAIN WORKSPACE INTERFACE CANVAS
 # =========================================================================
@@ -1450,6 +1439,69 @@ if view_desk == "1. Parameter Entry Panel":
                         st.session_state["active_data"]["equity_funding"].pop(idx)
                         st.rerun()
 
+    # Continuous 61-Month Interactive Timeline Overrides Gate Matrix
+    st.markdown("### 🗺️ Continuous 61-Month Timeline Output Confirmation Matrix")
+    month_columns = [f"M{str(i).zfill(2)}" for i in range(0, 61)]
+    preview_rows = []
+    for category in ["sales", "cogs"]:
+        for item in st.session_state["active_data"].get(category, []):
+            r_data = {
+                "Line Identifier Description": item["name"],
+                "Vector Type": category,
+                "Year 1 Net (£)": item.get("y1_baseline", 0.0),
+                "Year 2 Net (£)": item.get("y2_baseline", 0.0),
+                "Year 3 Net (£)": item.get("y3_baseline", 0.0),
+                "Flex %": item.get("flex_pct", 0.0),
+                "Curve Profile": item.get("seasonality", "Flat_Linear"),
+                "VAT Configuration Type": item.get("vat_rate_type", "Standard 20%"),
+            }
+            for col in month_columns:
+                r_data[col] = float(item.get("overrides", {}).get(col, 0.0))
+            preview_rows.append(r_data)
+
+    if preview_rows:
+        df_preview = pd.DataFrame(preview_rows)
+        cfg = {
+            "Line Identifier Description": st.column_config.TextColumn(
+                "Nominal Line", disabled=True, width="large"
+            ),
+            "Vector Type": st.column_config.TextColumn(
+                "Type", disabled=True, width="small"
+            ),
+            "Year 1 Net (£)": st.column_config.NumberColumn(
+                "Y1 Target", format="£%,.2f"
+            ),
+            "Year 2 Net (£)": st.column_config.NumberColumn(
+                "Y2 Target", format="£%,.2f"
+            ),
+            "Year 3 Net (£)": st.column_config.NumberColumn(
+                "Y3 Target", format="£%,.2f"
+            ),
+            "Flex %": st.column_config.NumberColumn("Flex %", format="%f"),
+            "Curve Profile": st.column_config.SelectboxColumn(
+                "Curve Profile", options=["Flat_Linear", "Winter_Peak", "Summer_Peak"]
+            ),
+            "VAT Configuration Type": st.column_config.SelectboxColumn(
+                "VAT Rate", options=["Standard 20%", "Reduced 5%", "Exempt / Zero 0%"]
+            ),
+        }
+        for cm in month_columns:
+            cfg[cm] = st.column_config.NumberColumn(cm, format="£%,.2f", width="small")
+
+        edited_grid = st.data_editor(
+            df_preview,
+            column_config=cfg,
+            use_container_width=True,
+            key="exception_hatch_editor",
+        )
+
+        if st.button("🚨 Lock In Parameter Changes & Exception Overrides"):
+            updated_state = commit_dataframe_to_state(edited_grid)
+            st.session_state["active_data"]["sales"] = updated_state["sales"]
+            st.session_state["active_data"]["cogs"] = updated_state["cogs"]
+            st.toast("Matrix Alignment Completed successfully!")
+            st.rerun()
+
 elif view_desk == "2. Consolidated Financial Statements":
     st.title("📊 Reconciled Three-Way Corporate Reporting Canvas")
 
@@ -1497,7 +1549,7 @@ elif view_desk == "2. Consolidated Financial Statements":
         if st.session_state["active_data"].get("sales"):
             for s in st.session_state["active_data"]["sales"]:
                 st.caption(
-                    f"📈 *Revenue Stream:* `{s['name']}` locked with seasonal curve profile `{s['seasonality']}` and commercial credit parameters set to `{s['payment_delay']} days delay`."
+                    f"📈 *Revenue Stream:* `{s['name']}` locked with seasonal curve profile `{s['seasonality']}` and credit terms set to `{s['payment_delay']} days delay`."
                 )
         if st.session_state["active_data"].get("opex"):
             for op in st.session_state["active_data"]["opex"]:
@@ -1507,7 +1559,7 @@ elif view_desk == "2. Consolidated Financial Statements":
                 )
 
     # =========================================================================
-    # 📥 THE EXECUTIVE EXPORT CONTROLS (CSV & PDF PACK)
+    # 📥 THE EXECUTIVE EXPORT CONTROLS (CSV & COMPILED PRINTER LAYOUT EXPORTER)
     # =========================================================================
     st.subheader("📥 Professional Output Generation Room")
     exp_col1, exp_col2, exp_col3, exp_col4 = st.columns(4)
@@ -1536,14 +1588,47 @@ elif view_desk == "2. Consolidated Financial Statements":
             mime="text/csv",
             use_container_width=True,
         )
+
     with exp_col4:
-        # Secure implementation of binary PDF document generation download engine safely
+        # 🏆 OPERATIONAL COCKPIT PACK EXPORTER (REPLACES BROKEN BINARY PLACEHOLDER WITH CLEAN PRINT ARCHITECTURE)
+        html_report = f"""
+        <html>
+        <head>
+            <style>
+                body {{ font-family: Arial, sans-serif; margin: 30px; color: #333; }}
+                h1 {{ color: #1e3a8a; border-bottom: 2px solid #1e3a8a; padding-bottom: 10px; }}
+                h2 {{ color: #2563eb; margin-top: 30px; }}
+                .kpi-box {{ background: #f3f4f6; padding: 15px; border-radius: 5px; margin-bottom: 20px; }}
+                table {{ width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 11px; }}
+                th, td {{ border: 1px solid #cbd5e1; padding: 6px; text-align: left; }}
+                th {{ background-color: #f8fafc; color: #1e3a8a; }}
+                .checksum {{ color: #16a34a; font-weight: bold; }}
+            </style>
+        </head>
+        <body onload="window.print()">
+            <h1>🏛️ STRATA Executive Forecast Summary Pack</h1>
+            <p><strong>Project Blueprint Context Scenario:</strong> {st.session_state.get('active_project_name', 'Unsaved_Draft_Scenario')}</p>
+            <hr/>
+            
+            <div class="kpi-box">
+                <h2>👑 Core Financial Target Metrics</h2>
+                <p><strong>Peak Projected Liquid Runway Capital Buffer:</strong> £{peak_cash_runway:,.2f}</p>
+                <p><strong>Maximum Model Risk Cash Flow Valley Point:</strong> £{lowest_cash_valley:,.2f}</p>
+                <p><strong>Year 5 Horizon Terminal Retained Worth Capitalization:</strong> £{y5_terminal_worth:,.2f}</p>
+            </div>
+
+            <h2>🏛️ Systemic Audit Register: Statement of Assumptions</h2>
+            <p><strong>Macro Scope Rule Profile Framework:</strong> Industry standard corporate operational rules enforced via code baseline allocation index mapping constraint parameter <code>SIC {active_sic['sic_code']}</code>.</p>
+        </body>
+        </html>
+        """
         st.download_button(
-            label="🏆 Download Complete PDF Report Pack",
-            data=pseudo_pdf_compile_buffer(),
-            file_name="STRATA_Executive_Report_Pack.pdf",
-            mime="application/pdf",
+            label="🏆 Download Compiled Executive Pack (HTML)",
+            data=html_report.encode("utf-8"),
+            file_name=f"STRATA_Executive_Pack_{st.session_state.get('active_project_name', 'scenario')}.html",
+            mime="text/html",
             use_container_width=True,
+            help="Clicking this generates a self-contained layout pack. Open it locally in your browser and use Ctrl+P to save perfectly as a clean PDF document print file format.",
         )
 
     st.markdown("---")
@@ -1617,7 +1702,7 @@ elif view_desk == "2. Consolidated Financial Statements":
             st.dataframe(pd.DataFrame(fa_rows), use_container_width=True)
         else:
             st.info(
-                "No corporate fixed assets or asset financing facilities registered inside active parameter models."
+                "No fixed assets or asset financing facilities registered inside active parameter models."
             )
 
     with t3:
