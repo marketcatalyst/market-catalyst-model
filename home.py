@@ -2,16 +2,18 @@
 # STRATA SUITE ACCESS GATEWAY // MAIN ENTRANCE PORTAL v6.9.4-PRODUCTION
 
 import streamlit as st
+import json
+import os
+import psycopg2
+from psycopg2.extras import RealDictCursor
 
 st.set_page_config(
     page_title="STRATA // Intelligence Suite", page_icon="🏛️", layout="wide"
 )
 
-# Track authentication states cleanly without auto-resetting to True on clear loops
+# Track authentication states cleanly across session reruns
 if "authenticated" not in st.session_state:
     st.session_state["authenticated"] = False
-if "onboarding_complete" not in st.session_state:
-    st.session_state["onboarding_complete"] = True
 
 # Global Industry Safeguard Defaults
 if "sic_profile" not in st.session_state:
@@ -38,7 +40,82 @@ if "vector_couplings" not in st.session_state:
 if "custom_curves" not in st.session_state:
     st.session_state["custom_curves"] = {}
 
-active_sic = st.session_state["sic_profile"]
+
+# =========================================================================
+# 🗄️ DATABASE INTERACTIVE OPERATION FUNCTIONS
+# =========================================================================
+def get_database_connection():
+    db_url = (
+        os.environ.get("DATABASE_URL")
+        or st.secrets.get("DATABASE_URL", None)
+        or st.secrets.get("CONNECTION_STRING", None)
+    )
+    if not db_url:
+        return "MISSING_CREDENTIALS"
+    try:
+        return psycopg2.connect(db_url)
+    except Exception as e:
+        return f"CONNECTION_FAILED: {str(e)}"
+
+
+def extract_project_directory_list():
+    conn = get_database_connection()
+    if conn and not isinstance(conn, str):
+        try:
+            with conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    cur.execute(
+                        "SELECT project_name FROM strata_projects_v5 ORDER BY project_name ASC;"
+                    )
+                    rows = cur.fetchall()
+            conn.close()
+            return [r["project_name"] for r in rows]
+        except Exception:
+            pass
+    return []
+
+
+def commit_project_payload_to_storage(project_name, data_payload):
+    payload_string = json.dumps(data_payload)
+    conn = get_database_connection()
+    if isinstance(conn, str):
+        return conn
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO strata_projects_v5 (project_name, payload_data, last_updated)
+                    VALUES (%s, %s, CURRENT_TIMESTAMP)
+                    ON CONFLICT (project_name) DO UPDATE 
+                    SET payload_data = EXCLUDED.payload_data, last_updated = CURRENT_TIMESTAMP;
+                """,
+                    (str(project_name).strip(), payload_string),
+                )
+        conn.close()
+        return "SUCCESS"
+    except Exception as e:
+        return f"WRITE_FAILED: {str(e)}"
+
+
+def pull_project_payload_from_storage(project_name):
+    conn = get_database_connection()
+    if conn and not isinstance(conn, str):
+        try:
+            with conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    cur.execute(
+                        "SELECT payload_data FROM strata_projects_v5 WHERE project_name = %s;",
+                        (project_name,),
+                    )
+                    row = cur.fetchone()
+            conn.close()
+            if row:
+                return json.loads(row["payload_data"])
+        except Exception:
+            pass
+    return None
+
 
 # =========================================================================
 # 🔒 GATEWAY VIEW 1: SECURE SIGN-IN PORTAL (IF UNAUTHENTICATED)
@@ -77,20 +154,66 @@ if not st.session_state["authenticated"]:
 # 🏠 GATEWAY VIEW 2: EXECUTIVE PLATFORM HUB (IF AUTHENTICATED)
 # =========================================================================
 st.title("🏛️ STRATA // Financial Intelligence Suite")
-st.markdown(
-    "Welcome to your corporate forecasting framework. Use the sequential steps below or the sidebar navigation to configure your model workflow."
-)
 st.markdown("---")
 
+# 🚀 INITIALIZATION TOUCHPOINT: Centred Project Selector Hub
+st.subheader("📁 Project Workspace Directory Room")
+st.markdown(
+    "Select an existing historical configuration layer from the database or type a new project name identifier to initialize a fresh scenario."
+)
+
+p_col1, p_col2 = st.columns([6, 6])
+with p_col1:
+    avail_blueprints = extract_project_directory_list()
+    selected_blueprint = st.selectbox(
+        "Switch Active Project Model Context:",
+        ["-- Select Saved Project Scenario --"] + avail_blueprints,
+        help="Pull an existing historical parameter matrix projection context directly from cloud relational storage nodes.",
+    )
+    if (
+        selected_blueprint != "-- Select Saved Project Scenario --"
+        and selected_blueprint != st.session_state.get("active_project_name")
+    ):
+        retrieved_payload = pull_project_payload_from_storage(selected_blueprint)
+        if retrieved_payload:
+            st.session_state["active_data"] = retrieved_payload
+            st.session_state["active_project_name"] = selected_blueprint
+            st.toast(f"Loaded Core State Matrix: {selected_blueprint}")
+            st.rerun()
+
+with p_col2:
+    active_project_handle = st.text_input(
+        "Create / Save Project Name Identifier:",
+        value=st.session_state.get("active_project_name", "Unsaved_Draft_Scenario"),
+        help="Establish a new projection directory handle context.",
+    )
+    if st.button(
+        "💾 Save Project Configuration",
+        use_container_width=True,
+        help="Commit all active parameter arrays and entries securely back to the PostgreSQL server.",
+    ):
+        commit_project_payload_to_storage(
+            active_project_handle, st.session_state["active_data"]
+        )
+        st.session_state["active_project_name"] = active_project_handle
+        st.toast("Project Configuration committed successfully!")
+        st.rerun()
+
+st.markdown("---")
+
+# =========================================================================
+# SEQUENTIAL WORKFLOW PIPELINE WIZARD
+# =========================================================================
+st.subheader("🧭 Guided Corporate Optimization Pipeline")
 st.info(
-    "💡 **System Status:** Session authenticated. Environmental thresholds are locked and feeding directly into downstream UK ledgers."
+    f"💡 **Active Working Blueprint Instance Context:** `{st.session_state.get('active_project_name', 'Unsaved_Draft_Scenario')}`"
 )
 
 col1, col2, col3 = st.columns(3)
 with col1:
     st.markdown("### 1️⃣ Data Input Parameters")
     st.caption(
-        "Configure project identities, industry sectors, commercial energy VAT profiles, and custom seasonality curve scales."
+        "Configure industry sectors, Employer ER NIC tax rules, commercial energy VAT profiles, and custom seasonality curves."
     )
     st.page_link(
         "pages/onboarding.py",
@@ -126,7 +249,11 @@ st.sidebar.page_link("pages/reports.py", label="📊 Performance Tab")
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 👤 Session Controls")
 
-if st.sidebar.button("🚪 Log Off Session", use_container_width=True):
+if st.sidebar.button(
+    "🚪 Log Off Session",
+    use_container_width=True,
+    help="Safely disconnect active ledger data states, clear temporary session storage, and return to the secure gateway.",
+):
     st.session_state["authenticated"] = False
     st.toast("Session terminated safely.")
     st.rerun()
