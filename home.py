@@ -1,5 +1,5 @@
 # home.py
-# STRATA SUITE ACCESS GATEWAY // MAIN ENTRANCE PORTAL v6.9.3-PRODUCTION
+# STRATA SUITE ACCESS GATEWAY // MAIN ENTRANCE PORTAL v6.9.4-PRODUCTION
 
 import streamlit as st
 
@@ -83,7 +83,7 @@ st.markdown(
 st.markdown("---")
 
 st.info(
-    "💡 **System Status:** Session authenticated. Environmental thresholds are locked and feeding directly into downstream ledgers."
+    "💡 **System Status:** Session authenticated. Environmental thresholds are locked and feeding directly into downstream UK ledgers."
 )
 
 col1, col2, col3 = st.columns(3)
@@ -126,12 +126,7 @@ st.sidebar.page_link("pages/reports.py", label="📊 Performance Tab")
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 👤 Session Controls")
 
-# RESOLVED LOGOFF RUNTIME ENGINE LOOP
-if st.sidebar.button(
-    "🚪 Log Off Session",
-    use_container_width=True,
-    help="Safely disconnect active ledger data states, clear temporary session storage, and return to the secure gateway.",
-):
+if st.sidebar.button("🚪 Log Off Session", use_container_width=True):
     st.session_state["authenticated"] = False
     st.toast("Session terminated safely.")
     st.rerun()
