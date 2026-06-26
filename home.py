@@ -3,30 +3,18 @@
 
 import streamlit as st
 
-# 🚀 UX CORRECTION: Enforce strict native sidebar removal to eliminate duplicates
 st.set_page_config(
-    page_title="STRATA // Intelligence Suite",
-    page_icon="🏛️",
-    layout="wide",
-    initial_sidebar_state="expanded",
+    page_title="STRATA // Intelligence Suite", page_icon="🏛️", layout="wide"
 )
 
-# Inject custom CSS layout styling to forcefully hide the auto-generated top links
-st.markdown(
-    """
-    <style>
-        [data-testid="stSidebarNav"] {display: none !important;}
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
+# Track authentication states cleanly without auto-resetting to True on clear loops
 if "authenticated" not in st.session_state:
-    st.session_state["authenticated"] = True
+    st.session_state["authenticated"] = False
 if "onboarding_complete" not in st.session_state:
     st.session_state["onboarding_complete"] = True
 
-if "sic_profile" not in st.session_state or st.session_state["sic_profile"] is None:
+# Global Industry Safeguard Defaults
+if "sic_profile" not in st.session_state:
     st.session_state["sic_profile"] = {
         "sic_code": "71121",
         "sector": "Professional R&D Services (Default)",
@@ -50,6 +38,44 @@ if "vector_couplings" not in st.session_state:
 if "custom_curves" not in st.session_state:
     st.session_state["custom_curves"] = {}
 
+active_sic = st.session_state["sic_profile"]
+
+# =========================================================================
+# 🔒 GATEWAY VIEW 1: SECURE SIGN-IN PORTAL (IF UNAUTHENTICATED)
+# =========================================================================
+if not st.session_state["authenticated"]:
+    st.title("🏛️ STRATA // Financial Intelligence Gateway")
+    st.markdown(
+        "Please authenticate with your secure portal access tokens to open active forecast project workspaces."
+    )
+    st.markdown("---")
+
+    login_col1, login_col2, login_col3 = st.columns([4, 4, 4])
+    with login_col2:
+        st.subheader("Executive Portal Access")
+        with st.form("portal_login_form"):
+            user_id = st.text_input(
+                "User Name / Email Address:", placeholder="e.g. user@theperry.group"
+            )
+            user_key = st.text_input("Secure Access Key:", type="password")
+
+            st.caption(
+                "💡 *Demo Sandbox Mode: Enter any placeholder values above to test workspace transitions.*"
+            )
+            if st.form_submit_button(
+                "🔒 Authenticate Secure Session", use_container_width=True
+            ):
+                if user_id and user_key:
+                    st.session_state["authenticated"] = True
+                    st.toast("Session authenticated successfully.")
+                    st.rerun()
+                else:
+                    st.error("Please enter a valid User Name and Access Key.")
+    st.stop()
+
+# =========================================================================
+# 🏠 GATEWAY VIEW 2: EXECUTIVE PLATFORM HUB (IF AUTHENTICATED)
+# =========================================================================
 st.title("🏛️ STRATA // Financial Intelligence Suite")
 st.markdown(
     "Welcome to your corporate forecasting framework. Use the sequential steps below or the sidebar navigation to configure your model workflow."
@@ -57,7 +83,7 @@ st.markdown(
 st.markdown("---")
 
 st.info(
-    "💡 **System Status:** Session authenticated. Environmental thresholds are locked and feeding directly into downstream UK ledgers."
+    "💡 **System Status:** Session authenticated. Environmental thresholds are locked and feeding directly into downstream ledgers."
 )
 
 col1, col2, col3 = st.columns(3)
@@ -90,8 +116,8 @@ with col3:
         "pages/reports.py", label="📊 Open Performance Tab", use_container_width=True
     )
 
-# 🚀 CRISP MANAGEMENT CONTROL PANEL (No more duplicated un-cased files!)
-st.sidebar.markdown("### 🧭 Navigation Options")
+# --- RECONCILED UPPER CASE SIDEBAR NAVIGATION MANAGEMENT ---
+st.sidebar.markdown("### Compass Options")
 st.sidebar.page_link("home.py", label="🏠 Home Portal")
 st.sidebar.page_link("pages/onboarding.py", label="🕸️ Data Input Parameters")
 st.sidebar.page_link("pages/app.py", label="✍️ Data Entry")
@@ -99,7 +125,13 @@ st.sidebar.page_link("pages/reports.py", label="📊 Performance Tab")
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 👤 Session Controls")
-if st.sidebar.button("🚪 Log Off Session", use_container_width=True):
-    st.session_state.clear()
-    st.toast("Session cache cleared successfully.")
+
+# RESOLVED LOGOFF RUNTIME ENGINE LOOP
+if st.sidebar.button(
+    "🚪 Log Off Session",
+    use_container_width=True,
+    help="Safely disconnect active ledger data states, clear temporary session storage, and return to the secure gateway.",
+):
+    st.session_state["authenticated"] = False
+    st.toast("Session terminated safely.")
     st.rerun()
