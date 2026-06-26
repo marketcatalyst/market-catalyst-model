@@ -1,8 +1,18 @@
 # pages/app.py
-# STRATA SUITE // DATA ENTRY & UPLOAD MATRIX DESK v6.9.2-PRODUCTION
+# STRATA SUITE // DATA ENTRY & UPLOAD MATRIX DESK v6.9.3-PRODUCTION
 
 import streamlit as st
 import pandas as pd
+
+# 🚀 UX CORRECTION: Enforce strict native sidebar removal to eliminate duplicates
+st.markdown(
+    """
+    <style>
+        [data-testid="stSidebarNav"] {display: none !important;}
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 if not st.session_state.get("authenticated"):
     st.warning("⚠️ Access Intercepted.")
@@ -18,12 +28,7 @@ st.caption(
 )
 st.markdown("---")
 
-# =========================================================================
-# 🚀 RESOLVED PURGE: "Ingestion Playbook" is now "Data Upload Playbook"
-# 🚀 RESOLVED PURGE: US "Analyzes" is now UK "Analyses"
-# =========================================================================
 col_left, col_right = st.columns([7, 5])
-
 with col_left:
     st.markdown("### 💡 Data Upload Playbook & System Capabilities")
     st.markdown(
@@ -44,7 +49,6 @@ with col_right:
 st.markdown("---")
 st.subheader("✍️ Granular Core Input Matrix Vectors")
 
-# Build curve map dictionary combining standard definitions with custom user profiles
 seasonality_profiles = {
     "Flat_Linear": [1 / 12] * 12,
     "Winter_Peak": [
@@ -182,7 +186,7 @@ with st.expander("🚜 5. THE FINANCED ASSET WIZARD"):
                 )
                 st.rerun()
 
-# Sidebar consistent layout loop
+# Hand-crafted consistent sidebar definitions
 st.sidebar.markdown("### 🧭 Navigation Options")
 st.sidebar.page_link("home.py", label="🏠 Home Portal")
 st.sidebar.page_link("pages/onboarding.py", label="🕸️ Data Input Parameters")

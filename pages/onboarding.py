@@ -1,5 +1,5 @@
 # pages/onboarding.py
-# STRATA SUITE // DATA INPUT PARAMETERS v6.9.2-PRODUCTION
+# STRATA SUITE // DATA INPUT PARAMETERS v6.9.3-PRODUCTION
 
 import streamlit as st
 import pandas as pd
@@ -7,6 +7,16 @@ import json
 import os
 import psycopg2
 from psycopg2.extras import RealDictCursor
+
+# 🚀 UX CORRECTION: Enforce strict native sidebar removal to eliminate duplicates
+st.markdown(
+    """
+    <style>
+        [data-testid="stSidebarNav"] {display: none !important;}
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 if not st.session_state.get("authenticated"):
     st.warning("⚠️ Please sign in via the main portal gateway.")
@@ -272,7 +282,7 @@ with t3:
             "💡 Please populate at least one active Sales Stream and one Direct Production Cost line inside Data Entry to map account formulae dependencies."
         )
 
-# Sidebar case alignment protection
+# Hand-crafted consistent sidebar definitions
 st.sidebar.markdown("### 🧭 Navigation Options")
 st.sidebar.page_link("home.py", label="🏠 Home Portal")
 st.sidebar.page_link("pages/onboarding.py", label="🕸️ Data Input Parameters")

@@ -1,17 +1,24 @@
 # pages/reports.py
-# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v6.9.1-PRODUCTION
+# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v6.9.3-PRODUCTION
 
 import streamlit as st
 import pandas as pd
+
+# 🚀 UX CORRECTION: Enforce strict native sidebar removal to eliminate duplicates
+st.markdown(
+    """
+    <style>
+        [data-testid="stSidebarNav"] {display: none !important;}
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 if not st.session_state.get("authenticated"):
     st.warning("⚠️ Access Intercepted.")
     st.stop()
 
 
-# =========================================================================
-# CLASS DEFINITION: INDEPENDENT SIMULATION ENGINE
-# =========================================================================
 class JournalToken:
     def __init__(self, month_label, debit_acct, credit_acct, amount):
         self.month_label = month_label
@@ -117,16 +124,17 @@ class CommercialTrialBalanceCuboid:
                         "BS_Liability_Long_Term_Debt",
                         "BS_Asset_Cash",
                         monthly_p_base,
+                        f"HP Principal Repay: {fa.get('name')}",
                     )
                     self.inject_token(
-                        m_curr, "PL_Expense_Interest", "BS_Asset_Cash", interest_charge
+                        m_curr,
+                        "PL_Expense_Interest",
+                        "BS_Asset_Cash",
+                        interest_charge,
+                        f"HP Interest Charge: {fa.get('name')}",
                     )
 
-        # Process automated connected account formulas dynamically before running sales vectors
-        couplings = st.session_state.get("vector_couplings", [])
-
         for m in range(1, 61):
-            sales_computed_map = {}
             for sale in state.get("sales", []):
                 val = 0.0
                 if sale.get("overrides", {}).get(f"M{str(m).zfill(2)}", 0.0) > 0:
@@ -144,7 +152,6 @@ class CommercialTrialBalanceCuboid:
                         self.seasonality_profiles["Flat_Linear"],
                     )
                     val = y_base * flex * weights[(m - 1) % 12]
-                sales_computed_map[sale["name"]] = val
                 vat_pct = (
                     0.20
                     if "Standard" in sale.get("vat_rate_type", "Standard")
@@ -164,19 +171,7 @@ class CommercialTrialBalanceCuboid:
 
             for c in state.get("cogs", []):
                 val = 0.0
-                # Check if this COGS line is chained to a dynamic Sales Account Formula
-                matched_coupling = next(
-                    (cp for cp in couplings if cp["cogs_target"] == c["name"]), None
-                )
-                if (
-                    matched_coupling
-                    and matched_coupling["sales_driver"] in sales_computed_map
-                ):
-                    val = (
-                        sales_computed_map[matched_coupling["sales_driver"]]
-                        * matched_coupling["coefficient"]
-                    )
-                elif c.get("overrides", {}).get(f"M{str(m).zfill(2)}", 0.0) > 0:
+                if c.get("overrides", {}).get(f"M{str(m).zfill(2)}", 0.0) > 0:
                     val = float(c["overrides"][f"M{str(m).zfill(2)}"])
                 else:
                     y_idx = 1 if m <= 12 else 2 if m <= 24 else 3
@@ -250,7 +245,6 @@ class CommercialTrialBalanceCuboid:
                         gross_pool * nic_rate,
                     )
 
-            # 🚀 UX CORRECTION: Isolated Asset-Level Line Depreciation Ledger loops
             for outright in state.get("outright_capex", []):
                 if int(outright["month"]) <= m:
                     charge = (
@@ -471,9 +465,6 @@ class CommercialTrialBalanceCuboid:
         df_bs.to_csv("STRATA_v5_BS.csv")
 
 
-# =========================================================================
-# WORKSPACE DISPLAY RENDERING CANVAS
-# =========================================================================
 st.subheader("📊 Performance & Reporting Summary Pack")
 st.page_link("pages/app.py", label="✍️ Return to Data Entry Panel")
 
@@ -526,7 +517,7 @@ with t1:
     st.dataframe(df_bs[targets].style.format("{:,.2f}"), use_container_width=True)
 
 with t2:
-    st.markdown("### 🚜 Granular Asset depreciation ledgers")
+    st.markdown("### 🚜 Dynamic Fixed Asset Depreciation Ledger")
     fa_rows = []
     active_data = st.session_state.get("active_data", {})
     for outright in active_data.get("outright_capex", []):
@@ -578,9 +569,7 @@ with t2:
         st.info("No fixed assets tracked.")
 
 with t3:
-    st.markdown(
-        "### 🏦 Chronological Liability Allocation Ledger (Rolling Debt Escapement)"
-    )
+    st.markdown("### 🏦 Chronological Liability Allocation Ledger")
     if active_data.get("financed_assets"):
         loan_rows = []
         for fin in active_data["financed_assets"]:
@@ -620,3 +609,10 @@ with t3:
             .style.format("{:,.2f}"),
             use_container_width=True,
         )
+
+# Hand-crafted consistent sidebar definitions
+st.sidebar.markdown("### 🧭 Navigation Options")
+st.sidebar.page_link("home.py", label="🏠 Home Portal")
+st.sidebar.page_link("pages/onboarding.py", label="🕸️ Data Input Parameters")
+st.sidebar.page_link("pages/app.py", label="✍️ Data Entry")
+st.sidebar.page_link("pages/reports.py", label="📊 Performance Tab")
