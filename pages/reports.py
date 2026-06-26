@@ -1,10 +1,11 @@
 # pages/reports.py
-# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v6.9.8-PRODUCTION
+# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v6.9.9-PRODUCTION
 
 import streamlit as st
 import pandas as pd
 import google.generativeai as genai
 import os
+from fpdf import FPDF  # 🚀 RESTORED/ADDED SYSTEM DEPENDENCY
 
 # Enforce strict native sidebar removal to eliminate duplicates across versions
 st.markdown(
@@ -29,6 +30,79 @@ if not st.session_state.get("authenticated"):
     if st.button("🔐 Return to Home Portal & Sign In", use_container_width=True):
         st.switch_page("home.py")
     st.stop()
+
+
+# =========================================================================
+# 🏛️ SYSTEM COMPILER CLASS: MANAGEMENT PACK PDF EXPORTER
+# =========================================================================
+class StrataExecutivePdfReport(FPDF):
+    def header(self):
+        self.set_font("Helvetica", "B", 10)
+        self.set_text_color(100, 116, 139)
+        self.cell(0, 10, "STRATA // CORPORATE FORECASTING framework", 0, 1, "R")
+        self.ln(2)
+
+    def footer(self):
+        self.set_y(-15)
+        self.set_font("Helvetica", "I", 8)
+        self.set_text_color(148, 163, 184)
+        self.cell(
+            0,
+            10,
+            f"Page {self.page_no()} // Strictly Private & Confidential",
+            0,
+            0,
+            "C",
+        )
+
+    def build_management_pack(
+        self, project_name, peak_cash, lowest_cash, horizon_worth, insight_text
+    ):
+        self.add_page()
+
+        # Title Banner block
+        self.set_fill_color(30, 58, 138)  # Deep Indigo
+        self.rect(0, 0, 210, 40, "F")
+
+        self.set_y(15)
+        self.set_font("Helvetica", "B", 20)
+        self.set_text_color(255, 255, 255)
+        self.cell(0, 10, "EXECUTIVE MANAGEMENT STRATEGY PACK", 0, 1, "L")
+
+        self.ln(20)
+        self.set_text_color(15, 23, 42)  # Charcoal
+        self.set_font("Helvetica", "B", 12)
+        self.cell(
+            0, 10, f"Project Scenario Workspace Context: {project_name}", 0, 1, "L"
+        )
+        self.line(10, self.get_y(), 200, self.get_y())
+        self.ln(5)
+
+        # KPI Grid Blocks
+        self.set_font("Helvetica", "B", 10)
+        self.cell(60, 8, "Metric Metric Type", 1, 0, "L")
+        self.cell(130, 8, "Value Quantum Worth (£)", 1, 1, "R")
+
+        self.set_font("Helvetica", "", 10)
+        self.cell(60, 8, "Peak Cash Runway", 1, 0, "L")
+        self.cell(130, 8, f"{peak_cash:,.2f}", 1, 1, "R")
+        self.cell(60, 8, "Max Venture Risk Valley", 1, 0, "L")
+        self.cell(130, 8, f"{lowest_cash:,.2f}", 1, 1, "R")
+        self.cell(60, 8, "Year 5 Cumulative Net Retained Value", 1, 0, "L")
+        self.cell(130, 8, f"{horizon_worth:,.2f}", 1, 1, "R")
+
+        self.ln(10)
+        self.set_font("Helvetica", "B", 14)
+        self.set_text_color(30, 58, 138)
+        self.cell(0, 10, "Gemini AI Strategic Insight Narrative Analysis", 0, 1, "L")
+        self.ln(2)
+
+        self.set_font("Helvetica", "", 10)
+        self.set_text_color(15, 23, 42)
+        # Handle long lines cleanly using multi_cell to prevent margins clipping text
+        self.multi_cell(0, 6, insight_text)
+
+        return self.output(dest="S")
 
 
 class JournalToken:
@@ -511,8 +585,12 @@ kpi3.metric("Year 5 Horizon Value", f"£{y5_worth:,.2f}")
 
 st.markdown("---")
 
+# Initialize report text cache state to survive streamlit page reruns
+if "cached_ai_analysis" not in st.session_state:
+    st.session_state["cached_ai_analysis"] = ""
+
 # =========================================================================
-# EXPORT CONTROLS HUB
+# EXPORT CONTROLS HUB (CSV & PDF COMBINED PACK)
 # =========================================================================
 st.subheader("📥 Executive Report Pack Export Controls")
 exp_col1, exp_col2, exp_col3 = st.columns(3)
@@ -552,7 +630,11 @@ st.caption(
     "Triggers an automated context scan of your 60-month multi-dimensional arrays to generate a formal corporate analysis report."
 )
 
-if st.button("🤖 Generate AI Executive Summary Report", use_container_width=True):
+# PDF Generation Execution Room
+if st.button(
+    "🤖 Generate AI Executive Summary Report & Compile PDF Pack",
+    use_container_width=True,
+):
     api_key = os.environ.get("GEMINI_API_KEY") or st.secrets.get("GEMINI_API_KEY", None)
 
     if not api_key:
@@ -565,7 +647,6 @@ if st.button("🤖 Generate AI Executive Summary Report", use_container_width=Tr
         ):
             try:
                 genai.configure(api_key=api_key)
-                # 🚀 RESOLVED: Switched retired 1.5-flash endpoints over to standard 2.5-flash framework model identifiers
                 model = genai.GenerativeModel("gemini-2.5-flash")
 
                 financial_summary_context = f"""
@@ -588,16 +669,48 @@ if st.button("🤖 Generate AI Executive Summary Report", use_container_width=Tr
                 2. Risk Valley Vulnerabilities (identifying when cash drops to its lowest threshold and how to offset it).
                 3. Operational Cash Flow Sustainability Analysis across the projection horizons.
                 
-                Keep the tone sharp, professional, highly analytical, and tailored to C-suite board reviews. Use clean UK English spelling.
+                Keep the tone sharp, professional, highly analytical, and tailored to C-suite board reviews. Use clean UK English spelling. Do not use markdown format tags like asterisks in the text body.
                 """
 
                 response = model.generate_content(prompt)
-                st.markdown("---")
-                st.markdown("## 🏛️ Executive Strategy Summary Pack")
-                st.write(response.text)
-                st.success("✔️ AI Executive Management Pack compiled successfully.")
+                st.session_state["cached_ai_analysis"] = str(response.text).replace(
+                    "**", ""
+                )
+                st.success(
+                    "✔️ AI Executive Management analysis compiled in volatile memory cache."
+                )
             except Exception as e:
                 st.error(f"Failed to generate report narrative: {str(e)}")
+
+# Renders download options once text has successfully generated
+if st.session_state["cached_ai_analysis"]:
+    st.markdown("---")
+    st.markdown("## 🏛️ Executive Strategy Summary Pack Preview")
+    st.write(st.session_state["cached_ai_analysis"])
+
+    try:
+        pdf_compiler = StrataExecutivePdfReport()
+        pdf_binary = pdf_compiler.build_management_pack(
+            project_name=st.session_state.get(
+                "active_project_name", "Unsaved_Draft_Scenario"
+            ),
+            peak_cash=peak_cash,
+            lowest_cash=lowest_cash,
+            horizon_worth=y5_worth,
+            insight_text=st.session_state["cached_ai_analysis"],
+        )
+
+        st.download_button(
+            label="📄 Download Official Executive Management Pack PDF",
+            data=pdf_binary,
+            file_name=f"STRATA_Executive_Summary_{st.session_state.get('active_project_name', 'Scenario')}.pdf",
+            mime="application/pdf",
+            use_container_width=True,
+        )
+    except Exception as pdf_err:
+        st.error(
+            f"PDF binary packaging module encountered an alignment layout error: {str(pdf_err)}"
+        )
 
 st.markdown("---")
 
