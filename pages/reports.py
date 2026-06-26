@@ -1,11 +1,11 @@
 # pages/reports.py
-# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v7.0.0-PRODUCTION
+# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v7.1.0-PRODUCTION
 
 import streamlit as st
 import pandas as pd
 import google.generativeai as genai
 import os
-from fpdf import FPDF
+from weasyprint import HTML  # 🚀 SYSTEMS RE-ENGINEERED: Upgraded to WeasyPrint
 
 # Enforce strict native sidebar removal to eliminate duplicates across versions
 st.markdown(
@@ -33,85 +33,207 @@ if not st.session_state.get("authenticated"):
 
 
 # =========================================================================
-# 🏛️ SYSTEM COMPILER CLASS: MANAGEMENT PACK PDF EXPORTER
+# 🏛️ SYSTEM COMPILER FUNCTION: WEASYPRINT INDUSTRIAL EXPORTER
 # =========================================================================
-class StrataExecutivePdfReport(FPDF):
-    def header(self):
-        self.set_font("Helvetica", "B", 10)
-        self.set_text_color(100, 116, 139)
-        self.cell(0, 10, "STRATA // CORPORATE FORECASTING FRAMEWORK", 0, 1, "R")
-        self.ln(2)
+def compile_premium_html_report(
+    project_name, peak_cash, lowest_cash, horizon_worth, insight_text
+):
+    """Generates an executive board-ready HTML template and compiles it to PDF via WeasyPrint."""
 
-    def footer(self):
-        self.set_y(-15)
-        self.set_font("Helvetica", "I", 8)
-        self.set_text_color(148, 163, 184)
-        self.cell(
-            0,
-            10,
-            f"Page {self.page_no()} // Strictly Private & Confidential",
-            0,
-            0,
-            "C",
-        )
+    # Clean down special character hooks safely
+    clean_insight = (
+        insight_text.replace("\n", "<br>")
+        .replace("’", "'")
+        .replace("‘", "'")
+        .replace("“", '"')
+        .replace("”", '"')
+    )
 
-    def build_management_pack(
-        self, project_name, peak_cash, lowest_cash, horizon_worth, insight_text
-    ):
-        self.add_page()
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <style>
+            @page {{
+                size: A4;
+                margin: 20mm 15mm;
+                background-color: #ffffff;
+                @bottom-right {{
+                    content: "Page " counter(page);
+                    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+                    font-size: 8pt;
+                    color: #94a3b8;
+                }}
+                @bottom-left {{
+                    content: "STRATA // Strictly Private & Confidential";
+                    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+                    font-size: 8pt;
+                    color: #94a3b8;
+                }}
+            }}
+            
+            *, *::before, *::after {{
+                box-sizing: border-box;
+            }}
+            
+            body {{
+                font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+                color: #0f172a;
+                margin: 0;
+                padding: 0;
+                line-height: 1.6;
+                font-size: 10pt;
+            }}
+            
+            /* Executive Corporate Top Header Banner Block */
+            .header-banner {{
+                background-color: #1e3a8a;
+                color: #ffffff;
+                padding: 25px 20px;
+                margin-bottom: 25px;
+                border-radius: 4px;
+            }}
+            
+            .header-banner h1 {{
+                margin: 0;
+                font-size: 20pt;
+                font-weight: 700;
+                letter-spacing: -0.5px;
+            }}
+            
+            .header-banner p {{
+                margin: 5px 0 0 0;
+                font-size: 9pt;
+                color: #93c5fd;
+                text-transform: uppercase;
+                letter-spacing: 1px;
+            }}
+            
+            .context-section {{
+                margin-bottom: 30px;
+                font-size: 11pt;
+                font-weight: bold;
+                color: #334155;
+            }}
+            
+            .context-section span {{
+                font-weight: normal;
+                color: #64748b;
+            }}
+            
+            /* Premium Data Grid Metrics Design */
+            table {{
+                width: 100%;
+                border-collapse: collapse;
+                margin-bottom: 35px;
+                page-break-inside: avoid;
+            }}
+            
+            th {{
+                background-color: #f8fafc;
+                color: #475569;
+                font-weight: 700;
+                text-align: left;
+                padding: 12px 14px;
+                font-size: 9pt;
+                text-transform: uppercase;
+                border-bottom: 2px solid #cbd5e1;
+            }}
+            
+            td {{
+                padding: 12px 14px;
+                border-bottom: 1px solid #e2e8f0;
+                font-size: 10pt;
+            }}
+            
+            .text-left {{ text-align: left; width: 60%; }}
+            .text-right {{ text-align: right; width: 40%; font-weight: bold; color: #0f172a; }}
+            
+            tr:nth-child(even) {{
+                background-color: #f8fafc;
+            }}
+            
+            /* Strategic Insight Block Left Border Accent Accent */
+            h2 {{
+                color: #1e3a8a;
+                font-size: 14pt;
+                font-weight: 700;
+                margin-top: 0;
+                margin-bottom: 15px;
+                padding-left: 10px;
+                border-left: 4px solid #3b82f6;
+                page-break-after: avoid;
+            }}
+            
+            .narrative-body {{
+                text-align: justify;
+                color: #334155;
+                font-size: 10.5pt;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="header-banner">
+            <h1>EXECUTIVE MANAGEMENT STRATEGY PACK</h1>
+            <p>Corporate Forecasting Framework Engine Analysis</p>
+        </div>
+        
+        <div class="context-section">
+            Project Scenario Workspace Context: <span>{project_name}</span>
+        </div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th class="text-left">Metric Performance Target Category</th>
+                    <th class="text-right">Value Quantum Worth</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="text-left">Peak Cash Runway</td>
+                    <td class="text-right">£{peak_cash:,.2f}</td>
+                </tr>
+                <tr>
+                    <td class="text-left">Max Venture Risk Valley</td>
+                    <td class="text-right">£{lowest_cash:,.2f}</td>
+                </tr>
+                <tr>
+                    <td class="text-left">Year 5 Cumulative Net Retained Value</td>
+                    <td class="text-right">£{horizon_worth:,.2f}</td>
+                </tr>
+            </tbody>
+        </table>
+        
+        <h2>Gemini AI Strategic Insight Narrative Analysis</h2>
+        <div class="narrative-body">
+            {clean_insight}
+        </div>
+    </body>
+    </html>
+    """
 
-        # Title Banner block
-        self.set_fill_color(30, 58, 138)  # Deep Indigo
-        self.rect(0, 0, 210, 40, "F")
+    # Temporary file storage management handles
+    tmp_html = "tmp_report.html"
+    tmp_pdf = "tmp_report.pdf"
 
-        self.set_y(15)
-        self.set_font("Helvetica", "B", 20)
-        self.set_text_color(255, 255, 255)
-        self.cell(0, 10, "EXECUTIVE MANAGEMENT STRATEGY PACK", 0, 1, "L")
+    with open(tmp_html, "w", encoding="utf-8") as f:
+        f.write(html_content)
 
-        self.ln(20)
-        self.set_text_color(15, 23, 42)  # Charcoal
-        self.set_font("Helvetica", "B", 12)
-        self.cell(
-            0, 10, f"Project Scenario Workspace Context: {project_name}", 0, 1, "L"
-        )
-        self.line(10, self.get_y(), 200, self.get_y())
-        self.ln(5)
+    # WeasyPrint executes the high-grade render sweep natively
+    HTML(tmp_html).write_pdf(tmp_pdf)
 
-        # KPI Grid Blocks
-        self.set_font("Helvetica", "B", 10)
-        self.cell(60, 8, "Metric Category", 1, 0, "L")
-        self.cell(130, 8, "Value Quantum Worth (£)", 1, 1, "R")
+    with open(tmp_pdf, "rb") as f:
+        pdf_bytes = f.read()
 
-        self.set_font("Helvetica", "", 10)
-        self.cell(60, 8, "Peak Cash Runway", 1, 0, "L")
-        self.cell(130, 8, f"{peak_cash:,.2f}", 1, 1, "R")
-        self.cell(60, 8, "Max Venture Risk Valley", 1, 0, "L")
-        self.cell(130, 8, f"{lowest_cash:,.2f}", 1, 1, "R")
-        self.cell(60, 8, "Year 5 Cumulative Net Retained Value", 1, 0, "L")
-        self.cell(130, 8, f"{horizon_worth:,.2f}", 1, 1, "R")
+    # Clean up file pointers
+    if os.path.exists(tmp_html):
+        os.remove(tmp_html)
+    if os.path.exists(tmp_pdf):
+        os.remove(tmp_pdf)
 
-        self.ln(10)
-        self.set_font("Helvetica", "B", 14)
-        self.set_text_color(30, 58, 138)
-        self.cell(0, 10, "Gemini AI Strategic Insight Narrative Analysis", 0, 1, "L")
-        self.ln(2)
-
-        self.set_font("Helvetica", "", 10)
-        self.set_text_color(15, 23, 42)
-
-        # Clean down exotic formatting hooks to match standard PDF font limitations
-        clean_text = (
-            insight_text.replace("’", "'")
-            .replace("‘", "'")
-            .replace("“", '"')
-            .replace("”", '"')
-        )
-        self.multi_cell(0, 6, clean_text)
-
-        # 🚀 SYSTEM RESOLUTION: Force clean immutable bytes extraction explicitly
-        raw_output = self.output(dest="S")
-        return bytes(raw_output)
+    return pdf_bytes
 
 
 class JournalToken:
@@ -695,8 +817,8 @@ if st.session_state["cached_ai_analysis"]:
     st.write(st.session_state["cached_ai_analysis"])
 
     try:
-        pdf_compiler = StrataExecutivePdfReport()
-        pdf_binary = pdf_compiler.build_management_pack(
+        # 🚀 RE-ENGINEERED: Call our clean premium WeasyPrint HTML compiler engine
+        pdf_binary = compile_premium_html_report(
             project_name=st.session_state.get(
                 "active_project_name", "Unsaved_Draft_Scenario"
             ),
