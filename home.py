@@ -1,10 +1,24 @@
 # home.py
-# STRATA SUITE ACCESS GATEWAY // MAIN ENTRANCE PORTAL v6.9.2-PRODUCTION
+# STRATA SUITE ACCESS GATEWAY // MAIN ENTRANCE PORTAL v6.9.3-PRODUCTION
 
 import streamlit as st
 
+# 🚀 UX CORRECTION: Enforce strict native sidebar removal to eliminate duplicates
 st.set_page_config(
-    page_title="STRATA // Intelligence Suite", page_icon="🏛️", layout="wide"
+    page_title="STRATA // Intelligence Suite",
+    page_icon="🏛️",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
+# Inject custom CSS layout styling to forcefully hide the auto-generated top links
+st.markdown(
+    """
+    <style>
+        [data-testid="stSidebarNav"] {display: none !important;}
+    </style>
+    """,
+    unsafe_allow_html=True,
 )
 
 if "authenticated" not in st.session_state:
@@ -43,7 +57,7 @@ st.markdown(
 st.markdown("---")
 
 st.info(
-    "💡 **System Status:** Session authenticated. Environmental thresholds are locked and feeding directly into downstream ledgers."
+    "💡 **System Status:** Session authenticated. Environmental thresholds are locked and feeding directly into downstream UK ledgers."
 )
 
 col1, col2, col3 = st.columns(3)
@@ -76,7 +90,7 @@ with col3:
         "pages/reports.py", label="📊 Open Performance Tab", use_container_width=True
     )
 
-# 🚀 UX FIX: Fully Standardised Upper Case Consistent Navigation Sidebar Options
+# 🚀 CRISP MANAGEMENT CONTROL PANEL (No more duplicated un-cased files!)
 st.sidebar.markdown("### 🧭 Navigation Options")
 st.sidebar.page_link("home.py", label="🏠 Home Portal")
 st.sidebar.page_link("pages/onboarding.py", label="🕸️ Data Input Parameters")
