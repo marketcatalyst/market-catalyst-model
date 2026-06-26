@@ -1,5 +1,5 @@
 # pages/app.py
-# STRATA SUITE PRODUCTION ENGINE // TOTAL CORE SYSTEM v6.7.3-PRODUCTION
+# STRATA SUITE PRODUCTION ENGINE // TOTAL CORE SYSTEM v6.7.4-PRODUCTION
 
 import streamlit as st
 import json
@@ -1061,7 +1061,6 @@ if view_desk == "1. Parameter Entry Panel":
                 )
 
                 f_col1, f_col2, f_col3, f_col4 = st.columns(4)
-                # Capture changes to flex rates directly and trigger a calculation rerun if clicked
                 y2_f = f_col1.number_input(
                     f"Y2 Flex % ({op['name']})",
                     value=float(op.get("flex_rates", {}).get("Y2", 0.0)),
@@ -1094,7 +1093,6 @@ if view_desk == "1. Parameter Entry Panel":
                     or y5_f != op["flex_rates"]["Y5"]
                 ):
                     op["flex_rates"] = {"Y2": y2_f, "Y3": y3_f, "Y4": y4_f, "Y5": y5_f}
-                    # Force recalc cascade immediately on flex shift
                     m_data = op["matrix_data"]
                     for r in range(12):
                         if f"Y2_M{r}" not in m_data["overwrites"]:
@@ -1144,7 +1142,6 @@ if view_desk == "1. Parameter Entry Panel":
                     key=f"grid_ed_{idx}",
                 )
 
-                # 🚀 RESOLVED ONE-STEP LAG: Synchronously process data editor changes into the matrix instantly
                 has_changed = False
                 for r_idx in range(12):
                     new_y1 = float(edited_matrix_df.iloc[r_idx, 0])
@@ -1153,11 +1150,9 @@ if view_desk == "1. Parameter Entry Panel":
                     new_y4 = float(edited_matrix_df.iloc[r_idx, 3])
                     new_y5 = float(edited_matrix_df.iloc[r_idx, 4])
 
-                    # 1. Check if Year 1 base input changed
                     if new_y1 != m_data["Y1"][r_idx]:
                         m_data["Y1"][r_idx] = new_y1
                         has_changed = True
-                        # Auto-cascade downstream years immediately for this specific row if no overwrite blocks them
                         if f"Y2_M{r_idx}" not in m_data["overwrites"]:
                             m_data["Y2"][r_idx] = new_y1 * (
                                 1.0 + (op["flex_rates"]["Y2"] / 100.0)
@@ -1175,12 +1170,10 @@ if view_desk == "1. Parameter Entry Panel":
                                 1.0 + (op["flex_rates"]["Y5"] / 100.0)
                             )
 
-                    # 2. Check for explicit manual overrides in downstream years
                     if new_y2 != df_matrix.iloc[r_idx, 1]:
                         m_data["overwrites"][f"Y2_M{r_idx}"] = new_y2
                         m_data["Y2"][r_idx] = new_y2
                         has_changed = True
-                        # Force cascade from this override forward
                         if f"Y3_M{r_idx}" not in m_data["overwrites"]:
                             m_data["Y3"][r_idx] = new_y2 * (
                                 1.0 + (op["flex_rates"]["Y3"] / 100.0)
@@ -1512,6 +1505,7 @@ if view_desk == "1. Parameter Entry Panel":
 elif view_desk == "2. Consolidated Financial Statements":
     st.title("📊 Reconciled Three-Way Corporate Reporting Canvas")
 
+    # Run simulation backend to sync files
     cuboid_engine = CommercialTrialBalanceCuboid()
     cuboid_engine.run_simulation_engine(st.session_state["active_data"])
 
@@ -1519,6 +1513,69 @@ elif view_desk == "2. Consolidated Financial Statements":
     df_cf = pd.read_csv("STRATA_v5_CF.csv", index_col=0)
     df_bs = pd.read_csv("STRATA_v5_BS.csv", index_col=0)
 
+    # =========================================================================
+    # 📋 THE EXECUTIVE ASSUMPTION SUMMARY PACK (NARRATIVE TRACK)
+    # =========================================================================
+    st.subheader("🏛️ Systemic Audit Register: Statement of Assumptions")
+    with st.container(border=True):
+        st.markdown(
+            f"**Macro Environmental Framework:** Enforcing Industry Standard Architecture `SIC {active_sic['sic_code']}`."
+        )
+
+        # Pull active allocations into text rules dynamically
+        st.markdown("**Active Vector Control Rules:**")
+        if st.session_state["active_data"].get("sales"):
+            for s in st.session_state["active_data"]["sales"]:
+                st.caption(
+                    f"📈 *Revenue Stream:* `{s['name']}` locked with seasonal curve profile `{s['seasonality']}` and commercial terms set to `{s['payment_delay']} days delay`."
+                )
+        if st.session_state["active_data"].get("opex"):
+            for op in st.session_state["active_data"]["opex"]:
+                fl = op.get("flex_rates", {})
+                st.caption(
+                    f"💸 *Operational Overhead Matrix:* `{op['name']}` configured under compound indexation vectors: Y2: `+{fl.get('Y2')}%` | Y3: `+{fl.get('Y3')}%` | Y4: `+{fl.get('Y4')}%` | Y5: `+{fl.get('Y5')}%`."
+                )
+        if not st.session_state["active_data"].get("sales") and not st.session_state[
+            "active_data"
+        ].get("opex"):
+            st.caption(
+                "No vector baseline assumptions currently linked to the active iteration data state."
+            )
+
+    # =========================================================================
+    # 📥 THE EXECUTIVE SPREADSHEET EXPORT OPTIONS
+    # =========================================================================
+    st.subheader("📥 Export Financial Statement Matrices")
+    exp_col1, exp_col2, exp_col3 = st.columns(3)
+
+    with exp_col1:
+        st.download_button(
+            label="📥 Download Profit & Loss (CSV)",
+            data=df_pl.to_csv().encode("utf-8"),
+            file_name=f"STRATA_PL_{st.session_state.get('active_project_name', 'scenario')}.csv",
+            mime="text/csv",
+            use_container_width=True,
+        )
+    with exp_col2:
+        st.download_button(
+            label="📥 Download Cash Flow (CSV)",
+            data=df_cf.to_csv().encode("utf-8"),
+            file_name=f"STRATA_CF_{st.session_state.get('active_project_name', 'scenario')}.csv",
+            mime="text/csv",
+            use_container_width=True,
+        )
+    with exp_col3:
+        st.download_button(
+            label="📥 Download Balance Sheet (CSV)",
+            data=df_bs.to_csv().encode("utf-8"),
+            file_name=f"STRATA_BS_{st.session_state.get('active_project_name', 'scenario')}.csv",
+            mime="text/csv",
+            use_container_width=True,
+        )
+
+    st.markdown("---")
+
+    # Horizon display filters
     horiz = st.selectbox(
         "Select Target Active Analytical Accounting Window:",
         [
