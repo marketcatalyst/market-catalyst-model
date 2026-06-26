@@ -1,21 +1,33 @@
 # pages/reports.py
-# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v6.9.3-PRODUCTION
+# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v6.9.7-PRODUCTION
 
 import streamlit as st
 import pandas as pd
+import google.generativeai as genai
+import os
 
-# 🚀 UX CORRECTION: Enforce strict native sidebar removal to eliminate duplicates
+# Enforce strict native sidebar removal to eliminate duplicates across versions
 st.markdown(
     """
     <style>
-        [data-testid="stSidebarNav"] {display: none !important;}
+        div[data-testid="stSidebarNav"], 
+        section[data-testid="stSidebarNav"], 
+        ul[data-testid="stSidebarNav"], 
+        .stSidebarNav {
+            display: none !important;
+        }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
 if not st.session_state.get("authenticated"):
-    st.warning("⚠️ Access Intercepted.")
+    st.title("🏛️ STRATA // Security Intercept")
+    st.warning(
+        "🔒 This workspace session is currently unauthenticated or has timed out."
+    )
+    if st.button("🔐 Return to Home Portal & Sign In", use_container_width=True):
+        st.switch_page("home.py")
     st.stop()
 
 
@@ -75,8 +87,9 @@ class CommercialTrialBalanceCuboid:
 
     def run_simulation_engine(self, state):
         self.token_pool = []
-        sic = st.session_state["sic_profile"]
+        sic = st.session_state.get("sic_profile", {"base_er_nic_rate": 0.138})
         nic_rate = float(sic.get("base_er_nic_rate", 0.138))
+        couplings = st.session_state.get("vector_couplings", [])
 
         for eq in state.get("equity_funding", []):
             self.inject_token(
@@ -124,17 +137,13 @@ class CommercialTrialBalanceCuboid:
                         "BS_Liability_Long_Term_Debt",
                         "BS_Asset_Cash",
                         monthly_p_base,
-                        f"HP Principal Repay: {fa.get('name')}",
                     )
                     self.inject_token(
-                        m_curr,
-                        "PL_Expense_Interest",
-                        "BS_Asset_Cash",
-                        interest_charge,
-                        f"HP Interest Charge: {fa.get('name')}",
+                        m_curr, "PL_Expense_Interest", "BS_Asset_Cash", interest_charge
                     )
 
         for m in range(1, 61):
+            sales_computed_map = {}
             for sale in state.get("sales", []):
                 val = 0.0
                 if sale.get("overrides", {}).get(f"M{str(m).zfill(2)}", 0.0) > 0:
@@ -152,6 +161,7 @@ class CommercialTrialBalanceCuboid:
                         self.seasonality_profiles["Flat_Linear"],
                     )
                     val = y_base * flex * weights[(m - 1) % 12]
+                sales_computed_map[sale["name"]] = val
                 vat_pct = (
                     0.20
                     if "Standard" in sale.get("vat_rate_type", "Standard")
@@ -171,7 +181,18 @@ class CommercialTrialBalanceCuboid:
 
             for c in state.get("cogs", []):
                 val = 0.0
-                if c.get("overrides", {}).get(f"M{str(m).zfill(2)}", 0.0) > 0:
+                matched_coupling = next(
+                    (cp for cp in couplings if cp["cogs_target"] == c["name"]), None
+                )
+                if (
+                    matched_coupling
+                    and matched_coupling["sales_driver"] in sales_computed_map
+                ):
+                    val = (
+                        sales_computed_map[matched_coupling["sales_driver"]]
+                        * matched_coupling["coefficient"]
+                    )
+                elif c.get("overrides", {}).get(f"M{str(m).zfill(2)}", 0.0) > 0:
                     val = float(c["overrides"][f"M{str(m).zfill(2)}"])
                 else:
                     y_idx = 1 if m <= 12 else 2 if m <= 24 else 3
@@ -299,7 +320,7 @@ class CommercialTrialBalanceCuboid:
                         m, "BS_Liability_VAT_Payable", "BS_Asset_Cash", vat_acc
                     )
 
-        self.compile_financial_matrices()
+        return self.compile_financial_matrices()
 
     def compute_running_balance_to_period(self, account, month_limit):
         bal = 0.0
@@ -460,24 +481,23 @@ class CommercialTrialBalanceCuboid:
                 assets - liabs, 2
             )
 
-        df_pl.to_csv("STRATA_v5_PL.csv")
-        df_cf.to_csv("STRATA_v5_CF.csv")
-        df_bs.to_csv("STRATA_v5_BS.csv")
+        return df_pl, df_cf, df_bs
 
 
-st.subheader("📊 Performance & Reporting Summary Pack")
+# =========================================================================
+# WORKSPACE DISPLAY RENDERING CANVAS
+# =========================================================================
+st.title("📊 Performance & Reporting Summary Pack")
+st.caption(
+    f"Active Scenario context: `{st.session_state.get('active_project_name', 'Unsaved_Draft_Scenario')}`"
+)
 st.page_link("pages/app.py", label="✍️ Return to Data Entry Panel")
+st.markdown("---")
 
 cuboid_engine = CommercialTrialBalanceCuboid()
-cuboid_engine.run_simulation_engine(st.session_state.get("active_data", {}))
-
-try:
-    df_pl = pd.read_csv("STRATA_v5_PL.csv", index_col=0)
-    df_cf = pd.read_csv("STRATA_v5_CF.csv", index_col=0)
-    df_bs = pd.read_csv("STRATA_v5_BS.csv", index_col=0)
-except FileNotFoundError:
-    st.error("Simulation engine failed to export operational streams.")
-    st.stop()
+df_pl, df_cf, df_bs = cuboid_engine.run_simulation_engine(
+    st.session_state.get("active_data", {})
+)
 
 closing_cash_array = df_cf.loc["Closing Bank Cash Reserves (£)"].astype(float).values
 peak_cash = closing_cash_array.max()
@@ -490,6 +510,97 @@ kpi2.metric("Max Venture Risk Valley", f"£{lowest_cash:,.2f}")
 kpi3.metric("Year 5 Horizon Value", f"£{y5_worth:,.2f}")
 
 st.markdown("---")
+
+# =========================================================================
+# 📥 THE MISSING CSV DOWNLOAD & AI EXECUTIVE GENERATION DESK
+# =========================================================================
+st.subheader("📥 Executive Report Pack Export Controls")
+exp_col1, exp_col2, exp_col3 = st.columns(3)
+
+with exp_col1:
+    csv_pl = df_pl.to_csv().encode("utf-8")
+    st.download_button(
+        "📥 Download Profit & Loss CSV",
+        data=csv_pl,
+        file_name="STRATA_Profit_and_Loss.csv",
+        mime="text/csv",
+        use_container_width=True,
+    )
+
+with exp_col2:
+    csv_cf = df_cf.to_csv().encode("utf-8")
+    st.download_button(
+        "📥 Download Cash Flow CSV",
+        data=csv_cf,
+        file_name="STRATA_Cash_Flow.csv",
+        mime="text/csv",
+        use_container_width=True,
+    )
+
+with exp_col3:
+    csv_bs = df_bs.to_csv().encode("utf-8")
+    st.download_button(
+        "📥 Download Balance Sheet CSV",
+        data=csv_bs,
+        file_name="STRATA_Balance_Sheet.csv",
+        mime="text/csv",
+        use_container_width=True,
+    )
+
+st.markdown("### 🧠 Gemini AI Executive Management Pack Synthesis")
+st.caption(
+    "Triggers an automated context scan of your 60-month multi-dimensional arrays to generate a formal corporate analysis report."
+)
+
+if st.button("🤖 Generate AI Executive Summary Report", use_container_width=True):
+    api_key = os.environ.get("GEMINI_API_KEY") or st.secrets.get("GEMINI_API_KEY", None)
+
+    if not api_key:
+        st.error(
+            "❌ **Configuration Error:** Gemini API credential vector is missing from server env secrets storage slots."
+        )
+    else:
+        with st.spinner(
+            "🤖 Analytical Engine scanning active matrices... Formulating management pack narrative..."
+        ):
+            try:
+                genai.configure(api_key=api_key)
+                model = genai.GenerativeModel("gemini-1.5-flash")
+
+                # Format a compressed overview of the financials to feed the prompt loop context elegantly
+                financial_summary_context = f"""
+                Project Name: {st.session_state.get('active_project_name', 'Unsaved Draft Scenario')}
+                Peak Cash Runway: £{peak_cash:,.2f}
+                Maximum Risk Valley Cash Point: £{lowest_cash:,.2f}
+                Year 5 Cumulative Retained Earnings: £{y5_worth:,.2f}
+                
+                Year 1 Key Revenue Milestones: {df_pl.loc["Total Revenue (£)"].iloc[0:13].to_dict()}
+                Year 1 Ending Bank Cash Balances: {df_cf.loc["Closing Bank Cash Reserves (£)"].iloc[0:13].to_dict()}
+                """
+
+                prompt = f"""
+                You are a senior elite corporate CFO and investment systems strategist. 
+                Analyze the following financial projection model context for a high-end sustainable design and industrial innovation project:
+                {financial_summary_context}
+                
+                Provide a structured Executive Management Summary report detailing:
+                1. Commercial Runway Strengths & Cash Inflection Points.
+                2. Risk Valley Vulnerabilities (identifying when cash drops to its lowest threshold and how to offset it).
+                3. Operational Cash Flow Sustainability Analysis across the projection horizons.
+                
+                Keep the tone sharp, professional, highly analytical, and tailored to C-suite board reviews. Use clean UK English spelling.
+                """
+
+                response = model.generate_content(prompt)
+                st.markdown("---")
+                st.markdown("## 🏛️ Executive Strategy Summary Pack")
+                st.write(response.text)
+                st.success("✔️ AI Executive Management Pack compiled successfully.")
+            except Exception as e:
+                st.error(f"Failed to generate report narrative: {str(e)}")
+
+st.markdown("---")
+
 horiz = st.selectbox(
     "Analytical Accounting Window Filter:",
     [
@@ -506,14 +617,17 @@ targets = (
 t1, t2, t3 = st.tabs(
     [
         "📈 Master Three-Way Ledgers",
-        "🚜 WinForecast Asset Depreciation Ledger",
+        "🚜 Fixed Asset Depreciation Ledger",
         "🏦 Loan Amortisation Schedule",
     ]
 )
 
 with t1:
+    st.markdown("#### Profit & Loss Statement (£)")
     st.dataframe(df_pl[targets].style.format("{:,.2f}"), use_container_width=True)
+    st.markdown("#### Cash Flow Statement (£)")
     st.dataframe(df_cf[targets].style.format("{:,.2f}"), use_container_width=True)
+    st.markdown("#### Balance Sheet Ledger (£)")
     st.dataframe(df_bs[targets].style.format("{:,.2f}"), use_container_width=True)
 
 with t2:
@@ -566,7 +680,7 @@ with t2:
             use_container_width=True,
         )
     else:
-        st.info("No fixed assets tracked.")
+        st.info("No fixed assets currently registered.")
 
 with t3:
     st.markdown("### 🏦 Chronological Liability Allocation Ledger")
@@ -610,8 +724,10 @@ with t3:
             use_container_width=True,
         )
 
-# Hand-crafted consistent sidebar definitions
-st.sidebar.markdown("### 🧭 Navigation Options")
+# =========================================================================
+# 🧭 FIXED SIDEBAR COMPASS OPTIONS
+# =========================================================================
+st.sidebar.markdown("### Compass Options")
 st.sidebar.page_link("home.py", label="🏠 Home Portal")
 st.sidebar.page_link("pages/onboarding.py", label="🕸️ Data Input Parameters")
 st.sidebar.page_link("pages/app.py", label="✍️ Data Entry")
