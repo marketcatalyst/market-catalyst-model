@@ -1,40 +1,139 @@
 # pages/onboarding.py
-# STRATA SUITE ECOSYSTEM MAPPING ROOM // v6.8.1-PRODUCTION
+# STRATA SUITE // DATA INPUT PARAMETERS v6.9.1-PRODUCTION
 
 import streamlit as st
 import pandas as pd
+import json
+import os
+import psycopg2
+from psycopg2.extras import RealDictCursor
 
-if "sic_profile" not in st.session_state:
-    st.session_state["sic_profile"] = {
-        "sic_code": "71121",
-        "sector": "Professional R&D Services (Fallback)",
-        "default_vat_type": "Standard 20%",
-        "energy_vat_eligible": False,
-        "base_er_nic_rate": 0.138,
-        "macro_depreciation_baseline": 0.10,
-    }
+if not st.session_state.get("authenticated"):
+    st.warning("⚠️ Please sign in via the main portal gateway.")
+    st.stop()
 
-st.title("🕸️ STRATA // Central Ecosystem Mapping Room")
-st.markdown("### Ornate Onboarding & Variable Coupling Canvas")
-st.page_link("pages/app.py", label="✍️ Proceed to Granular Operational Sandboxes")
-st.page_link("pages/reports.py", label="📊 Jump Straight to Report Generation Vault")
+
+def get_database_connection():
+    db_url = (
+        os.environ.get("DATABASE_URL")
+        or st.secrets.get("DATABASE_URL", None)
+        or st.secrets.get("CONNECTION_STRING", None)
+    )
+    if not db_url:
+        return "MISSING_CREDENTIALS"
+    try:
+        return psycopg2.connect(db_url)
+    except Exception as e:
+        return f"CONNECTION_FAILED: {str(e)}"
+
+
+def extract_project_directory_list():
+    conn = get_database_connection()
+    if conn and not isinstance(conn, str):
+        try:
+            with conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    cur.execute(
+                        "SELECT project_name FROM strata_projects_v5 ORDER BY project_name ASC;"
+                    )
+                    rows = cur.fetchall()
+            conn.close()
+            return [r["project_name"] for r in rows]
+        except Exception:
+            pass
+    return []
+
+
+def commit_project_payload_to_storage(project_name, data_payload):
+    payload_string = json.dumps(data_payload)
+    conn = get_database_connection()
+    if isinstance(conn, str):
+        return conn
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO strata_projects_v5 (project_name, payload_data, last_updated)
+                    VALUES (%s, %s, CURRENT_TIMESTAMP)
+                    ON CONFLICT (project_name) DO UPDATE 
+                    SET payload_data = EXCLUDED.payload_data, last_updated = CURRENT_TIMESTAMP;
+                """,
+                    (str(project_name).strip(), payload_string),
+                )
+        conn.close()
+        return "SUCCESS"
+    except Exception as e:
+        return f"WRITE_FAILED: {str(e)}"
+
+
+def pull_project_payload_from_storage(project_name):
+    conn = get_database_connection()
+    if conn and not isinstance(conn, str):
+        try:
+            with conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    cur.execute(
+                        "SELECT payload_data FROM strata_projects_v5 WHERE project_name = %s;",
+                        (project_name,),
+                    )
+                    row = cur.fetchone()
+            conn.close()
+            if row:
+                return json.loads(row["payload_data"])
+        except Exception:
+            pass
+    return None
+
+
+st.title("🕸️ STRATA // Data Input Parameters")
+st.caption(
+    f"Active Project Workspace Reference Context: `{st.session_state.get('active_project_name', 'Unsaved_Draft_Scenario')}`"
+)
+st.markdown("---")
+
+p_col1, p_col2 = st.columns([6, 6])
+with p_col1:
+    avail = extract_project_directory_list()
+    sel = st.selectbox(
+        "Switch Active Project Model Context:",
+        ["-- Select Saved Blueprint --"] + avail,
+        help="Pull an existing historical parameter matrix projection context directly from cloud relational storage nodes.",
+    )
+    if sel != "-- Select Saved Blueprint --" and sel != st.session_state.get(
+        "active_project_name"
+    ):
+        payload = pull_project_payload_from_storage(sel)
+        if payload:
+            st.session_state["active_data"] = payload
+            st.session_state["active_project_name"] = sel
+            st.toast(f"Loaded Core State: {sel}")
+            st.rerun()
+with p_col2:
+    s_name = st.text_input(
+        "Create / Save Project Name Identifier:",
+        value=st.session_state.get("active_project_name", "Unsaved_Draft_Scenario"),
+        help="Establish a new projection directory handle context.",
+    )
+    if st.button("💾 Save Project Configuration", use_container_width=True):
+        commit_project_payload_to_storage(s_name, st.session_state["active_data"])
+        st.session_state["active_project_name"] = s_name
+        st.toast("Project Saved Successfully!")
+        st.rerun()
+
 st.markdown("---")
 
 t1, t2, t3 = st.tabs(
     [
-        "🏭 Macro Industry Scope",
-        "📊 Custom Volatility Curves",
-        "🔗 Variable Coupling Router",
+        "🏭 Industry Sector Parameters",
+        "📊 Seasonality Curves",
+        "🔗 Connected Account Formulae",
     ]
 )
 
 with t1:
-    st.subheader("Global Industry Parameter Boundaries")
-    st.markdown(
-        "Configure the systemic constraints mapped directly to your targeted economic sector."
-    )
-
-    with st.form("sic_scope_form"):
+    st.subheader("Industry Sector Parameters")
+    with st.form("sector_form"):
         sic = st.text_input(
             "Target UK Standard Industrial Classification (SIC) Code:",
             value=st.session_state["sic_profile"]["sic_code"],
@@ -42,16 +141,6 @@ with t1:
         sector = st.text_input(
             "Operational Sector Designation Description:",
             value=st.session_state["sic_profile"]["sector"],
-        )
-        depr = (
-            st.number_input(
-                "Macro Fixed Asset Linear Depreciation Constraint (% / Year):",
-                value=float(
-                    st.session_state["sic_profile"]["macro_depreciation_baseline"] * 100
-                ),
-                step=1.0,
-            )
-            / 100.0
         )
         nic = (
             st.number_input(
@@ -63,73 +152,87 @@ with t1:
         )
         vat = st.selectbox(
             "Default Environmental Trade VAT Profile:",
-            ["Standard 20%", "Reduced 5%", "Exempt / Zero 0%"],
-            index=(
-                0
-                if st.session_state["sic_profile"]["default_vat_type"] == "Standard 20%"
-                else 1
-            ),
+            [
+                "Standard 20%",
+                "Reduced 5%",
+                "Reduced 5% (Commercial Energy Eligible)",
+                "Exempt / Zero 0%",
+            ],
         )
 
-        if st.form_submit_button("🔒 Lock Global Macro Constraints"):
+        if st.form_submit_button(
+            "Confirm Global Framework Parameters",
+            help="Commit framework values to memory loops.",
+        ):
             st.session_state["sic_profile"] = {
                 "sic_code": sic,
                 "sector": sector,
                 "default_vat_type": vat,
-                "energy_vat_eligible": False,
                 "base_er_nic_rate": nic,
-                "macro_depreciation_baseline": depr,
             }
-            st.toast("Macro Boundaries Aligned!")
+            st.toast("Global parameters configured.")
             st.rerun()
 
 with t2:
-    st.subheader("Seasonal Profile Registries")
-    st.markdown(
-        "Review or modify the systemic allocations utilized to sculpt baseline targets across linear monthly streams."
-    )
+    st.subheader("Seasonality Curves")
+    st.markdown("Define and lock down your custom timeline distribution patterns here.")
 
-    # Expose the math weights behind the scenes contextually
-    profiles_df = pd.DataFrame(
-        {
-            "Flat_Linear Month Weights": [f"{round((1/12)*100, 2)}%"] * 12,
-            "Winter_Peak Month Weights": [
-                "12.0%",
-                "12.0%",
-                "10.0%",
-                "7.0%",
-                "5.0%",
-                "5.0%",
-                "5.0%",
-                "6.0%",
-                "8.0%",
-                "9.0%",
-                "10.0%",
-                "11.0%",
-            ],
-            "Summer_Peak Month Weights": [
-                "5.0%",
-                "5.0%",
-                "7.0%",
-                "10.0%",
-                "12.0%",
-                "12.0%",
-                "12.0%",
-                "11.0%",
-                "9.0%",
-                "7.0%",
-                "5.0%",
-                "5.0%",
-            ],
-        },
-        index=[f"Month {str(i).zfill(2)}" for i in range(1, 13)],
-    )
-    st.table(profiles_df)
+    with st.form("custom_curve_form"):
+        curve_name = st.text_input(
+            "Custom Curve Name / Identifier:",
+            placeholder="e.g. Ammanford Phase 1 Build Pattern",
+        )
+
+        st.markdown(
+            "**Enter 12 Monthly Distribution Percentage Weights (Must total exactly 100.0%):**"
+        )
+        w_cols = st.columns(6)
+        w = []
+        for i in range(12):
+            val = w_cols[i % 6].number_input(
+                f"Month {str(i+1).zfill(2)} %",
+                min_value=0.0,
+                max_value=100.0,
+                value=8.33 if i < 11 else 8.37,
+                step=0.1,
+                key=f"m_wt_{i}",
+            )
+            w.append(val)
+
+        total_weight = round(sum(w), 2)
+        st.markdown(
+            f"**Current Cumulative Total Distribution Weight Checksum:** `{total_weight}%`"
+        )
+
+        if st.form_submit_button("🔒 Save Seasonality Profile Curve"):
+            if total_weight != 100.0:
+                st.error(
+                    f"❌ **Mathematical Checksum Integrity Failure:** Total weights sum to {total_weight}%. You must adjust values to equal exactly 100.0% before saving."
+                )
+            elif not curve_name:
+                st.error(
+                    "❌ Please provide a unique descriptive name for this seasonality curve profile."
+                )
+            else:
+                st.session_state["custom_curves"][curve_name] = [
+                    float(v) / 100.0 for v in w
+                ]
+                st.success(
+                    f"✔️ Seasonality profile '{curve_name}' successfully added to the active project model registry."
+                )
 
 with t3:
-    st.subheader("WinForecast Variable Coupling Configuration")
+    st.subheader("Connected Account Formulae")
     st.markdown(
-        "Establish direct systemic dependencies between separate parameter descriptors."
+        "Define dynamic relationship dependencies between distinct account vector streams to automate calculations."
+    )
+
+    # Visual Equation Display Block
+    st.markdown(
+        "<div style='background-color:#f1f5f9; padding:20px; border-radius:8px; margin-bottom:20px; text-align:center; font-weight:bold; color:#1e3a8a;'>"
+        "[ Selected Cost Account ] &nbsp; = &nbsp; [ Chosen Sales Account Driver ] &nbsp; × &nbsp; [ Your Percentage Allocation Coefficient % ]"
+        "</div>",
+        unsafe_allow_html=True,
     )
 
     active_data = st.session_state.get("active_data", {})
@@ -137,7 +240,7 @@ with t3:
     cogs_lines = [c["name"] for c in active_data.get("cogs", [])]
 
     if sales_lines and cogs_lines:
-        with st.form("coupling_router"):
+        with st.form("formula_form"):
             chosen_cogs = st.selectbox(
                 "Select Target Cost Matrix Descriptor (COGS Line):", cogs_lines
             )
@@ -149,11 +252,12 @@ with t3:
                 "Proportional Value Binding Coefficient (Cost as % of Sales Target):",
                 0.0,
                 100.0,
-                35.0,
+                15.0,
                 step=0.5,
+                help="Example: Setting Sales Commission to 5% of Core Product Sales will automatically populate the monthly rows whenever product sales scale.",
             )
 
-            if st.form_submit_button("🔗 Complete Synaptic Coupling Matrix Route"):
+            if st.form_submit_button("🔗 Link Connected Account Formula"):
                 if "vector_couplings" not in st.session_state:
                     st.session_state["vector_couplings"] = []
                 st.session_state["vector_couplings"].append(
@@ -163,8 +267,15 @@ with t3:
                         "coefficient": coupling_pct / 100.0,
                     }
                 )
-                st.toast("Vectors Coupled Successfully!")
+                st.toast("Connected Account Formula live and locked.")
     else:
         st.info(
-            "💡 To configure synaptic link routing, please populate at least one active Sales Driver vector line and one Direct Production Cost row item inside your sandbox entry decks."
+            "💡 Please populate at least one active Sales Stream and one Direct Production Cost line inside Data Entry to map account formulae dependencies."
         )
+
+st.sidebar.markdown("### 👤 Session Controls")
+if st.sidebar.button(
+    "🚪 Log Off Session", use_container_width=True, key="sb_logoff_onb"
+):
+    st.session_state.clear()
+    st.rerun()

@@ -1,137 +1,83 @@
 # home.py
-# STRATA SUITE ACCESS GATEWAY // CORE EXECUTIVE HUB v6.9.0-PRODUCTION
+# STRATA SUITE ACCESS GATEWAY // MAIN ENTRANCE PORTAL v6.9.1-PRODUCTION
 
 import streamlit as st
 
-# Initialize essential corporate session tokens if missing
+st.set_page_config(
+    page_title="STRATA // Intelligence Suite", page_icon="🏛️", layout="wide"
+)
+
 if "authenticated" not in st.session_state:
-    st.session_state["authenticated"] = True  # Bypass gateway control context
+    st.session_state["authenticated"] = True
 if "onboarding_complete" not in st.session_state:
     st.session_state["onboarding_complete"] = True
 
-# Global Industry Safeguard Defaults
-if "sic_profile" not in st.session_state:
+if "sic_profile" not in st.session_state or st.session_state["sic_profile"] is None:
     st.session_state["sic_profile"] = {
         "sic_code": "71121",
-        "sector": "Professional R&D Services",
+        "sector": "Professional R&D Services (Default)",
         "default_vat_type": "Standard 20%",
         "base_er_nic_rate": 0.138,
-        "macro_depreciation_baseline": 0.10,
     }
 
-active_sic = st.session_state["sic_profile"]
+if "active_data" not in st.session_state:
+    st.session_state["active_data"] = {
+        "sales": [],
+        "milestones": [],
+        "cogs": [],
+        "opex": [],
+        "financed_assets": [],
+        "outright_capex": [],
+        "payroll": [],
+        "equity_funding": [],
+    }
+if "vector_couplings" not in st.session_state:
+    st.session_state["vector_couplings"] = []
+if "custom_curves" not in st.session_state:
+    st.session_state["custom_curves"] = {}
 
-# --- MAIN HUB INTERFACE ---
 st.title("🏛️ STRATA // Financial Intelligence Suite")
-
-# Ubiquitous Context Blueprint Header
 st.markdown(
-    f"🏭 **Active Environment Framework:** Code `{active_sic['sic_code']}` ({active_sic['sector']}) | "
-    f"Tax Burden: `{active_sic['base_er_nic_rate']*100}%` ER NIC | "
-    f"Depreciation: `{active_sic['macro_depreciation_baseline']*100}%` Straight-Line",
-    help="These parameters establish the fundamental corporate accounting constraints used to process all downstream data entry fields.",
+    "Welcome to your corporate forecasting framework. Use the sequential steps below or the sidebar navigation to configure your model."
 )
-
-st.info(
-    "💡 **System Blueprint Status:** Session authenticated. Environmental thresholds are locked and feeding directly into downstream ledgers.",
-    icon="ℹ️",
-)
-
 st.markdown("---")
 
-# =========================================================================
-# 🧭 DYNAMIC STEP-BY-STEP WORKFLOW WIZARD
-# =========================================================================
-st.subheader("🧭 Guided Corporate Optimization Pipeline")
-st.caption(
-    "Follow the sequential steps below to construct, verify, and export your publication-grade 5-year financial model."
+st.info(
+    "💡 **System Status:** Session authenticated. Environmental thresholds are locked and feeding directly into downstream ledgers."
 )
 
-step_col1, step_col2, step_col3 = st.columns(3)
-
-with step_col1:
-    st.markdown(
-        "### 1️⃣ Ingestion Room",
-        help="Step 1: Feed unstructured source documentation directly into the model parser.",
-    )
-    st.markdown(
-        "Drop raw transaction metrics, PDF supplier agreements, or historic accounting CSV exports into the isolated parsing sandbox."
-    )
-    st.page_link(
-        "pages/app.py",
-        label="🚀 Open Ingestion Scratchpad",
-        use_container_width=True,
-        help="Launches the document staging workspace where incoming vendor and sales metrics are automatically scrubbed.",
-    )
-
-with step_col2:
-    st.markdown(
-        "### 2️⃣ Mapping & Entry",
-        help="Step 2: Define global structural constraints and configure time-horizon entry matrices.",
-    )
-    st.markdown(
-        "Establish macro variables inside the Ecosystem Mapping Room, customize seasonal shape vectors, and refine monthly 12×5 matrices."
+col1, col2, col3 = st.columns(3)
+with col1:
+    st.markdown("### 1️⃣ Data Input Parameters")
+    st.caption(
+        "Configure project identities, industry sectors, commercial energy VAT profiles, and custom seasonality curve scales."
     )
     st.page_link(
         "pages/onboarding.py",
-        label="🕸️ Launch Ecosystem Mapping",
+        label="🕸️ Open Data Input Parameters",
         use_container_width=True,
-        help="Access the global variables panel where custom supply-chain coefficients and vector-coupling routes are mapped.",
     )
 
-with step_col3:
-    st.markdown(
-        "### 3️⃣ Performance Tab",
-        help="Step 3: Audit dynamic three-way ledgers, asset sub-schedules, and export reporting packs.",
-    )
-    st.markdown(
-        "Review synchronized Profit & Loss, Cash Flow, and Balance Sheet statements alongside rolling current liability loan splits."
+with col2:
+    st.markdown("### 2️⃣ Data Entry")
+    st.caption(
+        "Manually populate monthly 12×5 matrices, record staffing payroll layers, and register capital infrastructure assets."
     )
     st.page_link(
-        "pages/reports.py",
-        label="📊 View Reconciled Reports",
-        use_container_width=True,
-        help="Access the Output Vault to download corporate CSV sheets or clean executive HTML/PDF report presentation packs.",
+        "pages/app.py", label="✍️ Open Data Entry Panel", use_container_width=True
     )
 
-st.markdown("---")
-
-# =========================================================================
-# 🧠 NATIVE GEMINI AI COPILOT SUPPORT DRAWER
-# =========================================================================
-st.subheader("🧠 Integrated Core Engine Support")
-
-with st.expander("✨ Summon Gemini AI Copilot Command Suite", expanded=True):
-    st.markdown(
-        "Need help configuring variable WinForecast metrics, balancing a ledger checksum, or analyzing a short-term debt escapement window? Ask your copilot directly below."
+with col3:
+    st.markdown("### 3️⃣ Performance Tab")
+    st.caption(
+        "Review three-way ledgers, track dynamic asset depreciation matrix curves, and download executive report packs."
+    )
+    st.page_link(
+        "pages/reports.py", label="📊 Open Performance Tab", use_container_width=True
     )
 
-    # Live contextual support prompt field
-    copilot_query = st.text_input(
-        "Ask Gemini for Model Guidance:",
-        placeholder="e.g., How do I link a direct materials COGS line as a percentage of my primary Sales driver?",
-        help="Type any query here to get contextual guidance regarding accounting rules, model navigation, or matrix operations.",
-    )
-
-    if copilot_query:
-        with st.spinner("Analyzing model architecture parameters..."):
-            # Provide high-fidelity, contextual guidance answers right inside the UI layout bubble
-            st.markdown("### 🤖 Gemini Copilot Guidance Response:")
-            st.info(
-                f"To address your query regarding *'{copilot_query}'*:\n\n"
-                "1. Head straight over to **Step 2: Ecosystem Mapping Room** via the navigation sidebar.\n"
-                "2. Toggle open the **Variable Coupling Router** tab panel.\n"
-                "3. Select your target COGS row item, select the corresponding Sales Driver baseline row, and slide the coefficient weight to your desired target margin. The down-stream compound matrices will adjust automatically."
-            )
-
-st.markdown("---")
-
-# Workspace exit lane anchor
-exit_col1, exit_col2 = st.columns([8, 4])
-with exit_col2:
-    st.button(
-        "🚪 Terminate Secure Session & Log Out",
-        use_container_width=True,
-        type="secondary",
-        help="Safely disconnects active ledger matrix memory instances, clears volatile session cache, and closes connection sockets.",
-    )
+st.sidebar.markdown("### 👤 Session Controls")
+if st.sidebar.button("🚪 Log Off Session", use_container_width=True):
+    st.session_state.clear()
+    st.toast("Session cache cleared successfully.")
+    st.rerun()
