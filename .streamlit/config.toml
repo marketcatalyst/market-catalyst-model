@@ -5,7 +5,3 @@
 headless = true
 enableCORS = true
 enableXsrfProtection = true
-
-# 🚀 UX OVERRIDE: Suppress native auto-scanned sidebar navigation completely
-[client]
-showSidebarNavigation = false

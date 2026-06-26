@@ -1,5 +1,5 @@
 # home.py
-# STRATA SUITE ACCESS GATEWAY // MAIN ENTRANCE PORTAL v6.9.4-PRODUCTION
+# STRATA SUITE ACCESS GATEWAY // MAIN ENTRANCE PORTAL v6.9.5-PRODUCTION
 
 import streamlit as st
 import json
@@ -7,15 +7,24 @@ import os
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
+# Force strict sidebar removal cleanly by explicitly locking page configuration
 st.set_page_config(
     page_title="STRATA // Intelligence Suite", page_icon="🏛️", layout="wide"
 )
 
-# Track authentication states cleanly across session reruns
+# Inject global CSS layout styling to forcefully hide the auto-generated top links
+st.markdown(
+    """
+    <style>
+        div[data-testid="stSidebarNav"] {display: none !important;}
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 if "authenticated" not in st.session_state:
     st.session_state["authenticated"] = False
 
-# Global Industry Safeguard Defaults
 if "sic_profile" not in st.session_state:
     st.session_state["sic_profile"] = {
         "sic_code": "71121",
@@ -41,9 +50,6 @@ if "custom_curves" not in st.session_state:
     st.session_state["custom_curves"] = {}
 
 
-# =========================================================================
-# 🗄️ DATABASE INTERACTIVE OPERATION FUNCTIONS
-# =========================================================================
 def get_database_connection():
     db_url = (
         os.environ.get("DATABASE_URL")
@@ -117,9 +123,7 @@ def pull_project_payload_from_storage(project_name):
     return None
 
 
-# =========================================================================
-# 🔒 GATEWAY VIEW 1: SECURE SIGN-IN PORTAL (IF UNAUTHENTICATED)
-# =========================================================================
+# --- GATEWAY VIEW 1: SECURE SIGN-IN PORTAL ---
 if not st.session_state["authenticated"]:
     st.title("🏛️ STRATA // Financial Intelligence Gateway")
     st.markdown(
@@ -136,9 +140,6 @@ if not st.session_state["authenticated"]:
             )
             user_key = st.text_input("Secure Access Key:", type="password")
 
-            st.caption(
-                "💡 *Demo Sandbox Mode: Enter any placeholder values above to test workspace transitions.*"
-            )
             if st.form_submit_button(
                 "🔒 Authenticate Secure Session", use_container_width=True
             ):
@@ -150,25 +151,17 @@ if not st.session_state["authenticated"]:
                     st.error("Please enter a valid User Name and Access Key.")
     st.stop()
 
-# =========================================================================
-# 🏠 GATEWAY VIEW 2: EXECUTIVE PLATFORM HUB (IF AUTHENTICATED)
-# =========================================================================
+# --- GATEWAY VIEW 2: EXECUTIVE PLATFORM HUB ---
 st.title("🏛️ STRATA // Financial Intelligence Suite")
 st.markdown("---")
 
-# 🚀 INITIALIZATION TOUCHPOINT: Centred Project Selector Hub
 st.subheader("📁 Project Workspace Directory Room")
-st.markdown(
-    "Select an existing historical configuration layer from the database or type a new project name identifier to initialize a fresh scenario."
-)
-
 p_col1, p_col2 = st.columns([6, 6])
 with p_col1:
     avail_blueprints = extract_project_directory_list()
     selected_blueprint = st.selectbox(
         "Switch Active Project Model Context:",
         ["-- Select Saved Project Scenario --"] + avail_blueprints,
-        help="Pull an existing historical parameter matrix projection context directly from cloud relational storage nodes.",
     )
     if (
         selected_blueprint != "-- Select Saved Project Scenario --"
@@ -185,13 +178,8 @@ with p_col2:
     active_project_handle = st.text_input(
         "Create / Save Project Name Identifier:",
         value=st.session_state.get("active_project_name", "Unsaved_Draft_Scenario"),
-        help="Establish a new projection directory handle context.",
     )
-    if st.button(
-        "💾 Save Project Configuration",
-        use_container_width=True,
-        help="Commit all active parameter arrays and entries securely back to the PostgreSQL server.",
-    ):
+    if st.button("💾 Save Project Configuration", use_container_width=True):
         commit_project_payload_to_storage(
             active_project_handle, st.session_state["active_data"]
         )
@@ -200,10 +188,6 @@ with p_col2:
         st.rerun()
 
 st.markdown("---")
-
-# =========================================================================
-# SEQUENTIAL WORKFLOW PIPELINE WIZARD
-# =========================================================================
 st.subheader("🧭 Guided Corporate Optimization Pipeline")
 st.info(
     f"💡 **Active Working Blueprint Instance Context:** `{st.session_state.get('active_project_name', 'Unsaved_Draft_Scenario')}`"
@@ -212,29 +196,18 @@ st.info(
 col1, col2, col3 = st.columns(3)
 with col1:
     st.markdown("### 1️⃣ Data Input Parameters")
-    st.caption(
-        "Configure industry sectors, Employer ER NIC tax rules, commercial energy VAT profiles, and custom seasonality curves."
-    )
     st.page_link(
         "pages/onboarding.py",
         label="🕸️ Open Data Input Parameters",
         use_container_width=True,
     )
-
 with col2:
     st.markdown("### 2️⃣ Data Entry")
-    st.caption(
-        "Manually populate monthly 12×5 matrices, record staffing payroll layers, and register capital infrastructure assets."
-    )
     st.page_link(
         "pages/app.py", label="✍️ Open Data Entry Panel", use_container_width=True
     )
-
 with col3:
     st.markdown("### 3️⃣ Performance Tab")
-    st.caption(
-        "Review three-way ledgers, track dynamic asset depreciation matrix curves, and download executive report packs."
-    )
     st.page_link(
         "pages/reports.py", label="📊 Open Performance Tab", use_container_width=True
     )
@@ -249,11 +222,7 @@ st.sidebar.page_link("pages/reports.py", label="📊 Performance Tab")
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 👤 Session Controls")
 
-if st.sidebar.button(
-    "🚪 Log Off Session",
-    use_container_width=True,
-    help="Safely disconnect active ledger data states, clear temporary session storage, and return to the secure gateway.",
-):
+if st.sidebar.button("🚪 Log Off Session", use_container_width=True):
     st.session_state["authenticated"] = False
     st.toast("Session terminated safely.")
     st.rerun()
