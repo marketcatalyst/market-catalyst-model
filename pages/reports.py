@@ -1,11 +1,11 @@
 # pages/reports.py
-# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v6.9.9-PRODUCTION
+# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v7.0.0-PRODUCTION
 
 import streamlit as st
 import pandas as pd
 import google.generativeai as genai
 import os
-from fpdf import FPDF  # 🚀 RESTORED/ADDED SYSTEM DEPENDENCY
+from fpdf import FPDF
 
 # Enforce strict native sidebar removal to eliminate duplicates across versions
 st.markdown(
@@ -39,7 +39,7 @@ class StrataExecutivePdfReport(FPDF):
     def header(self):
         self.set_font("Helvetica", "B", 10)
         self.set_text_color(100, 116, 139)
-        self.cell(0, 10, "STRATA // CORPORATE FORECASTING framework", 0, 1, "R")
+        self.cell(0, 10, "STRATA // CORPORATE FORECASTING FRAMEWORK", 0, 1, "R")
         self.ln(2)
 
     def footer(self):
@@ -80,7 +80,7 @@ class StrataExecutivePdfReport(FPDF):
 
         # KPI Grid Blocks
         self.set_font("Helvetica", "B", 10)
-        self.cell(60, 8, "Metric Metric Type", 1, 0, "L")
+        self.cell(60, 8, "Metric Category", 1, 0, "L")
         self.cell(130, 8, "Value Quantum Worth (£)", 1, 1, "R")
 
         self.set_font("Helvetica", "", 10)
@@ -99,10 +99,19 @@ class StrataExecutivePdfReport(FPDF):
 
         self.set_font("Helvetica", "", 10)
         self.set_text_color(15, 23, 42)
-        # Handle long lines cleanly using multi_cell to prevent margins clipping text
-        self.multi_cell(0, 6, insight_text)
 
-        return self.output(dest="S")
+        # Clean down exotic formatting hooks to match standard PDF font limitations
+        clean_text = (
+            insight_text.replace("’", "'")
+            .replace("‘", "'")
+            .replace("“", '"')
+            .replace("”", '"')
+        )
+        self.multi_cell(0, 6, clean_text)
+
+        # 🚀 SYSTEM RESOLUTION: Force clean immutable bytes extraction explicitly
+        raw_output = self.output(dest="S")
+        return bytes(raw_output)
 
 
 class JournalToken:
@@ -585,12 +594,11 @@ kpi3.metric("Year 5 Horizon Value", f"£{y5_worth:,.2f}")
 
 st.markdown("---")
 
-# Initialize report text cache state to survive streamlit page reruns
 if "cached_ai_analysis" not in st.session_state:
     st.session_state["cached_ai_analysis"] = ""
 
 # =========================================================================
-# EXPORT CONTROLS HUB (CSV & PDF COMBINED PACK)
+# EXPORT CONTROLS HUB
 # =========================================================================
 st.subheader("📥 Executive Report Pack Export Controls")
 exp_col1, exp_col2, exp_col3 = st.columns(3)
@@ -630,7 +638,6 @@ st.caption(
     "Triggers an automated context scan of your 60-month multi-dimensional arrays to generate a formal corporate analysis report."
 )
 
-# PDF Generation Execution Room
 if st.button(
     "🤖 Generate AI Executive Summary Report & Compile PDF Pack",
     use_container_width=True,
@@ -682,7 +689,6 @@ if st.button(
             except Exception as e:
                 st.error(f"Failed to generate report narrative: {str(e)}")
 
-# Renders download options once text has successfully generated
 if st.session_state["cached_ai_analysis"]:
     st.markdown("---")
     st.markdown("## 🏛️ Executive Strategy Summary Pack Preview")
