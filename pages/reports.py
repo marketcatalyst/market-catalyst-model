@@ -1,5 +1,5 @@
 # pages/reports.py
-# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v6.9.7-PRODUCTION
+# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v6.9.8-PRODUCTION
 
 import streamlit as st
 import pandas as pd
@@ -512,7 +512,7 @@ kpi3.metric("Year 5 Horizon Value", f"£{y5_worth:,.2f}")
 st.markdown("---")
 
 # =========================================================================
-# 📥 THE MISSING CSV DOWNLOAD & AI EXECUTIVE GENERATION DESK
+# EXPORT CONTROLS HUB
 # =========================================================================
 st.subheader("📥 Executive Report Pack Export Controls")
 exp_col1, exp_col2, exp_col3 = st.columns(3)
@@ -565,9 +565,9 @@ if st.button("🤖 Generate AI Executive Summary Report", use_container_width=Tr
         ):
             try:
                 genai.configure(api_key=api_key)
-                model = genai.GenerativeModel("gemini-1.5-flash")
+                # 🚀 RESOLVED: Switched retired 1.5-flash endpoints over to standard 2.5-flash framework model identifiers
+                model = genai.GenerativeModel("gemini-2.5-flash")
 
-                # Format a compressed overview of the financials to feed the prompt loop context elegantly
                 financial_summary_context = f"""
                 Project Name: {st.session_state.get('active_project_name', 'Unsaved Draft Scenario')}
                 Peak Cash Runway: £{peak_cash:,.2f}
