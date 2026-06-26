@@ -1,24 +1,53 @@
 # pages/app.py
-# STRATA SUITE // DATA ENTRY & UPLOAD MASTER CANVAS v6.9.4-PRODUCTION
+# STRATA SUITE // DATA ENTRY & UPLOAD MASTER CANVAS v6.9.6-PRODUCTION
 
 import streamlit as st
 import pandas as pd
 
-# Enforce strict native sidebar removal to eliminate duplicates
+# Enforce strict native sidebar removal to eliminate duplicates across versions
 st.markdown(
     """
     <style>
-        [data-testid="stSidebarNav"] {display: none !important;}
+        div[data-testid="stSidebarNav"], 
+        section[data-testid="stSidebarNav"], 
+        ul[data-testid="stSidebarNav"], 
+        .stSidebarNav {
+            display: none !important;
+        }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
+# =========================================================================
+# 🔒 SECURITY REDIRECTION INTERCEPT
+# =========================================================================
 if not st.session_state.get("authenticated"):
-    st.warning("⚠️ Access Intercepted.")
+    st.title("🏛️ STRATA // Security Intercept")
+    st.warning(
+        "🔒 This workspace session is currently unauthenticated or has timed out."
+    )
+    st.markdown(
+        "To protect your data matrices, direct access to sub-pages is restricted until access tokens are validated."
+    )
+
+    if st.button("🔐 Return to Home Portal & Sign In", use_container_width=True):
+        st.switch_page("home.py")
     st.stop()
 
-active_sic = st.session_state["sic_profile"]
+# =========================================================================
+# 📥 HEADLINE DESCRIPTOR ARCHITECTURE
+# =========================================================================
+active_sic = st.session_state.get(
+    "sic_profile",
+    {
+        "sic_code": "71121",
+        "sector": "Professional R&D Services (Default)",
+        "default_vat_type": "Standard 20%",
+        "base_er_nic_rate": 0.138,
+    },
+)
+
 st.title("📥 Unstructured Data Upload Gateway")
 st.markdown(
     f"🏭 **Active Industry Configuration:** Mapped to Code `{active_sic['sic_code']}` ({active_sic['sector']}) | Default Tax Rule: `{active_sic.get('default_vat_type', 'Standard 20%')}`"
@@ -49,7 +78,7 @@ with col_right:
 st.markdown("---")
 st.subheader("✍️ Granular Core Input Account Categories")
 
-# Build curve map dictionary combining standard definitions with custom user profiles
+# Recompile timeline distribution profiles combining core and custom frameworks
 seasonality_profiles = {
     "Flat_Linear": [1 / 12] * 12,
     "Winter_Peak": [
@@ -85,8 +114,21 @@ if "custom_curves" in st.session_state:
     for c_name, c_weights in st.session_state["custom_curves"].items():
         seasonality_profiles[c_name] = c_weights
 
+# Ensure active_data data allocation blocks exist to prevent type reference drops
+if "active_data" not in st.session_state:
+    st.session_state["active_data"] = {
+        "sales": [],
+        "milestones": [],
+        "cogs": [],
+        "opex": [],
+        "financed_assets": [],
+        "outright_capex": [],
+        "payroll": [],
+        "equity_funding": [],
+    }
+
 # =========================================================================
-# ALL 8 ACCOUNT CATEGORY ENTRY DESKS (FULLY RESTORED)
+# ALL 8 SPECIFIC ACCOUNT CATEGORY MANAGEMENT CARDS
 # =========================================================================
 
 with st.expander("📈 1. THE SALES DRIVER DESK", expanded=False):
@@ -149,6 +191,15 @@ with st.expander("📈 1. THE SALES DRIVER DESK", expanded=False):
                     }
                 )
                 st.rerun()
+    if st.session_state["active_data"].get("sales"):
+        for idx, x in enumerate(st.session_state["active_data"]["sales"]):
+            r_col1, r_col2 = st.columns([10, 2])
+            r_col1.caption(
+                f"✔ {x['name']} - Y1: £{x['y1_baseline']:,.2f} | Shape: {x['seasonality']} | Delay: {x['payment_delay']}d"
+            )
+            if r_col2.button("🗑️ Delete", key=f"del_s_{idx}"):
+                st.session_state["active_data"]["sales"].pop(idx)
+                st.rerun()
 
 with st.expander("💼 2. THE MILESTONE CONTRACT DESK", expanded=False):
     with st.form("milestone_form", clear_on_submit=True):
@@ -186,6 +237,15 @@ with st.expander("💼 2. THE MILESTONE CONTRACT DESK", expanded=False):
                         "vat_rate_type": v_rate,
                     }
                 )
+                st.rerun()
+    if st.session_state["active_data"].get("milestones"):
+        for idx, x in enumerate(st.session_state["active_data"]["milestones"]):
+            r_col1, r_col2 = st.columns([10, 2])
+            r_col1.caption(
+                f"✔ Contract: {x['name']} - TCV: £{x['tcv']:,.2f} | Duration: {x['duration']}m"
+            )
+            if r_col2.button("🗑️ Delete", key=f"del_m_{idx}"):
+                st.session_state["active_data"]["milestones"].pop(idx)
                 st.rerun()
 
 with st.expander("📦 3. THE PRODUCTION COGS DESK", expanded=False):
@@ -233,6 +293,13 @@ with st.expander("📦 3. THE PRODUCTION COGS DESK", expanded=False):
                         "overrides": {},
                     }
                 )
+                st.rerun()
+    if st.session_state["active_data"].get("cogs"):
+        for idx, x in enumerate(st.session_state["active_data"]["cogs"]):
+            r_col1, r_col2 = st.columns([10, 2])
+            r_col1.caption(f"✔ Direct Cost: {x['name']} - Y1: £{x['y1_baseline']:,.2f}")
+            if r_col2.button("🗑️ Delete", key=f"del_c_{idx}"):
+                st.session_state["active_data"]["cogs"].pop(idx)
                 st.rerun()
 
 with st.expander("💸 4. THE GENERAL OVERHEAD CARD", expanded=False):
@@ -361,6 +428,10 @@ with st.expander("💸 4. THE GENERAL OVERHEAD CARD", expanded=False):
                 op["matrix_data"] = m_data
                 st.rerun()
 
+            if st.button(f"🗑️ Delete Account Row: {op['name']}", key=f"del_o_{idx}"):
+                st.session_state["active_data"]["opex"].pop(idx)
+                st.rerun()
+
 with st.expander("🚜 5. THE FINANCED ASSET WIZARD", expanded=False):
     with st.form("financed_form", clear_on_submit=True):
         n = st.text_input(
@@ -408,6 +479,15 @@ with st.expander("🚜 5. THE FINANCED ASSET WIZARD", expanded=False):
                     }
                 )
                 st.rerun()
+    if st.session_state["active_data"].get("financed_assets"):
+        for idx, x in enumerate(st.session_state["active_data"]["financed_assets"]):
+            r_col1, r_col2 = st.columns([10, 2])
+            r_col1.caption(
+                f"✔ HP Lease: {x['name']} - Worth: £{x['amount']:,.2f} | Term: {x['term_months']}m | Depr: {x['depreciation_rate']*100}%"
+            )
+            if r_col2.button("🗑️ Delete", key=f"del_f_{idx}"):
+                st.session_state["active_data"]["financed_assets"].pop(idx)
+                st.rerun()
 
 with st.expander("🏢 6. THE OUTRIGHT CAPEX CARD", expanded=False):
     with st.form("outright_form", clear_on_submit=True):
@@ -446,6 +526,15 @@ with st.expander("🏢 6. THE OUTRIGHT CAPEX CARD", expanded=False):
                     }
                 )
                 st.rerun()
+    if st.session_state["active_data"].get("outright_capex"):
+        for idx, x in enumerate(st.session_state["active_data"]["outright_capex"]):
+            r_col1, r_col2 = st.columns([10, 2])
+            r_col1.caption(
+                f"✔ CapEx Outright: {x['name']} - Cost: £{x['amount']:,.2f} | M{x['month']} | Depr: {x['depreciation_rate']*100}%"
+            )
+            if r_col2.button("🗑️ Delete", key=f"del_ca_{idx}"):
+                st.session_state["active_data"]["outright_capex"].pop(idx)
+                st.rerun()
 
 with st.expander("👥 7. THE PERSONNEL HORIZON DESK", expanded=False):
     with st.form("payroll_form", clear_on_submit=True):
@@ -469,6 +558,15 @@ with st.expander("👥 7. THE PERSONNEL HORIZON DESK", expanded=False):
                     }
                 )
                 st.rerun()
+    if st.session_state["active_data"].get("payroll"):
+        for idx, x in enumerate(st.session_state["active_data"]["payroll"]):
+            r_col1, r_col2 = st.columns([10, 2])
+            r_col1.caption(
+                f"✔ Personnel Team: {x['name']} - Headcount: {x['headcount']} | Wage/m: £{x['monthly_wage']:,.2f}"
+            )
+            if r_col2.button("🗑️ Delete", key=f"del_p_{idx}"):
+                st.session_state["active_data"]["payroll"].pop(idx)
+                st.rerun()
 
 with st.expander("💰 8. THE FUNDING & EQUITY CARD", expanded=False):
     with st.form("equity_form", clear_on_submit=True):
@@ -488,9 +586,20 @@ with st.expander("💰 8. THE FUNDING & EQUITY CARD", expanded=False):
                     {"name": n, "amount": amt, "month": m_land}
                 )
                 st.rerun()
+    if st.session_state["active_data"].get("equity_funding"):
+        for idx, x in enumerate(st.session_state["active_data"]["equity_funding"]):
+            r_col1, r_col2 = st.columns([10, 2])
+            r_col1.caption(
+                f"✔ Capital Inflow: {x['name']} - Quantum: £{x['amount']:,.2f} | Month: M{x['month']}"
+            )
+            if r_col2.button("🗑️ Delete", key=f"del_e_{idx}"):
+                st.session_state["active_data"]["equity_funding"].pop(idx)
+                st.rerun()
 
-# Unified sidebar navigation configuration
-st.sidebar.markdown("### 🧭 Navigation Options")
+# =========================================================================
+# 🧭 FIXED SIDEBAR COMPASS OPTIONS
+# =========================================================================
+st.sidebar.markdown("### Compass Options")
 st.sidebar.page_link("home.py", label="🏠 Home Portal")
 st.sidebar.page_link("pages/onboarding.py", label="🕸️ Data Input Parameters")
 st.sidebar.page_link("pages/app.py", label="✍️ Data Entry")
