@@ -1,5 +1,5 @@
 # home.py
-# STRATA SUITE ACCESS GATEWAY // MAIN ENTRANCE PORTAL v6.9.1-PRODUCTION
+# STRATA SUITE ACCESS GATEWAY // MAIN ENTRANCE PORTAL v6.9.2-PRODUCTION
 
 import streamlit as st
 
@@ -38,7 +38,7 @@ if "custom_curves" not in st.session_state:
 
 st.title("🏛️ STRATA // Financial Intelligence Suite")
 st.markdown(
-    "Welcome to your corporate forecasting framework. Use the sequential steps below or the sidebar navigation to configure your model."
+    "Welcome to your corporate forecasting framework. Use the sequential steps below or the sidebar navigation to configure your model workflow."
 )
 st.markdown("---")
 
@@ -76,6 +76,14 @@ with col3:
         "pages/reports.py", label="📊 Open Performance Tab", use_container_width=True
     )
 
+# 🚀 UX FIX: Fully Standardised Upper Case Consistent Navigation Sidebar Options
+st.sidebar.markdown("### 🧭 Navigation Options")
+st.sidebar.page_link("home.py", label="🏠 Home Portal")
+st.sidebar.page_link("pages/onboarding.py", label="🕸️ Data Input Parameters")
+st.sidebar.page_link("pages/app.py", label="✍️ Data Entry")
+st.sidebar.page_link("pages/reports.py", label="📊 Performance Tab")
+
+st.sidebar.markdown("---")
 st.sidebar.markdown("### 👤 Session Controls")
 if st.sidebar.button("🚪 Log Off Session", use_container_width=True):
     st.session_state.clear()

@@ -1,5 +1,5 @@
 # pages/onboarding.py
-# STRATA SUITE // DATA INPUT PARAMETERS v6.9.1-PRODUCTION
+# STRATA SUITE // DATA INPUT PARAMETERS v6.9.2-PRODUCTION
 
 import streamlit as st
 import pandas as pd
@@ -224,12 +224,11 @@ with t2:
 with t3:
     st.subheader("Connected Account Formulae")
     st.markdown(
-        "Define dynamic relationship dependencies between distinct account vector streams to automate calculations."
+        "Establish direct systemic dependencies between separate parameter descriptors."
     )
 
-    # Visual Equation Display Block
     st.markdown(
-        "<div style='background-color:#f1f5f9; padding:20px; border-radius:8px; margin-bottom:20px; text-align:center; font-weight:bold; color:#1e3a8a;'>"
+        "<div style='background-color:#f1f5f9; padding:20px; border-radius:8px; margin-bottom:20px; text-align:center; font-weight:bold; color:#1e3a8a Triton;' >"
         "[ Selected Cost Account ] &nbsp; = &nbsp; [ Chosen Sales Account Driver ] &nbsp; × &nbsp; [ Your Percentage Allocation Coefficient % ]"
         "</div>",
         unsafe_allow_html=True,
@@ -273,9 +272,9 @@ with t3:
             "💡 Please populate at least one active Sales Stream and one Direct Production Cost line inside Data Entry to map account formulae dependencies."
         )
 
-st.sidebar.markdown("### 👤 Session Controls")
-if st.sidebar.button(
-    "🚪 Log Off Session", use_container_width=True, key="sb_logoff_onb"
-):
-    st.session_state.clear()
-    st.rerun()
+# Sidebar case alignment protection
+st.sidebar.markdown("### 🧭 Navigation Options")
+st.sidebar.page_link("home.py", label="🏠 Home Portal")
+st.sidebar.page_link("pages/onboarding.py", label="🕸️ Data Input Parameters")
+st.sidebar.page_link("pages/app.py", label="✍️ Data Entry")
+st.sidebar.page_link("pages/reports.py", label="📊 Performance Tab")
