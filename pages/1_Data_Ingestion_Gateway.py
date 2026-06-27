@@ -1,5 +1,5 @@
 # pages/1_Data_Ingestion_Gateway.py
-# STRATA SUITE PRODUCTION ENGINE // DATA INGESTION GATEWAY & SANDBOX v6.0.0-MASTER
+# STRATA SUITE PRODUCTION ENGINE // DATA INGESTION GATEWAY & SANDBOX v7.3.0-PRODUCTION
 
 import streamlit as st
 import json
@@ -11,14 +11,20 @@ import re
 # =========================================================================
 # 🛡️ SECURITY INTERCEPT LAYER
 # =========================================================================
-if not st.session_state.get("authenticated") or not st.session_state.get(
-    "onboarding_complete"
-):
+if not st.session_state.get("authenticated"):
     st.warning("⚠️ **Security Intercept:** Route session token context not cleared.")
     st.page_link("home.py", label="↩️ Return to Access Gateway Portal")
     st.stop()
 
-active_sic = st.session_state.get("sic_profile")
+active_sic = st.session_state.get(
+    "sic_profile",
+    {
+        "sic_code": "71121",
+        "sector": "Professional R&D Services (Default)",
+        "default_vat_type": "Standard 20%",
+        "base_er_nic_rate": 0.138,
+    },
+)
 
 # =========================================================================
 # 🎛️ PORTAL FRONT-END USER INTERFACE CANVAS
@@ -28,7 +34,7 @@ st.set_page_config(page_title="STRATA Suite // Ingestion Gateway", layout="wide"
 st.title("📥 Unstructured Data Ingestion Gateway")
 st.markdown(
     f"🏭 **Active Industry Configuration:** Mapped to Code `{active_sic['sic_code']}` ({active_sic['sector']}) | "
-    f"Default Tax Rule: `{active_sic['default_vat_type']}`"
+    f"Default Tax Rule: `{active_sic.get('default_vat_type', 'Standard 20%')}`"
 )
 st.caption(
     "🛡️ Secure Sandbox Workspace // Data processed here is isolated inside volatile browser memory caches."
@@ -44,8 +50,8 @@ with col_info1:
     st.markdown("### 💡 Ingestion Playbook & System Capabilities")
     st.markdown(
         "* **Intelligent Scanning:** Drop raw transaction metrics, text-based PDF invoices, or supplier agreements to isolate financial strings instantly.\n"
-        "* **Automated Mapping:** Formulates standalone baseline target profiles for Years 1, 2, and 3, matching your active industrial framework parameters behind the scenes.\n"
-        "* **Predictive Curve Shaping:** Analyzes description text syntax to match trading volumes with corresponding business curves (e.g., `Winter_Peak` or `Summer_Peak`)."
+        "* **Automated Mapping:** Formulates standalone baseline target profiles for Years 1 through 5, matching your active industrial framework parameters behind the scenes.\n"
+        "* **Predictive Curve Shaping:** Analyses description text syntax to match trading volumes with corresponding business curves (e.g., `Winter_Peak` or `Summer_Peak`)."
     )
 
 with col_info2:
@@ -88,6 +94,7 @@ if uploaded_file is not None:
                     genai.configure(api_key=g_key)
                     file_content = uploaded_file.read().decode("utf-8", errors="ignore")
 
+                    # 🚀 FIXED BLUEPRINT SCHEMA: Now explicitly commands 5-Year variable parsing bounds
                     prompt = f"""
                     You are a corporate accounting ingestion parser. Process the following raw business data and extract financial vectors.
                     Return a valid JSON object matching this schema exactly:
@@ -97,6 +104,8 @@ if uploaded_file is not None:
                         "y1": float_value,
                         "y2": float_value,
                         "y3": float_value,
+                        "y4": float_value,
+                        "y5": float_value,
                         "seasonality": "Flat_Linear" or "Winter_Peak" or "Summer_Peak"
                     }}
                     Data to process:
@@ -116,6 +125,8 @@ if uploaded_file is not None:
                                 "y1": float(parsed.get("y1", 0.0)),
                                 "y2": float(parsed.get("y2", 0.0)),
                                 "y3": float(parsed.get("y3", 0.0)),
+                                "y4": float(parsed.get("y4", 0.0)),
+                                "y5": float(parsed.get("y5", 0.0)),
                                 "seasonality": parsed.get("seasonality", "Flat_Linear"),
                             }
                         )
@@ -150,6 +161,8 @@ if st.session_state["scratchpad_queue"]:
         "y1": st.column_config.NumberColumn("Year 1 Base (£)", format="£%,.2f"),
         "y2": st.column_config.NumberColumn("Year 2 Base (£)", format="£%,.2f"),
         "y3": st.column_config.NumberColumn("Year 3 Base (£)", format="£%,.2f"),
+        "y4": st.column_config.NumberColumn("Year 4 Base (£)", format="£%,.2f"),
+        "y5": st.column_config.NumberColumn("Year 5 Base (£)", format="£%,.2f"),
         "seasonality": st.column_config.SelectboxColumn(
             "Timeline Seasonal Curve",
             options=["Flat_Linear", "Winter_Peak", "Summer_Peak"],
@@ -178,16 +191,26 @@ if st.session_state["scratchpad_queue"]:
             "🚀 Authorize & Commit Staged Vectors to Command Center",
             use_container_width=True,
         ):
+            # Ensure workspace data keys are initialized
+            if "active_data" not in st.session_state:
+                st.session_state["active_data"] = {"sales": [], "cogs": [], "opex": []}
+
             for _, r in edited_grid.iterrows():
                 bucket = "sales" if r["type"] == "sales" else "opex"
+
+                # 🚀 ALIGNED INGESTION DICTIONARY: Now fully maps all 5 years into state variables safely
                 st.session_state["active_data"][bucket].append(
                     {
                         "name": str(r["name"]),
                         "y1_baseline": float(r["y1"]),
                         "y2_baseline": float(r["y2"]),
                         "y3_baseline": float(r["y3"]),
+                        "y4_baseline": float(r["y4"]),
+                        "y5_baseline": float(r["y5"]),
                         "seasonality": str(r["seasonality"]),
-                        "vat_rate_type": active_sic["default_vat_type"],
+                        "vat_rate_type": active_sic.get(
+                            "default_vat_type", "Standard 20%"
+                        ),
                         "payment_delay": 0,
                         "overrides": {},
                     }

@@ -1,13 +1,15 @@
 # database/schema.py
+# STRATA RELATIONAL PERSISTENCE CONTROLLER // NEON SCHEMA ENGINE
 
 import logging
 from database.connection import NeonDatabaseManager
 
 logger = logging.getLogger("STRATA_SCHEMA")
 
+
 def deploy_database_schema():
     """
-    Executes DDL statements to construct the relational forecasting schema 
+    Executes DDL statements to construct the relational forecasting schema
     inside Neon PostgreSQL, ensuring strict data types and foreign key integrity.
     """
     sql_create_scenarios_table = """
@@ -39,7 +41,7 @@ def deploy_database_schema():
         CONSTRAINT unique_scenario_month UNIQUE (scenario_id, month_index)
     );
     """
-    
+
     with NeonDatabaseManager.get_connection() as conn:
         with conn.cursor() as cursor:
             logger.info("Deploying STRATA relational database tables to Neon Cloud...")
@@ -82,33 +84,60 @@ def serialize_matrix_to_db(scenario_name: str, scenario_desc: str, matrix: dict)
         bs_hmrc_vat_balance = EXCLUDED.bs_hmrc_vat_balance;
     """
 
+    # 🚀 ROBUST VALUE CONSTRAINT PROTECTION LAYER
+    required_keys = [
+        "pl_revenue",
+        "pl_expenses",
+        "pl_interest",
+        "pl_depreciation",
+        "cf_inflows",
+        "cf_outflows",
+        "bs_debtors",
+        "bs_creditors",
+        "bs_hp_liability",
+        "bs_loan_liability",
+        "bs_asset_nbv",
+        "bs_hmrc_vat_balance",
+    ]
+    for key in required_keys:
+        if key not in matrix:
+            logger.error(
+                f"Serialization failed: Missing matrix baseline parameter key '{key}'"
+            )
+            raise KeyError(f"Input forecasting matrix is missing data track: {key}")
+
     with NeonDatabaseManager.get_connection() as conn:
         with conn.cursor() as cursor:
             # 1. Insert or update the parent scenario entry and grab its relational ID
             cursor.execute(sql_upsert_scenario, (scenario_name, scenario_desc))
             scenario_id = cursor.fetchone()[0]
-            
+
             # 2. Extract array total length from the compiled dictionary matrix
             total_run_months = len(matrix["pl_revenue"])
-            
+
             # 3. Stream data points vertically month-by-month using a high-performance batch loop
-            logger.info(f"Streaming {total_run_months}-month financial matrix run to cloud table for scenario '{scenario_name}'...")
+            logger.info(
+                f"Streaming {total_run_months}-month financial matrix run to cloud table for scenario '{scenario_name}'..."
+            )
             for m in range(total_run_months):
                 month_index = m + 1
-                cursor.execute(sql_upsert_ledger_row, (
-                    scenario_id,
-                    month_index,
-                    matrix["pl_revenue"][m],
-                    matrix["pl_expenses"][m],
-                    matrix["pl_interest"][m],
-                    matrix["pl_depreciation"][m],
-                    matrix["cf_inflows"][m],
-                    matrix["cf_outflows"][m],
-                    matrix["bs_debtors"][m],
-                    matrix["bs_creditors"][m],
-                    matrix["bs_hp_liability"][m],
-                    matrix["bs_loan_liability"][m],
-                    matrix["bs_asset_nbv"][m],
-                    matrix["bs_hmrc_vat_balance"][m]
-                ))
+                cursor.execute(
+                    sql_upsert_ledger_row,
+                    (
+                        scenario_id,
+                        month_index,
+                        float(matrix["pl_revenue"][m]),
+                        float(matrix["pl_expenses"][m]),
+                        float(matrix["pl_interest"][m]),
+                        float(matrix["pl_depreciation"][m]),
+                        float(matrix["cf_inflows"][m]),
+                        float(matrix["cf_outflows"][m]),
+                        float(matrix["bs_debtors"][m]),
+                        float(matrix["bs_creditors"][m]),
+                        float(matrix["bs_hp_liability"][m]),
+                        float(matrix["bs_loan_liability"][m]),
+                        float(matrix["bs_asset_nbv"][m]),
+                        float(matrix["bs_hmrc_vat_balance"][m]),
+                    ),
+                )
             logger.info(f"Database sync complete for scenario ID: {scenario_id}")
