@@ -107,3 +107,5 @@ tabulate
 SIC Benchmark Table Scaling: The data structures load directly from static_data/sic_benchmarks.csv. To expand the app's scope, simply append raw standard corporate listings to this CSV; the application will parse and display them automatically without code changes.
 
 Multi-Scenario Version Control: Upgrade the database payload mapping to support sub-scenario keys (e.g., AD Sports Landlord - Optimistic, AD Sports Landlord - Distress) to house variant financial paths under a unified parent project name.
+
+THIS IS A LINE ADDED TO TEST GITHUB CONNECTION
