@@ -1,5 +1,5 @@
 # pages/reports.py
-# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v7.1.0-PRODUCTION
+# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v7.2.0-PRODUCTION
 
 import streamlit as st
 import pandas as pd
@@ -71,34 +71,34 @@ def compile_premium_html_report(
 
         # Profit & Loss Aggregation
         annual_pl_data[yr] = {
-            "Revenue": df_pl[cols].loc["Total Revenue (Â£)"].sum(),
-            "COGS": df_pl[cols].loc["Cost of Goods Sold (COGS) (Â£)"].sum(),
-            "Opex": df_pl[cols].loc["Operational Overheads (Â£)"].sum(),
-            "Payroll": df_pl[cols].loc["Staff Payroll Overhead (Â£)"].sum(),
-            "Depreciation": df_pl[cols].loc["Depreciation Overhead (Â£)"].sum(),
-            "Interest": df_pl[cols].loc["Financing Interest Cost (Â£)"].sum(),
+            "Revenue": df_pl[cols].loc["Total Revenue (£)"].sum(),
+            "COGS": df_pl[cols].loc["Cost of Goods Sold (COGS) (£)"].sum(),
+            "Opex": df_pl[cols].loc["Operational Overheads (£)"].sum(),
+            "Payroll": df_pl[cols].loc["Staff Payroll Overhead (£)"].sum(),
+            "Depreciation": df_pl[cols].loc["Depreciation Overhead (£)"].sum(),
+            "Interest": df_pl[cols].loc["Financing Interest Cost (£)"].sum(),
             "EBIT": df_pl[cols].loc["Net Operating Profit (EBIT)"].sum(),
         }
 
         # Cash Flow Aggregation
         annual_cf_data[yr] = {
-            "Inflow": df_cf[cols].loc["Trading Cash Collections (Â£)"].sum(),
-            "Equity": df_cf[cols].loc["Equity Capital Funding Injections (Â£)"].sum(),
-            "Outflow": df_cf[cols].loc["Operational Cash Outflows (Â£)"].sum(),
-            "Closing": df_cf.at["Closing Bank Cash Reserves (Â£)", bs_col],
+            "Inflow": df_cf[cols].loc["Trading Cash Collections (£)"].sum(),
+            "Equity": df_cf[cols].loc["Equity Capital Funding Injections (£)"].sum(),
+            "Outflow": df_cf[cols].loc["Operational Cash Outflows (£)"].sum(),
+            "Closing": df_cf.at["Closing Bank Cash Reserves (£)", bs_col],
         }
 
         # Balance Sheet Point-in-Time Positions
         annual_bs_data[yr] = {
-            "Fixed": df_bs.at["Fixed Infrastructure Assets (Â£)", bs_col],
-            "AccumDep": df_bs.at["Accumulated Depreciation Reserve (Â£)", bs_col],
-            "NBV": df_bs.at["Net Book Value Asset Worth (Â£)", bs_col],
-            "Debtors": df_bs.at["Trade Debtors Balance (Â£)", bs_col],
-            "VAT": df_bs.at["HMRC VAT Reserves Owing (Â£)", bs_col],
-            "PAYE": df_bs.at["HMRC PAYE Obligations Liability (Â£)", bs_col],
-            "Debt": df_bs.at["Long Term Facility Debt Liability (Â£)", bs_col],
-            "Equity": df_bs.at["Shareholder Invested Equity Reserves (Â£)", bs_col],
-            "Retained": df_bs.at["Retained Earnings Accumulation (Â£)", bs_col],
+            "Fixed": df_bs.at["Fixed Infrastructure Assets (£)", bs_col],
+            "AccumDep": df_bs.at["Accumulated Depreciation Reserve (£)", bs_col],
+            "NBV": df_bs.at["Net Book Value Asset Worth (£)", bs_col],
+            "Debtors": df_bs.at["Trade Debtors Balance (£)", bs_col],
+            "VAT": df_bs.at["HMRC VAT Reserves Owing (£)", bs_col],
+            "PAYE": df_bs.at["HMRC PAYE Obligations Liability (£)", bs_col],
+            "Debt": df_bs.at["Long Term Facility Debt Liability (£)", bs_col],
+            "Equity": df_bs.at["Shareholder Invested Equity Reserves (£)", bs_col],
+            "Retained": df_bs.at["Retained Earnings Accumulation (£)", bs_col],
         }
 
     # Build Primary Financial HTML Tables
@@ -121,7 +121,7 @@ def compile_premium_html_report(
             f"<tr style='{weight}'><td>{row_lbl}</td>"
             + "".join(
                 [
-                    f"<td class='text-right'>Â£{annual_pl_data[y][key]:,.2f}</td>"
+                    f"<td class='text-right'>£{annual_pl_data[y][key]:,.2f}</td>"
                     for y in years_labels
                 ]
             )
@@ -142,7 +142,7 @@ def compile_premium_html_report(
             f"<tr style='{weight}'><td>{row_lbl}</td>"
             + "".join(
                 [
-                    f"<td class='text-right'>Â£{annual_cf_data[y][key]:,.2f}</td>"
+                    f"<td class='text-right'>£{annual_cf_data[y][key]:,.2f}</td>"
                     for y in years_labels
                 ]
             )
@@ -170,7 +170,7 @@ def compile_premium_html_report(
             f"<tr style='{weight}'><td>{row_lbl}</td>"
             + "".join(
                 [
-                    f"<td class='text-right'>Â£{annual_bs_data[y][key]:,.2f}</td>"
+                    f"<td class='text-right'>£{annual_bs_data[y][key]:,.2f}</td>"
                     for y in years_labels
                 ]
             )
@@ -215,9 +215,9 @@ def compile_premium_html_report(
                 <td><strong>{item['name']}</strong> ({item['type']})</td>
                 <td class='text-right'>{int(item['r']*100)}%</td>
                 <td>{item['method']}</td>
-                <td class='text-right'>Â£{item['value']:,.2f}</td>
-                <td class='text-right'>Â£{cum_dep:,.2f}</td>
-                <td class='text-right'>Â£{r_val:,.2f}</td>
+                <td class='text-right'>£{item['value']:,.2f}</td>
+                <td class='text-right'>£{cum_dep:,.2f}</td>
+                <td class='text-right'>£{r_val:,.2f}</td>
             </tr>
             """
     else:
@@ -241,7 +241,6 @@ def compile_premium_html_report(
                 m_yr_start = (yr - 1) * 12 + 1
                 m_yr_end = yr * 12
 
-                # Check opening balance for the year
                 yr_opening = 0.0
                 for m in range(0, m_yr_start):
                     if m == m_start:
@@ -249,7 +248,6 @@ def compile_premium_html_report(
                     if m >= m_start and m < m_yr_start:
                         yr_opening = max(0.0, yr_opening - monthly_principal)
 
-                # Collect values at the end of this annualized block
                 yr_closing = yr_opening
                 st_debt = 0.0
                 lt_debt = 0.0
@@ -268,12 +266,12 @@ def compile_premium_html_report(
                 html_loan_schedule += f"""
                 <tr>
                     <td><strong>Year {yr}</strong> (M{str(m_yr_start).zfill(2)}-M{str(m_yr_end).zfill(2)})</td>
-                    <td class='text-right'>Â£{yr_opening:,.2f}</td>
-                    <td class='text-right'>Â£{interest_est:,.2f}</td>
-                    <td class='text-right'>Â£{repay_est:,.2f}</td>
-                    <td class='text-right'>Â£{yr_closing:,.2f}</td>
-                    <td class='text-right'>Â£{st_debt:,.2f}</td>
-                    <td class='text-right'>Â£{lt_debt:,.2f}</td>
+                    <td class='text-right'>£{yr_opening:,.2f}</td>
+                    <td class='text-right'>£{interest_est:,.2f}</td>
+                    <td class='text-right'>£{repay_est:,.2f}</td>
+                    <td class='text-right'>£{yr_closing:,.2f}</td>
+                    <td class='text-right'>£{st_debt:,.2f}</td>
+                    <td class='text-right'>£{lt_debt:,.2f}</td>
                 </tr>
                 """
     else:
@@ -345,9 +343,9 @@ def compile_premium_html_report(
                 </tr>
             </thead>
             <tbody>
-                <tr><td>Peak Cash Runway Worth</td><td class="text-right">Â£{peak_cash:,.2f}</td></tr>
-                <tr><td>Max Venture Risk Valley Threshold</td><td class="text-right">Â£{lowest_cash:,.2f}</td></tr>
-                <tr><td>Year 5 Horizon Retained Valuation</td><td class="text-right">Â£{horizon_worth:,.2f}</td></tr>
+                <tr><td>Peak Cash Runway Worth</td><td class="text-right">£{peak_cash:,.2f}</td></tr>
+                <tr><td>Max Venture Risk Valley Threshold</td><td class="text-right">£{lowest_cash:,.2f}</td></tr>
+                <tr><td>Year 5 Horizon Retained Valuation</td><td class="text-right">£{horizon_worth:,.2f}</td></tr>
             </tbody>
         </table>
         
@@ -547,7 +545,6 @@ class CommercialTrialBalanceCuboid:
                 if sale.get("overrides", {}).get(f"M{str(m).zfill(2)}", 0.0) > 0:
                     val = float(sale["overrides"][f"M{str(m).zfill(2)}"])
                 else:
-                    # 🚀 CORE EXPANSION FIX: Safely parse Year 4 and Year 5 indexes seamlessly
                     y_idx = (
                         1
                         if m <= 12
@@ -744,13 +741,13 @@ class CommercialTrialBalanceCuboid:
         df_pl = pd.DataFrame(
             0.0,
             index=[
-                "Total Revenue (Â£)",
-                "Cost of Goods Sold (COGS) (Â£)",
-                "Gross Profit Margin (Â£)",
-                "Operational Overheads (Â£)",
-                "Staff Payroll Overhead (Â£)",
-                "Depreciation Overhead (Â£)",
-                "Financing Interest Cost (Â£)",
+                "Total Revenue (£)",
+                "Cost of Goods Sold (COGS) (£)",
+                "Gross Profit Margin (£)",
+                "Operational Overheads (£)",
+                "Staff Payroll Overhead (£)",
+                "Depreciation Overhead (£)",
+                "Financing Interest Cost (£)",
                 "Net Operating Profit (EBIT)",
             ],
             columns=months_labels,
@@ -758,26 +755,26 @@ class CommercialTrialBalanceCuboid:
         df_cf = pd.DataFrame(
             0.0,
             index=[
-                "Trading Cash Collections (Â£)",
-                "Equity Capital Funding Injections (Â£)",
-                "Operational Cash Outflows (Â£)",
-                "Net Trading Cash Movement (Â£)",
-                "Closing Bank Cash Reserves (Â£)",
+                "Trading Cash Collections (£)",
+                "Equity Capital Funding Injections (£)",
+                "Operational Cash Outflows (£)",
+                "Net Trading Cash Movement (£)",
+                "Closing Bank Cash Reserves (£)",
             ],
             columns=months_labels,
         )
         df_bs = pd.DataFrame(
             0.0,
             index=[
-                "Fixed Infrastructure Assets (Â£)",
-                "Accumulated Depreciation Reserve (Â£)",
-                "Net Book Value Asset Worth (Â£)",
-                "Trade Debtors Balance (Â£)",
-                "HMRC VAT Reserves Owing (Â£)",
-                "HMRC PAYE Obligations Liability (Â£)",
-                "Long Term Facility Debt Liability (Â£)",
-                "Shareholder Invested Equity Reserves (Â£)",
-                "Retained Earnings Accumulation (Â£)",
+                "Fixed Infrastructure Assets (£)",
+                "Accumulated Depreciation Reserve (£)",
+                "Net Book Value Asset Worth (£)",
+                "Trade Debtors Balance (£)",
+                "HMRC VAT Reserves Owing (£)",
+                "HMRC PAYE Obligations Liability (£)",
+                "Long Term Facility Debt Liability (£)",
+                "Shareholder Invested Equity Reserves (£)",
+                "Retained Earnings Accumulation (£)",
                 "Ledger Verification Checksum Balance",
             ],
             columns=months_labels,
@@ -787,82 +784,82 @@ class CommercialTrialBalanceCuboid:
             for t in self.token_pool:
                 if t.month_label == m_lbl:
                     if t.credit_acct == "PL_Revenue_Gross":
-                        df_pl.at["Total Revenue (Â£)", m_lbl] += t.amount
+                        df_pl.at["Total Revenue (£)", m_lbl] += t.amount
                     if t.debit_acct == "PL_Expense_COGS":
-                        df_pl.at["Cost of Goods Sold (COGS) (Â£)", m_lbl] += t.amount
+                        df_pl.at["Cost of Goods Sold (COGS) (£)", m_lbl] += t.amount
                     if t.debit_acct == "PL_Expense_Overheads":
-                        df_pl.at["Operational Overheads (Â£)", m_lbl] += t.amount
+                        df_pl.at["Operational Overheads (£)", m_lbl] += t.amount
                     if t.debit_acct == "PL_Expense_Payroll":
-                        df_pl.at["Staff Payroll Overhead (Â£)", m_lbl] += t.amount
+                        df_pl.at["Staff Payroll Overhead (£)", m_lbl] += t.amount
                     if t.debit_acct == "PL_Expense_Depreciation":
-                        df_pl.at["Depreciation Overhead (Â£)", m_lbl] += t.amount
+                        df_pl.at["Depreciation Overhead (£)", m_lbl] += t.amount
                     if t.debit_acct == "PL_Expense_Interest":
-                        df_pl.at["Financing Interest Cost (Â£)", m_lbl] += t.amount
+                        df_pl.at["Financing Interest Cost (£)", m_lbl] += t.amount
                     if (
                         t.debit_acct == "BS_Asset_Cash"
                         and t.credit_acct == "BS_Asset_Debtors"
                     ):
-                        df_cf.at["Trading Cash Collections (Â£)", m_lbl] += t.amount
+                        df_cf.at["Trading Cash Collections (£)", m_lbl] += t.amount
                     if (
                         t.debit_acct == "BS_Asset_Cash"
                         and t.credit_acct == "BS_Equity_Share_Capital"
                     ):
                         df_cf.at[
-                            "Equity Capital Funding Injections (Â£)", m_lbl
+                            "Equity Capital Funding Injections (£)", m_lbl
                         ] += t.amount
                     if t.credit_acct == "BS_Asset_Cash":
-                        df_cf.at["Operational Cash Outflows (Â£)", m_lbl] += t.amount
+                        df_cf.at["Operational Cash Outflows (£)", m_lbl] += t.amount
 
-            df_pl.at["Gross Profit Margin (Â£)", m_lbl] = (
-                df_pl.at["Total Revenue (Â£)", m_lbl]
-                - df_pl.at["Cost of Goods Sold (COGS) (Â£)", m_lbl]
+            df_pl.at["Gross Profit Margin (£)", m_lbl] = (
+                df_pl.at["Total Revenue (£)", m_lbl]
+                - df_pl.at["Cost of Goods Sold (COGS) (£)", m_lbl]
             )
             df_pl.at["Net Operating Profit (EBIT)", m_lbl] = (
-                df_pl.at["Gross Profit Margin (Â£)", m_lbl]
-                - df_pl.at["Operational Overheads (Â£)", m_lbl]
-                - df_pl.at["Staff Payroll Overhead (Â£)", m_lbl]
-                - df_pl.at["Depreciation Overhead (Â£)", m_lbl]
-                - df_pl.at["Financing Interest Cost (Â£)", m_lbl]
+                df_pl.at["Gross Profit Margin (£)", m_lbl]
+                - df_pl.at["Operational Overheads (£)", m_lbl]
+                - df_pl.at["Staff Payroll Overhead (£)", m_lbl]
+                - df_pl.at["Depreciation Overhead (£)", m_lbl]
+                - df_pl.at["Financing Interest Cost (£)", m_lbl]
             )
-            df_cf.at["Net Trading Cash Movement (Â£)", m_lbl] = (
-                df_cf.at["Trading Cash Collections (Â£)", m_lbl]
-                + df_cf.at["Equity Capital Funding Injections (Â£)", m_lbl]
-                - df_cf.at["Operational Cash Outflows (Â£)", m_lbl]
+            df_cf.at["Net Trading Cash Movement (£)", m_lbl] = (
+                df_cf.at["Trading Cash Collections (£)", m_lbl]
+                + df_cf.at["Equity Capital Funding Injections (£)", m_lbl]
+                - df_cf.at["Operational Cash Outflows (£)", m_lbl]
             )
-            df_cf.at["Closing Bank Cash Reserves (Â£)", m_lbl] = (
+            df_cf.at["Closing Bank Cash Reserves (£)", m_lbl] = (
                 self.compute_running_balance_to_period("BS_Asset_Cash", m_idx)
             )
-            df_bs.at["Fixed Infrastructure Assets (Â£)", m_lbl] = (
+            df_bs.at["Fixed Infrastructure Assets (£)", m_lbl] = (
                 self.compute_running_balance_to_period("BS_Asset_Fixed_Assets", m_idx)
             )
-            df_bs.at["Accumulated Depreciation Reserve (Â£)", m_lbl] = (
+            df_bs.at["Accumulated Depreciation Reserve (£)", m_lbl] = (
                 -self.compute_running_balance_to_period(
                     "BS_Asset_Accumulated_Depreciation", m_idx
                 )
             )
-            df_bs.at["Net Book Value Asset Worth (Â£)", m_lbl] = (
-                df_bs.at["Fixed Infrastructure Assets (Â£)", m_lbl]
-                - df_bs.at["Accumulated Depreciation Reserve (Â£)", m_lbl]
+            df_bs.at["Net Book Value Asset Worth (£)", m_lbl] = (
+                df_bs.at["Fixed Infrastructure Assets (£)", m_lbl]
+                - df_bs.at["Accumulated Depreciation Reserve (£)", m_lbl]
             )
-            df_bs.at["Trade Debtors Balance (Â£)", m_lbl] = (
+            df_bs.at["Trade Debtors Balance (£)", m_lbl] = (
                 self.compute_running_balance_to_period("BS_Asset_Debtors", m_idx)
             )
-            df_bs.at["HMRC VAT Reserves Owing (Â£)", m_lbl] = (
+            df_bs.at["HMRC VAT Reserves Owing (£)", m_lbl] = (
                 -self.compute_running_balance_to_period(
                     "BS_Liability_VAT_Payable", m_idx
                 )
             )
-            df_bs.at["HMRC PAYE Obligations Liability (Â£)", m_lbl] = (
+            df_bs.at["HMRC PAYE Obligations Liability (£)", m_lbl] = (
                 -self.compute_running_balance_to_period(
                     "BS_Liability_PAYE_NIC_Payable", m_idx
                 )
             )
-            df_bs.at["Long Term Facility Debt Liability (Â£)", m_lbl] = (
+            df_bs.at["Long Term Facility Debt Liability (£)", m_lbl] = (
                 -self.compute_running_balance_to_period(
                     "BS_Liability_Long_Term_Debt", m_idx
                 )
             )
-            df_bs.at["Shareholder Invested Equity Reserves (Â£)", m_lbl] = (
+            df_bs.at["Shareholder Invested Equity Reserves (£)", m_lbl] = (
                 -self.compute_running_balance_to_period(
                     "BS_Equity_Share_Capital", m_idx
                 )
@@ -871,18 +868,18 @@ class CommercialTrialBalanceCuboid:
             h_sum = 0.0
             for pm in months_labels[1 : m_idx + 1]:
                 h_sum += df_pl.at["Net Operating Profit (EBIT)", pm]
-            df_bs.at["Retained Earnings Accumulation (Â£)", m_lbl] = h_sum
+            df_bs.at["Retained Earnings Accumulation (£)", m_lbl] = h_sum
             assets = (
-                df_bs.at["Net Book Value Asset Worth (Â£)", m_lbl]
-                + df_bs.at["Trade Debtors Balance (Â£)", m_lbl]
-                + df_cf.at["Closing Bank Cash Reserves (Â£)", m_lbl]
+                df_bs.at["Net Book Value Asset Worth (£)", m_lbl]
+                + df_bs.at["Trade Debtors Balance (£)", m_lbl]
+                + df_cf.at["Closing Bank Cash Reserves (£)", m_lbl]
             )
             liabs = (
-                df_bs.at["HMRC VAT Reserves Owing (Â£)", m_lbl]
-                + df_bs.at["HMRC PAYE Obligations Liability (Â£)", m_lbl]
-                + df_bs.at["Long Term Facility Debt Liability (Â£)", m_lbl]
-                + df_bs.at["Shareholder Invested Equity Reserves (Â£)", m_lbl]
-                + df_bs.at["Retained Earnings Accumulation (Â£)", m_lbl]
+                df_bs.at["HMRC VAT Reserves Owing (£)", m_lbl]
+                + df_bs.at["HMRC PAYE Obligations Liability (£)", m_lbl]
+                + df_bs.at["Long Term Facility Debt Liability (£)", m_lbl]
+                + df_bs.at["Shareholder Invested Equity Reserves (£)", m_lbl]
+                + df_bs.at["Retained Earnings Accumulation (£)", m_lbl]
             )
             df_bs.at["Ledger Verification Checksum Balance", m_lbl] = round(
                 assets - liabs, 2
@@ -905,15 +902,15 @@ cuboid_engine = CommercialTrialBalanceCuboid()
 active_data_context = st.session_state.get("active_data", {})
 df_pl, df_cf, df_bs = cuboid_engine.run_simulation_engine(active_data_context)
 
-closing_cash_array = df_cf.loc["Closing Bank Cash Reserves (Â£)"].astype(float).values
+closing_cash_array = df_cf.loc["Closing Bank Cash Reserves (£)"].astype(float).values
 peak_cash = closing_cash_array.max()
 lowest_cash = closing_cash_array.min()
-y5_worth = df_bs.loc["Retained Earnings Accumulation (Â£)", "M60"]
+y5_worth = df_bs.loc["Retained Earnings Accumulation (£)", "M60"]
 
 kpi1, kpi2, kpi3 = st.columns(3)
-kpi1.metric("Peak Cash Runway Worth", f"Â£{peak_cash:,.2f}")
-kpi2.metric("Max Venture Risk Valley", f"Â£{lowest_cash:,.2f}")
-kpi3.metric("Year 5 Horizon Value", f"Â£{y5_worth:,.2f}")
+kpi1.metric("Peak Cash Runway Worth", f"£{peak_cash:,.2f}")
+kpi2.metric("Max Venture Risk Valley", f"£{lowest_cash:,.2f}")
+kpi3.metric("Year 5 Horizon Value", f"£{y5_worth:,.2f}")
 
 st.markdown("---")
 
@@ -981,12 +978,12 @@ if st.button(
 
                 financial_summary_context = f"""
                 Project Name: {st.session_state.get('active_project_name', 'Unsaved Draft Scenario')}
-                Peak Cash Runway: Â£{peak_cash:,.2f}
-                Maximum Risk Valley Cash Point: Â£{lowest_cash:,.2f}
-                Year 5 Cumulative Retained Earnings: Â£{y5_worth:,.2f}
+                Peak Cash Runway: £{peak_cash:,.2f}
+                Maximum Risk Valley Cash Point: £{lowest_cash:,.2f}
+                Year 5 Cumulative Retained Earnings: £{y5_worth:,.2f}
                 
-                Year 1 Key Revenue Milestones: {df_pl.loc["Total Revenue (Â£)"].iloc[0:13].to_dict()}
-                Year 1 Ending Bank Cash Balances: {df_cf.loc["Closing Bank Cash Reserves (Â£)"].iloc[0:13].to_dict()}
+                Year 1 Key Revenue Milestones: {df_pl.loc["Total Revenue (£)"].iloc[0:13].to_dict()}
+                Year 1 Ending Bank Cash Balances: {df_cf.loc["Closing Bank Cash Reserves (£)"].iloc[0:13].to_dict()}
                 """
 
                 prompt = f"""
@@ -1018,7 +1015,6 @@ if st.session_state["cached_ai_analysis"]:
     st.write(st.session_state["cached_ai_analysis"])
 
     try:
-        # 🚀 RE-ENGINEERED: Call our clean premium WeasyPrint HTML compiler engine with complete arrays passed safely
         pdf_binary = compile_premium_html_report(
             project_name=st.session_state.get(
                 "active_project_name", "Unsaved_Draft_Scenario"
@@ -1054,11 +1050,45 @@ horiz = st.selectbox(
         "Full 5-Year Comprehensive Asset Track (M00 - M60)",
     ],
 )
+
+# 🚀 DYNAMIC TOTAL COLUMN COMPILER RULES
 targets = (
     [f"M{str(i).zfill(2)}" for i in range(0, 13)]
     if "Year 1" in horiz
     else [f"M{str(i).zfill(2)}" for i in range(0, 61)]
 )
+
+# Construct UI DataFrames with Clean Calculated Totals
+active_months_for_sum = [t for t in targets if t != "M00"]
+
+df_pl_view = df_pl[targets].copy()
+df_pl_view["Year Total"] = df_pl[active_months_for_sum].sum(axis=1)
+# Correct indicators where summing months makes no sense (EBIT calculation fix)
+df_pl_view.at["Gross Profit Margin (£)", "Year Total"] = (
+    df_pl_view.loc["Total Revenue (£)", "Year Total"]
+    - df_pl_view.loc["Cost of Goods Sold (COGS) (£)", "Year Total"]
+)
+df_pl_view.at["Net Operating Profit (EBIT)", "Year Total"] = (
+    df_pl_view.loc["Gross Profit Margin (£)", "Year Total"]
+    - df_pl_view.loc["Operational Overheads (£)", "Year Total"]
+    - df_pl_view.loc["Staff Payroll Overhead (£)", "Year Total"]
+    - df_pl_view.loc["Depreciation Overhead (£)", "Year Total"]
+    - df_pl_view.loc["Financing Interest Cost (£)", "Year Total"]
+)
+
+df_cf_view = df_cf[targets].copy()
+df_cf_view["Year Total"] = df_cf[active_months_for_sum].sum(axis=1)
+# Closing balance isn't a sum, it is a point-in-time snapshot
+df_cf_view.at["Closing Bank Cash Reserves (£)", "Year Total"] = (
+    df_cf[targets[-1]].iloc[0]
+    if isinstance(df_cf[targets[-1]], pd.Series)
+    else df_cf.at["Closing Bank Cash Reserves (£)", targets[-1]]
+)
+
+df_bs_view = df_bs[targets].copy()
+# Balance Sheets reflect closing values, not transactional sums across months
+df_bs_view["Closing Position"] = df_bs[targets[-1]]
+
 
 t1, t2, t3 = st.tabs(
     [
@@ -1069,12 +1099,66 @@ t1, t2, t3 = st.tabs(
 )
 
 with t1:
-    st.markdown("#### Profit & Loss Statement (Â£)")
-    st.dataframe(df_pl[targets].style.format("{:,.2f}"), use_container_width=True)
-    st.markdown("#### Cash Flow Statement (Â£)")
-    st.dataframe(df_cf[targets].style.format("{:,.2f}"), use_container_width=True)
-    st.markdown("#### Balance Sheet Ledger (Â£)")
-    st.dataframe(df_bs[targets].style.format("{:,.2f}"), use_container_width=True)
+    # 🎨 PREMIUM CSS OVERRIDES INJECTED FOR USER INTERFACE ROWS
+    def style_financials(val):
+        return "font-weight: bold; background-color: #f1f5f9; color: #1e3a8a;"
+
+    st.markdown("#### Profit & Loss Statement (£)")
+    st.dataframe(
+        df_pl_view.style.format("{:,.2f}").apply(
+            lambda x: [
+                (
+                    style_financials(v)
+                    if x.name
+                    in [
+                        "Total Revenue (£)",
+                        "Gross Profit Margin (£)",
+                        "Net Operating Profit (EBIT)",
+                    ]
+                    else ""
+                )
+                for v in x
+            ],
+            axis=1,
+        ),
+        use_container_width=True,
+    )
+
+    st.markdown("#### Cash Flow Statement (£)")
+    st.dataframe(
+        df_cf_view.style.format("{:,.2f}").apply(
+            lambda x: [
+                (
+                    style_financials(v)
+                    if x.name == "Closing Bank Cash Reserves (£)"
+                    else ""
+                )
+                for v in x
+            ],
+            axis=1,
+        ),
+        use_container_width=True,
+    )
+
+    st.markdown("#### Balance Sheet Ledger (£)")
+    st.dataframe(
+        df_bs_view.style.format("{:,.2f}").apply(
+            lambda x: [
+                (
+                    style_financials(v)
+                    if x.name
+                    in [
+                        "Net Book Value Asset Worth (£)",
+                        "Retained Earnings Accumulation (£)",
+                    ]
+                    else ""
+                )
+                for v in x
+            ],
+            axis=1,
+        ),
+        use_container_width=True,
+    )
 
 with t2:
     st.markdown("### 🚜 Dynamic Fixed Asset Depreciation Ledger")
@@ -1105,7 +1189,7 @@ with t2:
         for item in fa_rows_view:
             v_rec = {
                 "Asset Item": item["Asset Item"],
-                "Metric Category": "Net Book Value (Â£)",
+                "Metric Category": "Net Book Value (£)",
             }
             running_val = 0.0
             for m in range(0, 61):
@@ -1118,12 +1202,13 @@ with t2:
                     )
                 v_rec[m_lbl] = running_val
             ledger_rows.append(v_rec)
-        st.dataframe(
+
+        df_fa_final = (
             pd.DataFrame(ledger_rows)
             .set_index(["Asset Item", "Metric Category"])[targets]
-            .style.format("{:,.2f}"),
-            use_container_width=True,
+            .copy()
         )
+        st.dataframe(df_fa_final.style.format("{:,.2f}"), use_container_width=True)
     else:
         st.info("No fixed assets currently registered.")
 
@@ -1139,12 +1224,12 @@ with t3:
             term = int(fin["term_months"])
             monthly_principal = fin_bal / term
 
-            bal_rec = {"Facility": fin["name"], "Metric": "Total Outstanding (Â£)"}
+            bal_rec = {"Facility": fin["name"], "Metric": "Total Outstanding (£)"}
             st_rec = {
                 "Facility": fin["name"],
-                "Metric": "Current Liabilities (<12m) (Â£)",
+                "Metric": "Current Liabilities (<12m) (£)",
             }
-            lt_rec = {"Facility": fin["name"], "Metric": "Non-Current Debt (>1yr) (Â£)"}
+            lt_rec = {"Facility": fin["name"], "Metric": "Non-Current Debt (>1yr) (£)"}
 
             running_debt = 0.0
             for m in range(0, 61):
@@ -1162,12 +1247,11 @@ with t3:
                     st_rec[m_lbl] = 0.0
                     lt_rec[m_lbl] = 0.0
             loan_rows.extend([bal_rec, st_rec, lt_rec])
-        st.dataframe(
-            pd.DataFrame(loan_rows)
-            .set_index(["Facility", "Metric"])[targets]
-            .style.format("{:,.2f}"),
-            use_container_width=True,
+
+        df_loan_final = (
+            pd.DataFrame(loan_rows).set_index(["Facility", "Metric"])[targets].copy()
         )
+        st.dataframe(df_loan_final.style.format("{:,.2f}"), use_container_width=True)
 
 # =========================================================================
 # 🧭 FIXED SIDEBAR COMPASS OPTIONS
