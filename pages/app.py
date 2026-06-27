@@ -1,5 +1,5 @@
 # pages/app.py
-# STRATA SUITE // DATA ENTRY & UPLOAD MASTER CANVAS v6.9.6-PRODUCTION
+# STRATA SUITE // DATA ENTRY & UPLOAD MASTER CANVAS v7.3.0-PRODUCTION
 
 import streamlit as st
 import pandas as pd
@@ -62,7 +62,7 @@ with col_left:
     st.markdown("### 💡 Data Upload Playbook & System Capabilities")
     st.markdown(
         "* **Intelligent Scanning:** Drop raw transaction metrics, text-based PDF invoices, or supplier agreements to isolate financial strings instantly.\n"
-        "* **Automated Mapping:** Formulates standalone baseline target profiles for Years 1, 2, and 3, matching your active industrial framework parameters behind the scenes.\n"
+        "* **Automated Mapping:** Formulates standalone baseline target profiles for Years 1 through 5, matching your active industrial framework parameters behind the scenes.\n"
         "* **Predictive Curve Shaping:** Analyses description text syntax to match trading volumes with corresponding business curves (e.g., `Winter_Peak` or `Summer_Peak`)."
     )
 
@@ -128,7 +128,7 @@ if "active_data" not in st.session_state:
     }
 
 # =========================================================================
-# ALL 8 SPECIFIC ACCOUNT CATEGORY MANAGEMENT CARDS
+# ALL 8 SPECIFIC ACCOUNT CATEGORY MANAGEMENT CARDS (5-YEAR ALIGNED)
 # =========================================================================
 
 with st.expander("📈 1. THE SALES DRIVER DESK", expanded=False):
@@ -137,15 +137,13 @@ with st.expander("📈 1. THE SALES DRIVER DESK", expanded=False):
             "Sales Line Name / Identifier:",
             placeholder="e.g. Counter Trading Retail Sales",
         )
-        y1 = st.number_input(
-            "Year 1 Expected Net Base Target (£):", min_value=0.0, step=1000.0
-        )
-        y2 = st.number_input(
-            "Year 2 Expected Net Base Target (£):", min_value=0.0, step=1000.0
-        )
-        y3 = st.number_input(
-            "Year 3 Expected Net Base Target (£):", min_value=0.0, step=1000.0
-        )
+        f_c1, f_c2, f_c3, f_c4, f_c5 = st.columns(5)
+        y1 = f_c1.number_input("Year 1 Target (£):", min_value=0.0, step=1000.0)
+        y2 = f_c2.number_input("Year 2 Target (£):", min_value=0.0, step=1000.0)
+        y3 = f_c3.number_input("Year 3 Target (£):", min_value=0.0, step=1000.0)
+        y4 = f_c4.number_input("Year 4 Target (£):", min_value=0.0, step=1000.0)
+        y5 = f_c5.number_input("Year 5 Target (£):", min_value=0.0, step=1000.0)
+
         curve = st.selectbox(
             "Timeline Seasonal Shape Curve:",
             list(seasonality_profiles.keys()),
@@ -175,6 +173,7 @@ with st.expander("📈 1. THE SALES DRIVER DESK", expanded=False):
             ],
             key="vt_s",
         )
+
         if st.form_submit_button("➕ Append Trading Sales Revenue Vector"):
             if n:
                 st.session_state["active_data"]["sales"].append(
@@ -183,6 +182,8 @@ with st.expander("📈 1. THE SALES DRIVER DESK", expanded=False):
                         "y1_baseline": y1,
                         "y2_baseline": y2,
                         "y3_baseline": y3,
+                        "y4_baseline": y4,
+                        "y5_baseline": y5,
                         "seasonality": curve,
                         "payment_delay": delay,
                         "flex_pct": flex,
@@ -191,11 +192,12 @@ with st.expander("📈 1. THE SALES DRIVER DESK", expanded=False):
                     }
                 )
                 st.rerun()
+
     if st.session_state["active_data"].get("sales"):
         for idx, x in enumerate(st.session_state["active_data"]["sales"]):
             r_col1, r_col2 = st.columns([10, 2])
             r_col1.caption(
-                f"✔ {x['name']} - Y1: £{x['y1_baseline']:,.2f} | Shape: {x['seasonality']} | Delay: {x['payment_delay']}d"
+                f"✔ {x['name']} - Y1: £{x['y1_baseline']:,.2f} | Y5: £{x.get('y5_baseline',0.0):,.2f} | Shape: {x['seasonality']}"
             )
             if r_col2.button("🗑️ Delete", key=f"del_s_{idx}"):
                 st.session_state["active_data"]["sales"].pop(idx)
@@ -253,15 +255,13 @@ with st.expander("📦 3. THE PRODUCTION COGS DESK", expanded=False):
         n = st.text_input(
             "Direct Production Cost Title:", placeholder="e.g. Raw Material Allocation"
         )
-        y1 = st.number_input(
-            "Year 1 Expected Net Base Target (£):", min_value=0.0, step=500.0
-        )
-        y2 = st.number_input(
-            "Year 2 Expected Net Base Target (£):", min_value=0.0, step=500.0
-        )
-        y3 = st.number_input(
-            "Year 3 Expected Net Base Target (£):", min_value=0.0, step=500.0
-        )
+        f_cc1, f_cc2, f_cc3, f_cc4, f_cc5 = st.columns(5)
+        y1 = f_cc1.number_input("Year 1 Cost (£):", min_value=0.0, step=500.0)
+        y2 = f_cc2.number_input("Year 2 Cost (£):", min_value=0.0, step=500.0)
+        y3 = f_cc3.number_input("Year 3 Cost (£):", min_value=0.0, step=500.0)
+        y4 = f_cc4.number_input("Year 4 Cost (£):", min_value=0.0, step=500.0)
+        y5 = f_cc5.number_input("Year 5 Cost (£):", min_value=0.0, step=500.0)
+
         curve = st.selectbox(
             "Cost Seasonal Volatility Shape Profile:",
             list(seasonality_profiles.keys()),
@@ -279,6 +279,7 @@ with st.expander("📦 3. THE PRODUCTION COGS DESK", expanded=False):
             ["Standard 20%", "Reduced 5%", "Exempt / Zero 0%"],
             key="c_vat",
         )
+
         if st.form_submit_button("➕ Append Direct Production COGS Vector"):
             if n:
                 st.session_state["active_data"]["cogs"].append(
@@ -287,6 +288,8 @@ with st.expander("📦 3. THE PRODUCTION COGS DESK", expanded=False):
                         "y1_baseline": y1,
                         "y2_baseline": y2,
                         "y3_baseline": y3,
+                        "y4_baseline": y4,
+                        "y5_baseline": y5,
                         "seasonality": curve,
                         "flex_pct": flex,
                         "vat_rate_type": v_rate,
@@ -294,10 +297,13 @@ with st.expander("📦 3. THE PRODUCTION COGS DESK", expanded=False):
                     }
                 )
                 st.rerun()
+
     if st.session_state["active_data"].get("cogs"):
         for idx, x in enumerate(st.session_state["active_data"]["cogs"]):
             r_col1, r_col2 = st.columns([10, 2])
-            r_col1.caption(f"✔ Direct Cost: {x['name']} - Y1: £{x['y1_baseline']:,.2f}")
+            r_col1.caption(
+                f"✔ Direct Cost: {x['name']} - Y1: £{x['y1_baseline']:,.2f} | Y5: £{x.get('y5_baseline',0.0):,.2f}"
+            )
             if r_col2.button("🗑️ Delete", key=f"del_c_{idx}"):
                 st.session_state["active_data"]["cogs"].pop(idx)
                 st.rerun()
@@ -398,6 +404,7 @@ with st.expander("💸 4. THE GENERAL OVERHEAD CARD", expanded=False):
                 },
                 index=months_index,
             )
+
             edited_matrix_df = st.data_editor(
                 df_matrix,
                 column_config={
@@ -414,14 +421,28 @@ with st.expander("💸 4. THE GENERAL OVERHEAD CARD", expanded=False):
             for r_idx in range(12):
                 new_y1 = float(edited_matrix_df.iloc[r_idx, 0])
                 new_y2 = float(edited_matrix_df.iloc[r_idx, 1])
+                new_y3 = float(edited_matrix_df.iloc[r_idx, 2])
+                new_y4 = float(edited_matrix_df.iloc[r_idx, 3])
+                new_y5 = float(edited_matrix_df.iloc[r_idx, 4])
+
                 if new_y1 != m_data["Y1"][r_idx]:
                     m_data["Y1"][r_idx] = new_y1
                     has_changed = True
-                    if f"Y2_M{r_idx}" not in m_data["overwrites"]:
-                        m_data["Y2"][r_idx] = new_y1 * (1.0 + (y2_f / 100.0))
-                if new_y2 != df_matrix.iloc[r_idx, 1]:
+                if new_y2 != m_data["Y2"][r_idx]:
                     m_data["overwrites"][f"Y2_M{r_idx}"] = new_y2
                     m_data["Y2"][r_idx] = new_y2
+                    has_changed = True
+                if new_y3 != m_data["Y3"][r_idx]:
+                    m_data["overwrites"][f"Y3_M{r_idx}"] = new_y3
+                    m_data["Y3"][r_idx] = new_y3
+                    has_changed = True
+                if new_y4 != m_data["Y4"][r_idx]:
+                    m_data["overwrites"][f"Y4_M{r_idx}"] = new_y4
+                    m_data["Y4"][r_idx] = new_y4
+                    has_changed = True
+                if new_y5 != m_data["Y5"][r_idx]:
+                    m_data["overwrites"][f"Y5_M{r_idx}"] = new_y5
+                    m_data["Y5"][r_idx] = new_y5
                     has_changed = True
 
             if has_changed:

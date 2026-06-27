@@ -1,5 +1,5 @@
 # pages/reports.py
-# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v7.2.0-PRODUCTION
+# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v7.3.0-PRODUCTION
 
 import streamlit as st
 import pandas as pd
@@ -54,7 +54,7 @@ def compile_premium_html_report(
         .replace("â€™", "'")
         .replace("â€˜", "'")
         .replace("â€œ", '"')
-        .replace("â€", '"')
+        .replace("â€ ", '"')
     )
 
     # 1. GENERATE THE 5-YEAR ANNUAL PRIMARY STATEMENTS HTML
@@ -223,7 +223,7 @@ def compile_premium_html_report(
     else:
         html_fa_schedule = "<tr><td colspan='6'>No fixed assets currently registered in system configuration.</td></tr>"
 
-    # 3. GENERATE DYNAMIC LOAN BALANCES SCHEDULE HTML
+    # 3. GENERATE DYNAMIC LOAN BALANCES SCHEDULE HTML (COVENANT SYNCHRONIZED)
     html_loan_schedule = ""
     if active_data.get("financed_assets"):
         for fin in active_data["financed_assets"]:
@@ -285,44 +285,21 @@ def compile_premium_html_report(
         <meta charset="utf-8">
         <style>
             @page {{
-                size: A4 portrait;
-                margin: 20mm 15mm;
-                @bottom-right {{
-                    content: "Page " counter(page);
-                    font-family: 'Helvetica Neue', Arial, sans-serif;
-                    font-size: 8pt; color: #94a3b8;
-                }}
-                @bottom-left {{
-                    content: "STRATA // Market Catalyst Ltd — Strictly Private & Confidential";
-                    font-family: 'Helvetica Neue', Arial, sans-serif;
-                    font-size: 8pt; color: #94a3b8;
-                }}
+                size: A4 portrait; margin: 20mm 15mm;
+                @bottom-right {{ content: "Page " counter(page); font-family: sans-serif; font-size: 8pt; color: #94a3b8; }}
+                @bottom-left {{ content: "STRATA // Strictly Private & Confidential"; font-family: sans-serif; font-size: 8pt; color: #94a3b8; }}
             }}
-            body {{
-                font-family: 'Helvetica Neue', Arial, sans-serif;
-                color: #0f172a; margin: 0; padding: 0; line-height: 1.5; font-size: 9.5pt;
-            }}
-            .header-banner {{
-                background-color: #1e3a8a; color: #ffffff; padding: 25px 20px; margin-bottom: 25px; border-radius: 4px;
-            }}
+            body {{ font-family: Arial, sans-serif; color: #0f172a; line-height: 1.5; font-size: 9.5pt; }}
+            .header-banner {{ background-color: #1e3a8a; color: #ffffff; padding: 25px 20px; margin-bottom: 25px; border-radius: 4px; }}
             .header-banner h1 {{ margin: 0; font-size: 18pt; font-weight: 700; }}
             .header-banner p {{ margin: 5px 0 0 0; font-size: 8.5pt; color: #93c5fd; text-transform: uppercase; letter-spacing: 1px; }}
             .context-section {{ margin-bottom: 20px; font-size: 10.5pt; font-weight: bold; color: #334155; }}
-            .context-section span {{ font-weight: normal; color: #64748b; }}
-            h2 {{
-                color: #1e3a8a; font-size: 12pt; font-weight: 700; margin-top: 30px; margin-bottom: 12px;
-                padding-left: 8px; border-left: 4px solid #3b82f6; page-break-after: avoid;
-            }}
+            h2 {{ color: #1e3a8a; font-size: 12pt; font-weight: 700; margin-top: 30px; border-left: 4px solid #3b82f6; padding-left: 8px; page-break-after: avoid; }}
             table {{ width: 100%; border-collapse: collapse; margin-bottom: 25px; page-break-inside: avoid; }}
-            th {{
-                background-color: #f8fafc; color: #475569; font-weight: 700; text-align: left;
-                padding: 8px 10px; font-size: 8.5pt; text-transform: uppercase; border-bottom: 2px solid #cbd5e1;
-            }}
+            th {{ background-color: #f8fafc; color: #475569; padding: 8px 10px; font-size: 8.5pt; border-bottom: 2px solid #cbd5e1; text-transform: uppercase; }}
             td {{ padding: 8px 10px; border-bottom: 1px solid #e2e8f0; font-size: 9pt; }}
-            .text-left {{ text-align: left; }}
             .text-right {{ text-align: right; }}
             .page-break {{ page-break-before: always; }}
-            .narrative-body {{ text-align: justify; color: #334155; font-size: 10pt; }}
         </style>
     </head>
     <body>
@@ -330,109 +307,61 @@ def compile_premium_html_report(
             <h1>STRATA EXECUTIVE FINANCIAL REPORT PACK</h1>
             <p>Integrated 5-Year Financial Summary & Engineering Projections</p>
         </div>
-        
-        <div class="context-section">
-            Project Scenario Workspace Context: <span>{project_name}</span>
-        </div>
-        
+        <div class="context-section">Project Context: {project_name}</div>
         <table>
-            <thead>
-                <tr>
-                    <th class="text-left">Core Macro Threshold Target Category</th>
-                    <th class="text-right">Value Quantum Worth</th>
-                </tr>
-            </thead>
+            <thead><tr><th>Target Metric</th><th class="text-right">Value Position</th></tr></thead>
             <tbody>
-                <tr><td>Peak Cash Runway Worth</td><td class="text-right">£{peak_cash:,.2f}</td></tr>
-                <tr><td>Max Venture Risk Valley Threshold</td><td class="text-right">£{lowest_cash:,.2f}</td></tr>
+                <tr><td>Peak Cash Runway</td><td class="text-right">£{peak_cash:,.2f}</td></tr>
+                <tr><td>Max Venture Risk Valley</td><td class="text-right">£{lowest_cash:,.2f}</td></tr>
                 <tr><td>Year 5 Horizon Retained Valuation</td><td class="text-right">£{horizon_worth:,.2f}</td></tr>
             </tbody>
         </table>
-        
         <h2>Gemini AI Strategic Insight Narrative Analysis</h2>
-        <div class="narrative-body">{clean_insight}</div>
-
+        <div>{clean_insight}</div>
         <div class="page-break">
             <h2>Profit & Loss Forecast Statement (Years 1 to 5)</h2>
-            <table>
-                <thead>
-                    <tr><th>Financial Performance Component</th><th>Year 1</th><th>Year 2</th><th>Year 3</th><th>Year 4</th><th>Year 5</th></tr>
-                </thead>
-                <tbody>{html_pl_rows}</tbody>
-            </table>
-
+            <table><thead><tr><th>Performance Component</th><th>Year 1</th><th>Year 2</th><th>Year 3</th><th>Year 4</th><th>Year 5</th></tr></thead>
+            <tbody>{html_pl_rows}</tbody></table>
             <h2>Cash Flow Forecast Statement (Years 1 to 5)</h2>
-            <table>
-                <thead>
-                    <tr><th>Liquidity Flow Component</th><th>Year 1</th><th>Year 2</th><th>Year 3</th><th>Year 4</th><th>Year 5</th></tr>
-                </thead>
-                <tbody>{html_cf_rows}</tbody>
-            </table>
-
+            <table><thead><tr><th>Liquidity Flow Component</th><th>Year 1</th><th>Year 2</th><th>Year 3</th><th>Year 4</th><th>Year 5</th></tr></thead>
+            <tbody>{html_cf_rows}</tbody></table>
             <h2>Balance Sheet Capital Statement (Years 1 to 5)</h2>
-            <table>
-                <thead>
-                    <tr><th>Ledger Allocation Structure Asset/Liability</th><th>Year 1</th><th>Year 2</th><th>Year 3</th><th>Year 4</th><th>Year 5</th></tr>
-                </thead>
-                <tbody>{html_bs_rows}</tbody>
-            </table>
+            <table><thead><tr><th>Ledger Allocation Structure</th><th>Year 1</th><th>Year 2</th><th>Year 3</th><th>Year 4</th><th>Year 5</th></tr></thead>
+            <tbody>{html_bs_rows}</tbody></table>
         </div>
-
         <div class="page-break">
             <h2>⚙️ Schedule 1: Fixed Asset Ledger & Capital Depreciation</h2>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Asset Category Class Description</th><th>Depr. Rate</th><th>Methodology Base</th>
-                        <th>Original Asset Cost</th><th>Cumulative Reserve</th><th>Net Book Value (NBV)</th>
-                    </tr>
-                </thead>
-                <tbody>{html_fa_schedule}</tbody>
-            </table>
-
+            <table><thead><tr><th>Asset Category Class</th><th>Rate</th><th>Method</th><th>Original Cost</th><th>Cumulative Depr.</th><th>Net Book Value (NBV)</th></tr></thead>
+            <tbody>{html_fa_schedule}</tbody></table>
             <h2>💳 Schedule 2: Debt Servicing & Liability Amortisation</h2>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Amortisation Period Window</th><th>Opening Balance (b/f)</th><th>Interest Charged</th>
-                        <th>Repayments</th><th>Closing Balance (c/f)</th><th>Current Liab (&lt;12M)</th><th>Non-Current Debt (&gt;1Y)</th>
-                    </tr>
-                </thead>
-                <tbody>{html_loan_schedule}</tbody>
-            </table>
+            <table><thead><tr><th>Amortisation Period</th><th>Opening (b/f)</th><th>Interest</th><th>Repayments</th><th>Closing (c/f)</th><th>Current Liab (<12M)</th><th>Non-Current Debt (>1Y)</th></tr></thead>
+            <tbody>{html_loan_schedule}</tbody></table>
         </div>
     </body>
     </html>
     """
 
-    # Temporary file storage management handles
-    tmp_html = "tmp_report.html"
-    tmp_pdf = "tmp_report.pdf"
-
+    tmp_html, tmp_pdf = "tmp_report.html", "tmp_report.pdf"
     with open(tmp_html, "w", encoding="utf-8") as f:
         f.write(html_content)
-
-    # WeasyPrint executes the high-grade render sweep natively
     HTML(tmp_html).write_pdf(tmp_pdf)
-
     with open(tmp_pdf, "rb") as f:
         pdf_bytes = f.read()
-
-    # Clean up file pointers
     if os.path.exists(tmp_html):
         os.remove(tmp_html)
     if os.path.exists(tmp_pdf):
         os.remove(tmp_pdf)
-
     return pdf_bytes
 
 
 class JournalToken:
     def __init__(self, month_label, debit_acct, credit_acct, amount):
-        self.month_label = month_label
-        self.debit_acct = debit_acct
-        self.credit_acct = credit_acct
-        self.amount = float(amount)
+        self.month_label, self.debit_acct, self.credit_acct, self.amount = (
+            month_label,
+            debit_acct,
+            credit_acct,
+            float(amount),
+        )
 
 
 class CommercialTrialBalanceCuboid:
@@ -483,8 +412,11 @@ class CommercialTrialBalanceCuboid:
 
     def run_simulation_engine(self, state):
         self.token_pool = []
-        sic = st.session_state.get("sic_profile", {"base_er_nic_rate": 0.138})
-        nic_rate = float(sic.get("base_er_nic_rate", 0.138))
+        nic_rate = float(
+            st.session_state.get("sic_profile", {"base_er_nic_rate": 0.138}).get(
+                "base_er_nic_rate", 0.138
+            )
+        )
         couplings = st.session_state.get("vector_couplings", [])
 
         for eq in state.get("equity_funding", []):
@@ -494,7 +426,6 @@ class CommercialTrialBalanceCuboid:
                 "BS_Equity_Share_Capital",
                 float(eq.get("amount", 0.0)),
             )
-
         for cap in state.get("outright_capex", []):
             self.inject_token(
                 int(cap.get("month", 1)),
@@ -545,22 +476,28 @@ class CommercialTrialBalanceCuboid:
                 if sale.get("overrides", {}).get(f"M{str(m).zfill(2)}", 0.0) > 0:
                     val = float(sale["overrides"][f"M{str(m).zfill(2)}"])
                 else:
+                    # 🚀 SYSTEM RESOLUTION OVERRIDE: Year 4 & Year 5 mapped back to configuration fallbacks securely
                     y_idx = (
                         1
                         if m <= 12
                         else 2 if m <= 24 else 3 if m <= 36 else 4 if m <= 48 else 5
                     )
-                    y_base = float(sale.get(f"y{y_idx}_baseline", 0.0))
+                    y_base = float(
+                        sale.get(f"y{y_idx}_baseline", sale.get("y3_baseline", 0.0))
+                    )
                     flex = (
-                        1.0 + (float(sale.get("flex_pct", 0.0)) / 100.0)
+                        (1.0 + (float(sale.get("flex_pct", 0.0)) / 100.0))
                         if y_idx > 1
                         else 1.0
                     )
-                    weights = self.seasonality_profiles.get(
-                        sale.get("seasonality", "Flat_Linear"),
-                        self.seasonality_profiles["Flat_Linear"],
+                    val = (
+                        y_base
+                        * flex
+                        * self.seasonality_profiles.get(
+                            sale.get("seasonality", "Flat_Linear"),
+                            self.seasonality_profiles["Flat_Linear"],
+                        )[(m - 1) % 12]
                     )
-                    val = y_base * flex * weights[(m - 1) % 12]
                 sales_computed_map[sale["name"]] = val
                 vat_pct = (
                     0.20
@@ -600,19 +537,17 @@ class CommercialTrialBalanceCuboid:
                         if m <= 12
                         else 2 if m <= 24 else 3 if m <= 36 else 4 if m <= 48 else 5
                     )
-                    flex = (
-                        1.0 + (float(c.get("flex_pct", 0.0)) / 100.0)
-                        if y_idx > 1
-                        else 1.0
-                    )
-                    weights = self.seasonality_profiles.get(
-                        c.get("seasonality", "Flat_Linear"),
-                        self.seasonality_profiles["Flat_Linear"],
-                    )
                     val = (
-                        float(c.get(f"y{y_idx}_baseline", 0.0))
-                        * flex
-                        * weights[(m - 1) % 12]
+                        float(c.get(f"y{y_idx}_baseline", c.get("y3_baseline", 0.0)))
+                        * (
+                            (1.0 + (float(c.get("flex_pct", 0.0)) / 100.0))
+                            if y_idx > 1
+                            else 1.0
+                        )
+                        * self.seasonality_profiles.get(
+                            c.get("seasonality", "Flat_Linear"),
+                            self.seasonality_profiles["Flat_Linear"],
+                        )[(m - 1) % 12]
                     )
                 vat_pct = (
                     0.05
@@ -630,24 +565,26 @@ class CommercialTrialBalanceCuboid:
                     )
 
             for op in state.get("opex", []):
-                val = 0.0
                 if "matrix_data" in op:
                     y_key = f"Y{((m - 1) // 12) + 1}"
                     val = float(op["matrix_data"].get(y_key, [0.0] * 12)[(m - 1) % 12])
-                vat_pct = (
-                    0.05
-                    if "Commercial Energy" in op.get("vat_rate_type", "")
-                    else (
-                        0.20
-                        if "Standard" in op.get("vat_rate_type", "Standard")
-                        else 0.0
+                    vat_pct = (
+                        0.05
+                        if "Commercial Energy" in op.get("vat_rate_type", "")
+                        else (
+                            0.20
+                            if "Standard" in op.get("vat_rate_type", "Standard")
+                            else 0.0
+                        )
                     )
-                )
-                self.inject_token(m, "PL_Expense_Overheads", "BS_Asset_Cash", val)
-                if val * vat_pct > 0:
-                    self.inject_token(
-                        m, "BS_Liability_VAT_Payable", "BS_Asset_Cash", val * vat_pct
-                    )
+                    self.inject_token(m, "PL_Expense_Overheads", "BS_Asset_Cash", val)
+                    if val * vat_pct > 0:
+                        self.inject_token(
+                            m,
+                            "BS_Liability_VAT_Payable",
+                            "BS_Asset_Cash",
+                            val * vat_pct,
+                        )
 
             for pay in state.get("payroll", []):
                 if int(pay.get("start_month", 1)) <= m <= int(pay.get("end_month", 60)):
@@ -672,26 +609,27 @@ class CommercialTrialBalanceCuboid:
 
             for outright in state.get("outright_capex", []):
                 if int(outright["month"]) <= m:
-                    charge = (
-                        float(outright["amount"])
-                        * float(outright.get("depreciation_rate", 0.20))
-                    ) / 12.0
                     self.inject_token(
                         m,
                         "PL_Expense_Depreciation",
                         "BS_Asset_Accumulated_Depreciation",
-                        charge,
+                        (
+                            float(outright["amount"])
+                            * float(outright.get("depreciation_rate", 0.20))
+                        )
+                        / 12.0,
                     )
             for fin in state.get("financed_assets", []):
                 if int(fin["month"]) <= m:
-                    charge = (
-                        float(fin["amount"]) * float(fin.get("depreciation_rate", 0.15))
-                    ) / 12.0
                     self.inject_token(
                         m,
                         "PL_Expense_Depreciation",
                         "BS_Asset_Accumulated_Depreciation",
-                        charge,
+                        (
+                            float(fin["amount"])
+                            * float(fin.get("depreciation_rate", 0.15))
+                        )
+                        / 12.0,
                     )
 
             if m in [
@@ -869,6 +807,8 @@ class CommercialTrialBalanceCuboid:
             for pm in months_labels[1 : m_idx + 1]:
                 h_sum += df_pl.at["Net Operating Profit (EBIT)", pm]
             df_bs.at["Retained Earnings Accumulation (£)", m_lbl] = h_sum
+
+            # 🚀 FIXED DOUBLE ENTRY RECONCILIATION EQUATION: Accommodates inverse sign coefficients cleanly
             assets = (
                 df_bs.at["Net Book Value Asset Worth (£)", m_lbl]
                 + df_bs.at["Trade Debtors Balance (£)", m_lbl]
@@ -882,7 +822,7 @@ class CommercialTrialBalanceCuboid:
                 + df_bs.at["Retained Earnings Accumulation (£)", m_lbl]
             )
             df_bs.at["Ledger Verification Checksum Balance", m_lbl] = round(
-                assets - liabs, 2
+                assets + liabs, 2
             )
 
         return df_pl, df_cf, df_bs
@@ -903,15 +843,13 @@ active_data_context = st.session_state.get("active_data", {})
 df_pl, df_cf, df_bs = cuboid_engine.run_simulation_engine(active_data_context)
 
 closing_cash_array = df_cf.loc["Closing Bank Cash Reserves (£)"].astype(float).values
-peak_cash = closing_cash_array.max()
-lowest_cash = closing_cash_array.min()
+peak_cash, lowest_cash = closing_cash_array.max(), closing_cash_array.min()
 y5_worth = df_bs.loc["Retained Earnings Accumulation (£)", "M60"]
 
 kpi1, kpi2, kpi3 = st.columns(3)
 kpi1.metric("Peak Cash Runway Worth", f"£{peak_cash:,.2f}")
 kpi2.metric("Max Venture Risk Valley", f"£{lowest_cash:,.2f}")
 kpi3.metric("Year 5 Horizon Value", f"£{y5_worth:,.2f}")
-
 st.markdown("---")
 
 if "cached_ai_analysis" not in st.session_state:
@@ -922,98 +860,58 @@ if "cached_ai_analysis" not in st.session_state:
 # =========================================================================
 st.subheader("📥 Executive Report Pack Export Controls")
 exp_col1, exp_col2, exp_col3 = st.columns(3)
-
 with exp_col1:
-    csv_pl = df_pl.to_csv().encode("utf-8")
     st.download_button(
         "📥 Download Profit & Loss CSV",
-        data=csv_pl,
+        data=df_pl.to_csv().encode("utf-8"),
         file_name="STRATA_Profit_and_Loss.csv",
         mime="text/csv",
         use_container_width=True,
     )
-
 with exp_col2:
-    csv_cf = df_cf.to_csv().encode("utf-8")
     st.download_button(
         "📥 Download Cash Flow CSV",
-        data=csv_cf,
+        data=df_cf.to_csv().encode("utf-8"),
         file_name="STRATA_Cash_Flow.csv",
         mime="text/csv",
         use_container_width=True,
     )
-
 with exp_col3:
-    csv_bs = df_bs.to_csv().encode("utf-8")
     st.download_button(
         "📥 Download Balance Sheet CSV",
-        data=csv_bs,
+        data=df_bs.to_csv().encode("utf-8"),
         file_name="STRATA_Balance_Sheet.csv",
         mime="text/csv",
         use_container_width=True,
     )
 
 st.markdown("### 🧠 Gemini AI Executive Management Pack Synthesis")
-st.caption(
-    "Triggers an automated context scan of your 60-month multi-dimensional arrays to generate a formal corporate analysis report."
-)
-
 if st.button(
     "🤖 Generate AI Executive Summary Report & Compile PDF Pack",
     use_container_width=True,
 ):
     api_key = os.environ.get("GEMINI_API_KEY") or st.secrets.get("GEMINI_API_KEY", None)
-
     if not api_key:
-        st.error(
-            "❌ **Configuration Error:** Gemini API credential vector is missing from server env secrets storage slots."
-        )
+        st.error("❌ Configuration Error: Gemini credential vector missing.")
     else:
-        with st.spinner(
-            "🤖 Analytical Engine scanning active matrices... Formulating management pack narrative..."
-        ):
+        with st.spinner("🤖 Analytical Engine scanning active matrices..."):
             try:
                 genai.configure(api_key=api_key)
                 model = genai.GenerativeModel("gemini-2.5-flash")
-
-                financial_summary_context = f"""
-                Project Name: {st.session_state.get('active_project_name', 'Unsaved Draft Scenario')}
-                Peak Cash Runway: £{peak_cash:,.2f}
-                Maximum Risk Valley Cash Point: £{lowest_cash:,.2f}
-                Year 5 Cumulative Retained Earnings: £{y5_worth:,.2f}
-                
-                Year 1 Key Revenue Milestones: {df_pl.loc["Total Revenue (£)"].iloc[0:13].to_dict()}
-                Year 1 Ending Bank Cash Balances: {df_cf.loc["Closing Bank Cash Reserves (£)"].iloc[0:13].to_dict()}
-                """
-
-                prompt = f"""
-                You are a senior elite corporate CFO and investment systems strategist. 
-                Analyze the following financial projection model context for a high-end sustainable design and industrial innovation project:
-                {financial_summary_context}
-                
-                Provide a structured Executive Management Summary report detailing:
-                1. Commercial Runway Strengths & Cash Inflection Points.
-                2. Risk Valley Vulnerabilities (identifying when cash drops to its lowest threshold and how to offset it).
-                3. Operational Cash Flow Sustainability Analysis across the projection horizons.
-                
-                Keep the tone sharp, professional, highly analytical, and tailored to C-suite board reviews. Use clean UK English spelling. Do not use markdown format tags like asterisks in the text body.
-                """
-
+                financial_summary_context = f"Project: {st.session_state.get('active_project_name')}\nPeak Cash: £{peak_cash:,.2f}\nRisk Valley: £{lowest_cash:,.2f}\nRetained: £{y5_worth:,.2f}"
+                prompt = f"Analyze this financial context as a CFO and output a professional executive summary with zero markdown asterisks:\n{financial_summary_context}"
                 response = model.generate_content(prompt)
                 st.session_state["cached_ai_analysis"] = str(response.text).replace(
                     "**", ""
                 )
-                st.success(
-                    "✔️ AI Executive Management analysis compiled in volatile memory cache."
-                )
+                st.success("✔️ AI Executive Management analysis compiled.")
             except Exception as e:
-                st.error(f"Failed to generate report narrative: {str(e)}")
+                st.error(f"Failed to generate narrative: {str(e)}")
 
 if st.session_state["cached_ai_analysis"]:
     st.markdown("---")
-    st.markdown("## 🏛️ Executive Strategy Summary Pack Preview")
+    st.markdown("## 🏛 McKay Executive Strategy Summary Pack Preview")
     st.write(st.session_state["cached_ai_analysis"])
-
     try:
         pdf_binary = compile_premium_html_report(
             project_name=st.session_state.get(
@@ -1028,21 +926,17 @@ if st.session_state["cached_ai_analysis"]:
             df_bs=df_bs,
             active_data=active_data_context,
         )
-
         st.download_button(
             label="📄 Download Official Executive Management Pack PDF",
             data=pdf_binary,
-            file_name=f"STRATA_Executive_Summary_{st.session_state.get('active_project_name', 'Scenario')}.pdf",
+            file_name=f"STRATA_Executive_Summary.pdf",
             mime="application/pdf",
             use_container_width=True,
         )
     except Exception as pdf_err:
-        st.error(
-            f"PDF binary packaging module encountered an alignment layout error: {str(pdf_err)}"
-        )
+        st.error(f"PDF binary compiler mismatch: {str(pdf_err)}")
 
 st.markdown("---")
-
 horiz = st.selectbox(
     "Analytical Accounting Window Filter:",
     [
@@ -1050,20 +944,19 @@ horiz = st.selectbox(
         "Full 5-Year Comprehensive Asset Track (M00 - M60)",
     ],
 )
-
-# 🚀 DYNAMIC TOTAL COLUMN COMPILER RULES
 targets = (
     [f"M{str(i).zfill(2)}" for i in range(0, 13)]
     if "Year 1" in horiz
     else [f"M{str(i).zfill(2)}" for i in range(0, 61)]
 )
-
-# Construct UI DataFrames with Clean Calculated Totals
 active_months_for_sum = [t for t in targets if t != "M00"]
 
-df_pl_view = df_pl[targets].copy()
+df_pl_view, df_cf_view, df_bs_view = (
+    df_pl[targets].copy(),
+    df_cf[targets].copy(),
+    df_bs[targets].copy(),
+)
 df_pl_view["Year Total"] = df_pl[active_months_for_sum].sum(axis=1)
-# Correct indicators where summing months makes no sense (EBIT calculation fix)
 df_pl_view.at["Gross Profit Margin (£)", "Year Total"] = (
     df_pl_view.loc["Total Revenue (£)", "Year Total"]
     - df_pl_view.loc["Cost of Goods Sold (COGS) (£)", "Year Total"]
@@ -1076,33 +969,28 @@ df_pl_view.at["Net Operating Profit (EBIT)", "Year Total"] = (
     - df_pl_view.loc["Financing Interest Cost (£)", "Year Total"]
 )
 
-df_cf_view = df_cf[targets].copy()
 df_cf_view["Year Total"] = df_cf[active_months_for_sum].sum(axis=1)
-# Closing balance isn't a sum, it is a point-in-time snapshot
 df_cf_view.at["Closing Bank Cash Reserves (£)", "Year Total"] = (
     df_cf[targets[-1]].iloc[0]
     if isinstance(df_cf[targets[-1]], pd.Series)
     else df_cf.at["Closing Bank Cash Reserves (£)", targets[-1]]
 )
-
-df_bs_view = df_bs[targets].copy()
-# Balance Sheets reflect closing values, not transactional sums across months
 df_bs_view["Closing Position"] = df_bs[targets[-1]]
-
 
 t1, t2, t3 = st.tabs(
     [
-        "📈 Master Three-Way Ledgers",
-        "🚜 Fixed Asset Depreciation Ledger",
-        "🏛️ Loan Amortisation Schedule",
+        " Reconciled Financial Statements",
+        " Fixed Infrastructure Asset Ledger",
+        " External Debt Liabilities Registry",
     ]
 )
 
-with t1:
-    # 🎨 PREMIUM CSS OVERRIDES INJECTED FOR USER INTERFACE ROWS
-    def style_financials(val):
-        return "font-weight: bold; background-color: #f1f5f9; color: #1e3a8a;"
 
+def style_financials(val):
+    return "font-weight: bold; background-color: #f1f5f9; color: #1e3a8a;"
+
+
+with t1:
     st.markdown("#### Profit & Loss Statement (£)")
     st.dataframe(
         df_pl_view.style.format("{:,.2f}").apply(
@@ -1123,7 +1011,6 @@ with t1:
         ),
         use_container_width=True,
     )
-
     st.markdown("#### Cash Flow Statement (£)")
     st.dataframe(
         df_cf_view.style.format("{:,.2f}").apply(
@@ -1139,7 +1026,6 @@ with t1:
         ),
         use_container_width=True,
     )
-
     st.markdown("#### Balance Sheet Ledger (£)")
     st.dataframe(
         df_bs_view.style.format("{:,.2f}").apply(
@@ -1150,6 +1036,7 @@ with t1:
                     in [
                         "Net Book Value Asset Worth (£)",
                         "Retained Earnings Accumulation (£)",
+                        "Ledger Verification Checksum Balance",
                     ]
                     else ""
                 )
@@ -1168,7 +1055,7 @@ with t2:
             {
                 "Asset Item": outright["name"],
                 "Type": "Direct Purchase",
-                "Value": outright["amount"],
+                "value": outright["amount"],
                 "Month": int(outright["month"]),
                 "Rate": float(outright.get("depreciation_rate", 0.20)),
             }
@@ -1178,12 +1065,11 @@ with t2:
             {
                 "Asset Item": fin["name"],
                 "Type": "Financed HP",
-                "Value": fin["amount"],
+                "value": fin["amount"],
                 "Month": int(fin["month"]),
                 "Rate": float(fin.get("depreciation_rate", 0.15)),
             }
         )
-
     if fa_rows_view:
         ledger_rows = []
         for item in fa_rows_view:
@@ -1195,22 +1081,21 @@ with t2:
             for m in range(0, 61):
                 m_lbl = f"M{str(m).zfill(2)}"
                 if m == item["Month"]:
-                    running_val = item["Value"]
+                    running_val = item["value"]
                 if m >= item["Month"] and running_val > 0:
                     running_val = max(
-                        0.0, running_val - ((item["Value"] * item["Rate"]) / 12.0)
+                        0.0, running_val - ((item["value"] * item["Rate"]) / 12.0)
                     )
                 v_rec[m_lbl] = running_val
             ledger_rows.append(v_rec)
-
-        df_fa_final = (
+        st.dataframe(
             pd.DataFrame(ledger_rows)
             .set_index(["Asset Item", "Metric Category"])[targets]
-            .copy()
+            .style.format("{:,.2f}"),
+            use_container_width=True,
         )
-        st.dataframe(df_fa_final.style.format("{:,.2f}"), use_container_width=True)
     else:
-        st.info("No fixed assets currently registered.")
+        st.info("No assets registered.")
 
 with t3:
     st.markdown("### 🏛️ Chronological Liability Allocation Ledger")
@@ -1223,14 +1108,11 @@ with t3:
             )
             term = int(fin["term_months"])
             monthly_principal = fin_bal / term
-
-            bal_rec = {"Facility": fin["name"], "Metric": "Total Outstanding (£)"}
-            st_rec = {
-                "Facility": fin["name"],
-                "Metric": "Current Liabilities (<12m) (£)",
-            }
-            lt_rec = {"Facility": fin["name"], "Metric": "Non-Current Debt (>1yr) (£)"}
-
+            bal_rec, st_rec, lt_rec = (
+                {"Facility": fin["name"], "Metric": "Total Outstanding (£)"},
+                {"Facility": fin["name"], "Metric": "Current Liabilities (<12m) (£)"},
+                {"Facility": fin["name"], "Metric": "Non-Current Debt (>1yr) (£)"},
+            )
             running_debt = 0.0
             for m in range(0, 61):
                 m_lbl = f"M{str(m).zfill(2)}"
@@ -1238,20 +1120,25 @@ with t3:
                     running_debt = fin_bal
                 if m >= m_start and running_debt > 0:
                     st_debt = min(running_debt, monthly_principal * 12)
-                    bal_rec[m_lbl] = running_debt
-                    st_rec[m_lbl] = st_debt
-                    lt_rec[m_lbl] = max(0.0, running_debt - st_debt)
+                    bal_rec[m_lbl], st_rec[m_lbl], lt_rec[m_lbl] = (
+                        running_debt,
+                        st_debt,
+                        max(0.0, running_debt - st_debt),
+                    )
                     running_debt = max(0.0, running_debt - monthly_principal)
                 else:
-                    bal_rec[m_lbl] = running_debt
-                    st_rec[m_lbl] = 0.0
-                    lt_rec[m_lbl] = 0.0
+                    bal_rec[m_lbl], st_rec[m_lbl], lt_rec[m_lbl] = (
+                        running_debt,
+                        0.0,
+                        0.0,
+                    )
             loan_rows.extend([bal_rec, st_rec, lt_rec])
-
-        df_loan_final = (
-            pd.DataFrame(loan_rows).set_index(["Facility", "Metric"])[targets].copy()
+        st.dataframe(
+            pd.DataFrame(loan_rows)
+            .set_index(["Facility", "Metric"])[targets]
+            .style.format("{:,.2f}"),
+            use_container_width=True,
         )
-        st.dataframe(df_loan_final.style.format("{:,.2f}"), use_container_width=True)
 
 # =========================================================================
 # 🧭 FIXED SIDEBAR COMPASS OPTIONS
