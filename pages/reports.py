@@ -1,5 +1,5 @@
 # pages/reports.py
-# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v7.3.0-PRODUCTION
+# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v7.3.5-PRODUCTION
 
 import streamlit as st
 import pandas as pd
@@ -221,9 +221,9 @@ def compile_premium_html_report(
             </tr>
             """
     else:
-        html_fa_schedule = "<tr><td colspan='6'>No fixed assets currently registered in system configuration.</td></tr>"
+        html_fa_schedule = "<tr><td colspan='6'>No fixed assets registered.</td></tr>"
 
-    # 3. GENERATE DYNAMIC LOAN BALANCES SCHEDULE HTML (COVENANT SYNCHRONIZED)
+    # 3. GENERATE DYNAMIC LOAN BALANCES SCHEDULE HTML
     html_loan_schedule = ""
     if active_data.get("financed_assets"):
         for fin in active_data["financed_assets"]:
@@ -275,7 +275,9 @@ def compile_premium_html_report(
                 </tr>
                 """
     else:
-        html_loan_schedule = "<tr><td colspan='7'>No external commercial debt facilities registered.</td></tr>"
+        html_loan_schedule = (
+            "<tr><td colspan='7'>No debt facilities registered.</td></tr>"
+        )
 
     # COMPLETE GLOBAL SPECIFICATION HTML MARKUP TEMPLATE
     html_content = f"""
@@ -476,7 +478,6 @@ class CommercialTrialBalanceCuboid:
                 if sale.get("overrides", {}).get(f"M{str(m).zfill(2)}", 0.0) > 0:
                     val = float(sale["overrides"][f"M{str(m).zfill(2)}"])
                 else:
-                    # 🚀 SYSTEM RESOLUTION OVERRIDE: Year 4 & Year 5 mapped back to configuration fallbacks securely
                     y_idx = (
                         1
                         if m <= 12
@@ -808,7 +809,6 @@ class CommercialTrialBalanceCuboid:
                 h_sum += df_pl.at["Net Operating Profit (EBIT)", pm]
             df_bs.at["Retained Earnings Accumulation (£)", m_lbl] = h_sum
 
-            # 🚀 FIXED DOUBLE ENTRY RECONCILIATION EQUATION: Accommodates inverse sign coefficients cleanly
             assets = (
                 df_bs.at["Net Book Value Asset Worth (£)", m_lbl]
                 + df_bs.at["Trade Debtors Balance (£)", m_lbl]
@@ -910,7 +910,7 @@ if st.button(
 
 if st.session_state["cached_ai_analysis"]:
     st.markdown("---")
-    st.markdown("## 🏛 McKay Executive Strategy Summary Pack Preview")
+    st.markdown("## 🏛 Executive Strategy Summary Pack Preview")
     st.write(st.session_state["cached_ai_analysis"])
     try:
         pdf_binary = compile_premium_html_report(
@@ -1145,6 +1145,9 @@ with t3:
 # =========================================================================
 st.sidebar.markdown("### Compass Options")
 st.sidebar.page_link("home.py", label="🏠 Home Portal")
+st.sidebar.page_link(
+    "pages/1_Data_Ingestion_Gateway.py", label="📥 Data Ingestion Gateway"
+)
 st.sidebar.page_link("pages/onboarding.py", label="🕸️ Data Input Parameters")
-st.sidebar.page_link("pages/app.py", label="✍️ Data Entry")
+st.sidebar.page_link("pages/app.py", label="✍️ Data Entry Panel")
 st.sidebar.page_link("pages/reports.py", label="📊 Performance Tab")

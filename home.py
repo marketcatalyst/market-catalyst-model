@@ -1,5 +1,5 @@
 # home.py
-# STRATA SUITE ACCESS GATEWAY // MAIN ENTRANCE PORTAL v6.9.5-PRODUCTION
+# STRATA SUITE ACCESS GATEWAY // MAIN ENTRANCE PORTAL v7.3.5-PRODUCTION
 
 import streamlit as st
 import json
@@ -193,30 +193,40 @@ st.info(
     f"💡 **Active Working Blueprint Instance Context:** `{st.session_state.get('active_project_name', 'Unsaved_Draft_Scenario')}`"
 )
 
-col1, col2, col3 = st.columns(3)
+col1, col2, col3, col4 = st.columns(4)
 with col1:
-    st.markdown("### 1️⃣ Data Input Parameters")
+    st.markdown("### 1️⃣ Data Ingestion")
     st.page_link(
-        "pages/onboarding.py",
-        label="🕸️ Open Data Input Parameters",
+        "pages/1_Data_Ingestion_Gateway.py",
+        label="📥 Open Ingestion Gateway",
         use_container_width=True,
     )
 with col2:
-    st.markdown("### 2️⃣ Data Entry")
+    st.markdown("### 2️⃣ Input Parameters")
+    st.page_link(
+        "pages/onboarding.py",
+        label="🕸️ Open Parameters Panel",
+        use_container_width=True,
+    )
+with col3:
+    st.markdown("### 3️⃣ Data Entry Panel")
     st.page_link(
         "pages/app.py", label="✍️ Open Data Entry Panel", use_container_width=True
     )
-with col3:
-    st.markdown("### 3️⃣ Performance Tab")
+with col4:
+    st.markdown("### 4️⃣ Performance Tab")
     st.page_link(
         "pages/reports.py", label="📊 Open Performance Tab", use_container_width=True
     )
 
-# --- RECONCILED UPPER CASE SIDEBAR NAVIGATION MANAGEMENT ---
+# --- RECONCILED NAVIGATION SIDEBAR ---
 st.sidebar.markdown("### Compass Options")
 st.sidebar.page_link("home.py", label="🏠 Home Portal")
+st.sidebar.page_link(
+    "pages/1_Data_Ingestion_Gateway.py", label="📥 Data Ingestion Gateway"
+)
 st.sidebar.page_link("pages/onboarding.py", label="🕸️ Data Input Parameters")
-st.sidebar.page_link("pages/app.py", label="✍️ Data Entry")
+st.sidebar.page_link("pages/app.py", label="✍️ Data Entry Panel")
 st.sidebar.page_link("pages/reports.py", label="📊 Performance Tab")
 
 st.sidebar.markdown("---")

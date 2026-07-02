@@ -1,5 +1,5 @@
 # pages/app.py
-# STRATA SUITE // DATA ENTRY & UPLOAD MASTER CANVAS v7.3.0-PRODUCTION
+# STRATA SUITE // DATA ENTRY & UPLOAD MASTER CANVAS v7.3.5-PRODUCTION
 
 import streamlit as st
 import pandas as pd
@@ -48,7 +48,7 @@ active_sic = st.session_state.get(
     },
 )
 
-st.title("📥 Unstructured Data Upload Gateway")
+st.title("✍️ Granular Core Input Account Categories")
 st.markdown(
     f"🏭 **Active Industry Configuration:** Mapped to Code `{active_sic['sic_code']}` ({active_sic['sector']}) | Default Tax Rule: `{active_sic.get('default_vat_type', 'Standard 20%')}`"
 )
@@ -59,24 +59,20 @@ st.markdown("---")
 
 col_left, col_right = st.columns([7, 5])
 with col_left:
-    st.markdown("### 💡 Data Upload Playbook & System Capabilities")
+    st.markdown("### 💡 Data Operations Playbook")
     st.markdown(
-        "* **Intelligent Scanning:** Drop raw transaction metrics, text-based PDF invoices, or supplier agreements to isolate financial strings instantly.\n"
-        "* **Automated Mapping:** Formulates standalone baseline target profiles for Years 1 through 5, matching your active industrial framework parameters behind the scenes.\n"
-        "* **Predictive Curve Shaping:** Analyses description text syntax to match trading volumes with corresponding business curves (e.g., `Winter_Peak` or `Summer_Peak`)."
+        "* **5-Year Granular Framework:** Data added below directly populates targets across all sixty operating months cleanly.\n"
+        "* **Automated Ingestion Sync:** If you used the Automated Data Ingestion Gateway, verified metrics have already been streamed into these tables below.\n"
+        "* **Month 00 Support:** Use the Funding and CapEx desks to register specific pre-launch setup balances for opening positions."
     )
 
 with col_right:
-    st.markdown("### 🔒 Data Sovereignty & Sandbox Safety")
     st.info(
-        "**Isolated Memory Safeguard:** This page acts strictly as a temporary scratchpad. "
-        "No uploaded files or AI interpretations are written to your permanent database project files. "
-        "You have total control to review, edit, or delete items before officially pushing them into the workspace.",
+        "**System Synchronization Status:** Recalculations trigger dynamically across all primary P&L, Cash Flow, and Balance Sheet statements whenever a row matrix is modified below.",
         icon="🧠",
     )
 
 st.markdown("---")
-st.subheader("✍️ Granular Core Input Account Categories")
 
 # Recompile timeline distribution profiles combining core and custom frameworks
 seasonality_profiles = {
@@ -128,7 +124,7 @@ if "active_data" not in st.session_state:
     }
 
 # =========================================================================
-# ALL 8 SPECIFIC ACCOUNT CATEGORY MANAGEMENT CARDS (5-YEAR ALIGNED)
+# ALL 8 ACCOUNT CARDS
 # =========================================================================
 
 with st.expander("📈 1. THE SALES DRIVER DESK", expanded=False):
@@ -197,7 +193,7 @@ with st.expander("📈 1. THE SALES DRIVER DESK", expanded=False):
         for idx, x in enumerate(st.session_state["active_data"]["sales"]):
             r_col1, r_col2 = st.columns([10, 2])
             r_col1.caption(
-                f"✔ {x['name']} - Y1: £{x['y1_baseline']:,.2f} | Y5: £{x.get('y5_baseline',0.0):,.2f} | Shape: {x['seasonality']}"
+                f"✔ {x['name']} - Y1: £{x['y1_baseline']:,.2f} | Y5: £{x.get('y5_baseline',0.0):,.2f}"
             )
             if r_col2.button("🗑️ Delete", key=f"del_s_{idx}"):
                 st.session_state["active_data"]["sales"].pop(idx)
@@ -243,9 +239,7 @@ with st.expander("💼 2. THE MILESTONE CONTRACT DESK", expanded=False):
     if st.session_state["active_data"].get("milestones"):
         for idx, x in enumerate(st.session_state["active_data"]["milestones"]):
             r_col1, r_col2 = st.columns([10, 2])
-            r_col1.caption(
-                f"✔ Contract: {x['name']} - TCV: £{x['tcv']:,.2f} | Duration: {x['duration']}m"
-            )
+            r_col1.caption(f"✔ Contract: {x['name']} - TCV: £{x['tcv']:,.2f}")
             if r_col2.button("🗑️ Delete", key=f"del_m_{idx}"):
                 st.session_state["active_data"]["milestones"].pop(idx)
                 st.rerun()
@@ -301,9 +295,7 @@ with st.expander("📦 3. THE PRODUCTION COGS DESK", expanded=False):
     if st.session_state["active_data"].get("cogs"):
         for idx, x in enumerate(st.session_state["active_data"]["cogs"]):
             r_col1, r_col2 = st.columns([10, 2])
-            r_col1.caption(
-                f"✔ Direct Cost: {x['name']} - Y1: £{x['y1_baseline']:,.2f} | Y5: £{x.get('y5_baseline',0.0):,.2f}"
-            )
+            r_col1.caption(f"✔ Direct Cost: {x['name']} - Y1: £{x['y1_baseline']:,.2f}")
             if r_col2.button("🗑️ Delete", key=f"del_c_{idx}"):
                 st.session_state["active_data"]["cogs"].pop(idx)
                 st.rerun()
@@ -344,9 +336,7 @@ with st.expander("💸 4. THE GENERAL OVERHEAD CARD", expanded=False):
 
     if st.session_state["active_data"].get("opex"):
         for idx, op in enumerate(st.session_state["active_data"]["opex"]):
-            st.markdown(
-                f"#### 📦 Account Row: **{op['name']}** ({op['vat_rate_type']})"
-            )
+            st.markdown(f"#### 📦 Account Row: **{op['name']}**")
             f_col1, f_col2, f_col3, f_col4 = st.columns(4)
             y2_f = f_col1.number_input(
                 f"Y2 Flex % ({op['name']})",
@@ -408,9 +398,7 @@ with st.expander("💸 4. THE GENERAL OVERHEAD CARD", expanded=False):
             edited_matrix_df = st.data_editor(
                 df_matrix,
                 column_config={
-                    col: st.column_config.NumberColumn(
-                        col, format="£%,.2f", width="medium"
-                    )
+                    col: st.column_config.NumberColumn(col, format="£%,.2f")
                     for col in df_matrix.columns
                 },
                 use_container_width=True,
@@ -449,7 +437,7 @@ with st.expander("💸 4. THE GENERAL OVERHEAD CARD", expanded=False):
                 op["matrix_data"] = m_data
                 st.rerun()
 
-            if st.button(f"🗑️ Delete Account Row: {op['name']}", key=f"del_o_{idx}"):
+            if st.button(f"🗑️ Delete Row: {op['name']}", key=f"del_o_{idx}"):
                 st.session_state["active_data"]["opex"].pop(idx)
                 st.rerun()
 
@@ -463,7 +451,7 @@ with st.expander("🚜 5. THE FINANCED ASSET WIZARD", expanded=False):
             "Asset Procurement Invoice Value (£):", min_value=0.0, step=5000.0
         )
         m_start = st.number_input(
-            "Acquisition Target Deployment Month:", min_value=1, max_value=60, value=1
+            "Acquisition Target Month Index:", min_value=1, max_value=60, value=1
         )
         dp = st.slider("Upfront Deposit Commitment Percentage (%):", 0, 100, 10)
         term = st.number_input(
@@ -503,9 +491,7 @@ with st.expander("🚜 5. THE FINANCED ASSET WIZARD", expanded=False):
     if st.session_state["active_data"].get("financed_assets"):
         for idx, x in enumerate(st.session_state["active_data"]["financed_assets"]):
             r_col1, r_col2 = st.columns([10, 2])
-            r_col1.caption(
-                f"✔ HP Lease: {x['name']} - Worth: £{x['amount']:,.2f} | Term: {x['term_months']}m | Depr: {x['depreciation_rate']*100}%"
-            )
+            r_col1.caption(f"✔ Lease Asset: {x['name']} - Cost: £{x['amount']:,.2f}")
             if r_col2.button("🗑️ Delete", key=f"del_f_{idx}"):
                 st.session_state["active_data"]["financed_assets"].pop(idx)
                 st.rerun()
@@ -520,8 +506,8 @@ with st.expander("🏢 6. THE OUTRIGHT CAPEX CARD", expanded=False):
             "Procurement Invoice Amount Value (£):", min_value=0.0, step=1000.0
         )
         m_buy = st.number_input(
-            "Cash Drawdown Target Execution Month Index:",
-            min_value=1,
+            "Target Execution Month Index (M00 to M60):",
+            min_value=0,
             max_value=60,
             value=1,
         )
@@ -551,7 +537,7 @@ with st.expander("🏢 6. THE OUTRIGHT CAPEX CARD", expanded=False):
         for idx, x in enumerate(st.session_state["active_data"]["outright_capex"]):
             r_col1, r_col2 = st.columns([10, 2])
             r_col1.caption(
-                f"✔ CapEx Outright: {x['name']} - Cost: £{x['amount']:,.2f} | M{x['month']} | Depr: {x['depreciation_rate']*100}%"
+                f"✔ CapEx Outright: {x['name']} - Cost: £{x['amount']:,.2f} | Month: M{x['month']}"
             )
             if r_col2.button("🗑️ Delete", key=f"del_ca_{idx}"):
                 st.session_state["active_data"]["outright_capex"].pop(idx)
@@ -583,7 +569,7 @@ with st.expander("👥 7. THE PERSONNEL HORIZON DESK", expanded=False):
         for idx, x in enumerate(st.session_state["active_data"]["payroll"]):
             r_col1, r_col2 = st.columns([10, 2])
             r_col1.caption(
-                f"✔ Personnel Team: {x['name']} - Headcount: {x['headcount']} | Wage/m: £{x['monthly_wage']:,.2f}"
+                f"✔ Team Row: {x['name']} - Headcount: {x['headcount']} | Wage: £{x['monthly_wage']:,.2f}"
             )
             if r_col2.button("🗑️ Delete", key=f"del_p_{idx}"):
                 st.session_state["active_data"]["payroll"].pop(idx)
@@ -596,7 +582,7 @@ with st.expander("💰 8. THE FUNDING & EQUITY CARD", expanded=False):
             "Liquid Funding Quantum Inflow Amount (£):", min_value=0.0, step=10000.0
         )
         m_land = st.number_input(
-            "Cash Clearing Target Allocation Month Index:",
+            "Cash Clearing Target Allocation Month Index (M00 to M60):",
             min_value=0,
             max_value=60,
             value=0,
@@ -622,6 +608,9 @@ with st.expander("💰 8. THE FUNDING & EQUITY CARD", expanded=False):
 # =========================================================================
 st.sidebar.markdown("### Compass Options")
 st.sidebar.page_link("home.py", label="🏠 Home Portal")
+st.sidebar.page_link(
+    "pages/1_Data_Ingestion_Gateway.py", label="📥 Data Ingestion Gateway"
+)
 st.sidebar.page_link("pages/onboarding.py", label="🕸️ Data Input Parameters")
-st.sidebar.page_link("pages/app.py", label="✍️ Data Entry")
+st.sidebar.page_link("pages/app.py", label="✍️ Data Entry Panel")
 st.sidebar.page_link("pages/reports.py", label="📊 Performance Tab")
