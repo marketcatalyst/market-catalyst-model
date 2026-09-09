@@ -1,5 +1,5 @@
 # pages/1_Data_Ingestion_Gateway.py
-# STRATA SUITE PRODUCTION ENGINE // DATA INGESTION GATEWAY & SANDBOX v7.3.5-PRODUCTION
+# STRATA SUITE PRODUCTION ENGINE // DATA INGESTION GATEWAY & SANDBOX v7.4.1-PRODUCTION
 
 import streamlit as st
 import json
@@ -65,7 +65,7 @@ if "scratchpad_queue" not in st.session_state:
     st.session_state["scratchpad_queue"] = []
 
 # =========================================================================
-# 📂 RESTORED MULTI-FORMAT FILE UPLOADER (PDF, CSV, JPEG, JPG, PNG)
+# 📂 MULTI-FORMAT FILE UPLOADER (PDF, CSV, JPEG, JPG, PNG, TXT)
 # =========================================================================
 st.subheader("📂 Drag and Drop Documents or Scanned Images")
 uploaded_file = st.file_uploader(
@@ -74,12 +74,42 @@ uploaded_file = st.file_uploader(
     key="gateway_document_uploader",
 )
 
+
+def extract_clean_json(text: str):
+    """Safely isolates and parses JSON objects or lists from raw AI responses."""
+    clean_text = text.strip()
+    if clean_text.startswith("```"):
+        clean_text = re.sub(r"^```(?:json)?\s*", "", clean_text, flags=re.IGNORECASE)
+        clean_text = re.sub(r"\s*```$", "", clean_text)
+
+    # 1. First try parsing directly
+    try:
+        return json.loads(clean_text)
+    except json.JSONDecodeError:
+        pass
+
+    # 2. Try locating top-level JSON array
+    array_match = re.search(r"(\[.*\])", clean_text, re.DOTALL)
+    if array_match:
+        try:
+            return json.loads(array_match.group(1))
+        except json.JSONDecodeError:
+            pass
+
+    # 3. Try locating single top-level JSON object
+    obj_match = re.search(r"(\{.*\})", clean_text, re.DOTALL)
+    if obj_match:
+        return json.loads(obj_match.group(1))
+
+    raise ValueError("No valid JSON structure found in cognitive payload.")
+
+
 if uploaded_file is not None:
     if st.button(
         "🪄 Execute Cognitive Document Scan & Parse Vectors", use_container_width=True
     ):
         with st.spinner(
-            "Processing asset layers and structural schemas via Gemini multimodal engine..."
+            "Processing document layers and structural schemas via Gemini multimodal engine..."
         ):
             try:
                 g_key = os.environ.get("GEMINI_API_KEY") or st.secrets.get(
@@ -92,12 +122,9 @@ if uploaded_file is not None:
                 else:
                     genai.configure(api_key=g_key)
 
-                    # Handle file extraction types natively based on extension types
                     file_extension = uploaded_file.name.split(".")[-1].lower()
 
-                    # Prepare the payload for Gemini (supporting text and multimodal image bytes)
                     if file_extension in ["jpeg", "jpg", "png", "pdf"]:
-                        # Read raw binary data directly for image/multimodal processing
                         raw_bytes = uploaded_file.read()
                         mime_type = (
                             f"image/{file_extension}"
@@ -106,23 +133,25 @@ if uploaded_file is not None:
                         )
                         file_payload = [{"mime_type": mime_type, "data": raw_bytes}]
                     else:
-                        # Handle text/csv formats gracefully via string decode channels
                         file_content = uploaded_file.read().decode(
                             "utf-8", errors="ignore"
                         )
                         file_payload = [file_content]
 
-                    # 🚀 SECURE 5-YEAR & MONTH 00 BALANCING SCHEMA INSTRUCTIONS
+                    # 🚀 SECURE 5-YEAR & MONTH 00 MULTI-ROW SCHEMA PROMPT
                     prompt = f"""
-                    You are a professional corporate accounting data extraction engine. Process the attached business data, invoice, statement, image or opening trial balance ledger.
+                    You are a professional corporate accounting data extraction engine. Process the attached business data, financial forecast, statement, image or opening trial balance ledger.
                     
                     CRITICAL DIRECTIONS:
-                    1. If the document represents an opening Trial Balance, setup expenditure, or pre-launch capital infusion meant for Month '00' initialization, you must explicitly assign the starting values to Year 1 ('y1') and flag that it belongs to month index 0.
-                    2. Extract historical baselines or forward projection vectors out to 5 full operating years.
+                    1. Extract ALL primary income statement, direct cost, overhead, capex, and equity line items present in the document.
+                    2. If the document represents an opening Trial Balance, setup expenditure, or pre-launch capital infusion meant for Month '00' initialization, explicitly assign starting values to Year 1 ('y1') and set target_month_index to 0.
+                    3. Extract historical baselines or annual totals for up to 5 operating years ('y1' through 'y5'). If multi-year data is not provided, populate 'y1' with the annual total or run-rate and set y2..y5 to 0.0.
+                    4. Valid 'type' values are strictly: "sales", "cogs", "opex", "equity_funding", or "outright_capex".
                     
-                    Return a valid JSON object matching this schema exactly:
-                    {{
-                        "type": "sales" or "opex" or "equity_funding" or "outright_capex",
+                    Return a valid JSON ARRAY of objects matching this schema exactly:
+                    [
+                      {{
+                        "type": "sales" or "cogs" or "opex" or "equity_funding" or "outright_capex",
                         "name": "Line item identifier name description",
                         "y1": float_value,
                         "y2": float_value,
@@ -131,40 +160,59 @@ if uploaded_file is not None:
                         "y5": float_value,
                         "target_month_index": 0 or 1,
                         "seasonality": "Flat_Linear" or "Winter_Peak" or "Summer_Peak"
-                    }}
+                      }}
+                    ]
                     """
 
-                    # Utilize the standard multimodal text/image model context channel
-                    model = genai.GenerativeModel("gemini-2.5-flash")
+                    # Configure model with explicit application/json MIME-type
+                    model = genai.GenerativeModel(
+                        model_name="gemini-2.5-flash",
+                        generation_config={"response_mime_type": "application/json"},
+                    )
                     response = model.generate_content([prompt] + file_payload)
 
-                    json_match = re.search(r"\{.*\}", response.text, re.DOTALL)
-                    if json_match:
-                        parsed = json.loads(json_match.group(0))
+                    parsed_result = extract_clean_json(response.text)
 
-                        st.session_state["scratchpad_queue"].append(
-                            {
-                                "type": parsed.get("type", "opex"),
-                                "name": f"[AI Scan] {parsed.get('name')}",
-                                "y1": float(parsed.get("y1", 0.0)),
-                                "y2": float(parsed.get("y2", 0.0)),
-                                "y3": float(parsed.get("y3", 0.0)),
-                                "y4": float(parsed.get("y4", 0.0)),
-                                "y5": float(parsed.get("y5", 0.0)),
-                                "target_month_index": int(
-                                    parsed.get("target_month_index", 1)
-                                ),
-                                "seasonality": parsed.get("seasonality", "Flat_Linear"),
-                            }
-                        )
+                    # Normalize parsed result into a list of line items
+                    if isinstance(parsed_result, dict):
+                        items_to_process = [parsed_result]
+                    elif isinstance(parsed_result, list):
+                        items_to_process = parsed_result
+                    else:
+                        items_to_process = []
+
+                    count_added = 0
+                    for item in items_to_process:
+                        if isinstance(item, dict) and "name" in item:
+                            st.session_state["scratchpad_queue"].append(
+                                {
+                                    "type": item.get("type", "opex"),
+                                    "name": f"[AI Scan] {item.get('name')}",
+                                    "y1": float(item.get("y1", 0.0)),
+                                    "y2": float(item.get("y2", 0.0)),
+                                    "y3": float(item.get("y3", 0.0)),
+                                    "y4": float(item.get("y4", 0.0)),
+                                    "y5": float(item.get("y5", 0.0)),
+                                    "target_month_index": int(
+                                        item.get("target_month_index", 1)
+                                    ),
+                                    "seasonality": item.get(
+                                        "seasonality", "Flat_Linear"
+                                    ),
+                                }
+                            )
+                            count_added += 1
+
+                    if count_added > 0:
                         st.toast(
-                            "Document parsed successfully and held in temporary sandbox queue!"
+                            f"Successfully parsed {count_added} line items into sandbox queue!"
                         )
                         st.rerun()
                     else:
-                        st.error(
-                            "AI engine returned unparseable text structuring. Try uploading a cleaner text format."
+                        st.warning(
+                            "AI scan completed but no structured line items were extracted."
                         )
+
             except Exception as e:
                 st.error(f"Cognitive Pipeline Exception Encountered: {str(e)}")
 
@@ -183,7 +231,7 @@ if st.session_state["scratchpad_queue"]:
     cfg = {
         "type": st.column_config.SelectboxColumn(
             "Classification Bucket",
-            options=["sales", "opex", "equity_funding", "outright_capex"],
+            options=["sales", "cogs", "opex", "equity_funding", "outright_capex"],
             width="small",
         ),
         "name": st.column_config.TextColumn("Line Item Identifier", width="large"),
@@ -223,7 +271,6 @@ if st.session_state["scratchpad_queue"]:
             "🚀 Authorize & Commit Staged Vectors to Command Center",
             use_container_width=True,
         ):
-            # Ensure workspace data keys are initialized cleanly
             if "active_data" not in st.session_state:
                 st.session_state["active_data"] = {
                     "sales": [],
@@ -241,7 +288,6 @@ if st.session_state["scratchpad_queue"]:
                 if bucket not in st.session_state["active_data"]:
                     st.session_state["active_data"][bucket] = []
 
-                # Dynamic structural translation dictionary logic routing
                 if bucket == "equity_funding":
                     st.session_state["active_data"]["equity_funding"].append(
                         {
