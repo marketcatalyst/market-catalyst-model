@@ -1,14 +1,22 @@
 # pages/reports.py
-# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v7.4.0-PRODUCTION
-# UPGRADED WITH SAGE WINFORECAST DOUBLE-ENTRY ACCRUAL & CORP TAX ENGINE
+# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v7.5.0-PRODUCTION
+# DYNAMIC REPORTING HORIZON (3-YEAR WINFORECAST BENCHMARK / 5-YEAR STANDARD)
 
 import streamlit as st
 import pandas as pd
 import google.generativeai as genai
 import os
-import weasyprint
+import re
 
-# Enforce strict native sidebar removal
+try:
+    from weasyprint import HTML
+
+    WEASYPRINT_AVAILABLE = True
+except (ImportError, OSError):
+    HTML = None
+    WEASYPRINT_AVAILABLE = False
+
+# Enforce strict native sidebar removal to eliminate duplicates across versions
 st.markdown(
     """
     <style>
@@ -46,6 +54,7 @@ def compile_premium_html_report(
     df_cf,
     df_bs,
     active_data,
+    horizon_years=3,
 ):
     """Generates an executive board-ready HTML template and compiles it to PDF via WeasyPrint."""
 
@@ -57,7 +66,7 @@ def compile_premium_html_report(
         .replace("â€ ", '"')
     )
 
-    years_labels = ["Year 1", "Year 2", "Year 3", "Year 4", "Year 5"]
+    years_labels = [f"Year {i}" for i in range(1, horizon_years + 1)]
     annual_pl_data = {}
     annual_cf_data = {}
     annual_bs_data = {}
@@ -184,6 +193,86 @@ def compile_premium_html_report(
             + "</tr>"
         )
 
+    total_months = horizon_years * 12
+    fa_rows = []
+    for outright in active_data.get("outright_capex", []):
+        fa_rows.append(
+            {
+                "name": outright["name"],
+                "type": "Direct Purchase",
+                "value": float(outright["amount"]),
+                "m": int(outright["month"]),
+                "r": float(outright.get("depreciation_rate", 0.20)),
+                "method": "Straight Line",
+            }
+        )
+    for fin in active_data.get("financed_assets", []):
+        fa_rows.append(
+            {
+                "name": fin["name"],
+                "type": "Financed HP",
+                "value": float(fin["amount"]),
+                "m": int(fin["month"]),
+                "r": float(fin.get("depreciation_rate", 0.15)),
+                "method": "Straight Line",
+            }
+        )
+
+    html_fa_schedule = ""
+    if fa_rows:
+        for item in fa_rows:
+            r_val = item["value"]
+            for m in range(0, total_months + 1):
+                if m >= item["m"] and r_val > 0:
+                    r_val = max(0.0, r_val - ((item["value"] * item["r"]) / 12.0))
+            cum_dep = item["value"] - r_val
+            html_fa_schedule += f"<tr><td><strong>{item['name']}</strong> ({item['type']})</td><td class='text-right'>{int(item['r']*100)}%</td><td>{item['method']}</td><td class='text-right'>£{item['value']:,.2f}</td><td class='text-right'>£{cum_dep:,.2f}</td><td class='text-right'>£{r_val:,.2f}</td></tr>"
+    else:
+        html_fa_schedule = "<tr><td colspan='6'>No fixed assets registered.</td></tr>"
+
+    html_loan_schedule = ""
+    if active_data.get("financed_assets"):
+        for fin in active_data["financed_assets"]:
+            m_start = int(fin["month"])
+            fin_bal = float(fin["amount"]) * (
+                1.0 - (float(fin.get("deposit_pct", 10.0)) / 100.0)
+            )
+            term = int(fin["term_months"])
+            monthly_principal = fin_bal / term
+            html_loan_schedule += f"<tr><th colspan='7' style='background-color:#e2e8f0; color:#1e3a8a;'>Facility: {fin['name']}</th></tr>"
+
+            for yr in range(1, horizon_years + 1):
+                m_yr_start = (yr - 1) * 12 + 1
+                m_yr_end = yr * 12
+                yr_opening = 0.0
+                for m in range(0, m_yr_start):
+                    if m == m_start:
+                        yr_opening = fin_bal
+                    if m >= m_start and m < m_yr_start:
+                        yr_opening = max(0.0, yr_opening - monthly_principal)
+
+                yr_closing = yr_opening
+                st_debt, lt_debt = 0.0, 0.0
+                for m in range(m_yr_start, m_yr_end + 1):
+                    if m >= m_start:
+                        st_debt = min(yr_closing, monthly_principal * 12)
+                        lt_debt = max(0.0, yr_closing - st_debt)
+                        if m <= m_start + term:
+                            yr_closing = max(0.0, yr_closing - monthly_principal)
+
+                interest_est = yr_opening * (
+                    float(fin.get("interest_rate", 5.0)) / 100.0
+                )
+                repay_est = (monthly_principal * 12) if yr_opening > 0 else 0.0
+
+                html_loan_schedule += f"<tr><td><strong>Year {yr}</strong> (M{str(m_yr_start).zfill(2)}-M{str(m_yr_end).zfill(2)})</td><td class='text-right'>£{yr_opening:,.2f}</td><td class='text-right'>£{interest_est:,.2f}</td><td class='text-right'>£{repay_est:,.2f}</td><td class='text-right'>£{yr_closing:,.2f}</td><td class='text-right'>£{st_debt:,.2f}</td><td class='text-right'>£{lt_debt:,.2f}</td></tr>"
+    else:
+        html_loan_schedule = (
+            "<tr><td colspan='7'>No debt facilities registered.</td></tr>"
+        )
+
+    th_years_headers = "".join([f"<th>{y}</th>" for y in years_labels])
+
     html_content = f"""
     <!DOCTYPE html>
     <html>
@@ -211,29 +300,32 @@ def compile_premium_html_report(
     <body>
         <div class="header-banner">
             <h1>STRATA EXECUTIVE FINANCIAL REPORT PACK</h1>
-            <p>Statutory Integrated 5-Year Financial Summary & Engineering Projections</p>
+            <p>Statutory Integrated {horizon_years}-Year Financial Summary & Engineering Projections</p>
         </div>
-        <div class="context-section">Project Context: {project_name}</div>
+        <div class="context-section">Project Context: {project_name} | Accounting Horizon: {horizon_years} Operating Years ({total_months} Months)</div>
         <table>
             <thead><tr><th>Target Metric</th><th class="text-right">Value Position</th></tr></thead>
             <tbody>
                 <tr><td>Peak Cash Runway</td><td class="text-right">£{peak_cash:,.2f}</td></tr>
                 <tr><td>Max Venture Risk Valley</td><td class="text-right">£{lowest_cash:,.2f}</td></tr>
-                <tr><td>Year 5 Horizon Retained Valuation</td><td class="text-right">£{horizon_worth:,.2f}</td></tr>
+                <tr><td>Year {horizon_years} Horizon Retained Valuation</td><td class="text-right">£{horizon_worth:,.2f}</td></tr>
             </tbody>
         </table>
-        <h2>Strategic Narrative Analysis</h2>
+        <h2>Gemini AI Strategic Insight Narrative Analysis</h2>
         <div>{clean_insight}</div>
         <div class="page-break">
-            <h2>Profit & Loss Forecast Statement (Years 1 to 5)</h2>
-            <table><thead><tr><th>Performance Component</th><th>Year 1</th><th>Year 2</th><th>Year 3</th><th>Year 4</th><th>Year 5</th></tr></thead>
-            <tbody>{html_pl_rows}</tbody></table>
-            <h2>Cash Flow Forecast Statement (Years 1 to 5)</h2>
-            <table><thead><tr><th>Liquidity Flow Component</th><th>Year 1</th><th>Year 2</th><th>Year 3</th><th>Year 4</th><th>Year 5</th></tr></thead>
-            <tbody>{html_cf_rows}</tbody></table>
-            <h2>Balance Sheet Capital Statement (Years 1 to 5)</h2>
-            <table><thead><tr><th>Ledger Allocation Structure</th><th>Year 1</th><th>Year 2</th><th>Year 3</th><th>Year 4</th><th>Year 5</th></tr></thead>
-            <tbody>{html_bs_rows}</tbody></table>
+            <h2>Profit & Loss Forecast Statement (Years 1 to {horizon_years})</h2>
+            <table><thead><tr><th>Performance Component</th>{th_years_headers}</tr></thead><tbody>{html_pl_rows}</tbody></table>
+            <h2>Cash Flow Forecast Statement (Years 1 to {horizon_years})</h2>
+            <table><thead><tr><th>Liquidity Flow Component</th>{th_years_headers}</tr></thead><tbody>{html_cf_rows}</tbody></table>
+            <h2>Balance Sheet Capital Statement (Years 1 to {horizon_years})</h2>
+            <table><thead><tr><th>Ledger Allocation Structure</th>{th_years_headers}</tr></thead><tbody>{html_bs_rows}</tbody></table>
+        </div>
+        <div class="page-break">
+            <h2>⚙️ Schedule 1: Fixed Asset Ledger & Capital Depreciation</h2>
+            <table><thead><tr><th>Asset Category Class</th><th>Rate</th><th>Method</th><th>Original Cost</th><th>Cumulative Depr.</th><th>Net Book Value (NBV)</th></tr></thead><tbody>{html_fa_schedule}</tbody></table>
+            <h2>💳 Schedule 2: Debt Servicing & Liability Amortisation</h2>
+            <table><thead><tr><th>Amortisation Period</th><th>Opening (b/f)</th><th>Interest</th><th>Repayments</th><th>Closing (c/f)</th><th>Current Liab (<12M)</th><th>Non-Current Debt (>1Y)</th></tr></thead><tbody>{html_loan_schedule}</tbody></table>
         </div>
     </body>
     </html>
@@ -242,7 +334,7 @@ def compile_premium_html_report(
     tmp_html, tmp_pdf = "tmp_report.html", "tmp_report.pdf"
     with open(tmp_html, "w", encoding="utf-8") as f:
         f.write(html_content)
-    weasyprint.HTML(tmp_html).write_pdf(tmp_pdf)
+    HTML(tmp_html).write_pdf(tmp_pdf)
     with open(tmp_pdf, "rb") as f:
         pdf_bytes = f.read()
     if os.path.exists(tmp_html):
@@ -266,8 +358,9 @@ class JournalToken:
 
 
 class CommercialTrialBalanceCuboid:
-    def __init__(self):
-        self.months = [f"M{str(i).zfill(2)}" for i in range(0, 61)]
+    def __init__(self, horizon_months=36):
+        self.horizon_months = horizon_months
+        self.months = [f"M{str(i).zfill(2)}" for i in range(0, self.horizon_months + 1)]
         self.seasonality_profiles = {
             "Flat_Linear": [1 / 12] * 12,
             "Winter_Peak": [
@@ -305,7 +398,7 @@ class CommercialTrialBalanceCuboid:
         self.token_pool = []
 
     def inject_token(self, month_idx, debit_acct, credit_acct, amount):
-        if amount <= 0.001 or month_idx < 0 or month_idx > 60:
+        if amount <= 0.001 or month_idx < 0 or month_idx > self.horizon_months:
             return
         self.token_pool.append(
             JournalToken(f"M{str(month_idx).zfill(2)}", debit_acct, credit_acct, amount)
@@ -315,19 +408,13 @@ class CommercialTrialBalanceCuboid:
         self.token_pool = []
         sic = st.session_state.get("sic_profile", {})
         nic_rate = float(sic.get("base_er_nic_rate", 0.138))
-        corp_tax_rate = float(
-            sic.get("corp_tax_rate", 0.19)
-        )  # Default 19% small profits rate
-        supplier_credit_days = int(
-            sic.get("supplier_credit_days", 30)
-        )  # Default 30-day supplier credit
-        vat_settle_offset = int(
-            sic.get("vat_stagger_offset", 1)
-        )  # 1 = Month 5/8/11 (stagger group 1)
+        corp_tax_rate = float(sic.get("corp_tax_rate", 0.19))
+        supplier_credit_days = int(sic.get("supplier_credit_days", 30))
+        vat_settle_offset = int(sic.get("vat_stagger_offset", 1))
 
         couplings = st.session_state.get("vector_couplings", [])
 
-        # 1. Opening Equity & Fixed Assets (Month 00 capable)
+        # 1. Opening Equity & Fixed Assets
         for eq in state.get("equity_funding", []):
             self.inject_token(
                 int(eq.get("month", 0)),
@@ -335,7 +422,6 @@ class CommercialTrialBalanceCuboid:
                 "BS_Equity_Share_Capital",
                 float(eq.get("amount", 0.0)),
             )
-
         for cap in state.get("outright_capex", []):
             self.inject_token(
                 int(cap.get("month", 1)),
@@ -364,7 +450,7 @@ class CommercialTrialBalanceCuboid:
                 monthly_p_base = financed_balance / term
                 for t in range(1, term + 1):
                     m_curr = m_start + t
-                    if m_curr > 60:
+                    if m_curr > self.horizon_months:
                         break
                     interest_charge = (
                         financed_balance - (monthly_p_base * (t - 1))
@@ -379,14 +465,15 @@ class CommercialTrialBalanceCuboid:
                         m_curr, "PL_Expense_Interest", "BS_Asset_Cash", interest_charge
                     )
 
-        # 2. Chronological Monthly Transaction Loop (M01 to M60)
-        annual_taxable_profits = {1: 0.0, 2: 0.0, 3: 0.0, 4: 0.0, 5: 0.0}
+        # 2. Chronological Monthly Loop
+        horizon_years = self.horizon_months // 12
+        annual_taxable_profits = {yr: 0.0 for yr in range(1, horizon_years + 1)}
 
-        for m in range(1, 61):
+        for m in range(1, self.horizon_months + 1):
             yr_idx = ((m - 1) // 12) + 1
             sales_computed_map = {}
 
-            # --- SALES / REVENUE ENGINE ---
+            # Revenue
             for sale in state.get("sales", []):
                 val = 0.0
                 if sale.get("overrides", {}).get(f"M{str(m).zfill(2)}", 0.0) > 0:
@@ -426,7 +513,7 @@ class CommercialTrialBalanceCuboid:
                     val * (1.0 + vat_pct),
                 )
 
-            # --- COGS / DIRECT PRODUCTION COSTS ---
+            # COGS
             for c in state.get("cogs", []):
                 val = 0.0
                 matched_coupling = next(
@@ -465,8 +552,6 @@ class CommercialTrialBalanceCuboid:
                     )
                 )
 
-                # WinForecast Working Capital: Direct costs flow through Trade Creditors with 30-day lag
-                # (Staff costs paid in current month, goods purchases lagged)
                 is_staff = "staff" in c.get("name", "").lower()
                 creditor_lag = (
                     0 if is_staff else (1 if supplier_credit_days >= 30 else 0)
@@ -489,7 +574,7 @@ class CommercialTrialBalanceCuboid:
                     val * (1.0 + vat_pct),
                 )
 
-            # --- OPEX / GENERAL OVERHEADS ---
+            # OPEX
             for op in state.get("opex", []):
                 if "matrix_data" in op:
                     y_key = f"Y{yr_idx}"
@@ -504,7 +589,6 @@ class CommercialTrialBalanceCuboid:
                         )
                     )
 
-                    # 30-day supplier credit lag for overheads (matches WinForecast)
                     self.inject_token(
                         m, "PL_Expense_Overheads", "BS_Liability_Trade_Creditors", val
                     )
@@ -522,13 +606,16 @@ class CommercialTrialBalanceCuboid:
                         val * (1.0 + vat_pct),
                     )
 
-            # --- PAYROLL / STAFF OVERHEADS ---
+            # Payroll
             for pay in state.get("payroll", []):
-                if int(pay.get("start_month", 1)) <= m <= int(pay.get("end_month", 60)):
+                if (
+                    int(pay.get("start_month", 1))
+                    <= m
+                    <= min(int(pay.get("end_month", 60)), self.horizon_months)
+                ):
                     gross_pool = int(pay.get("headcount", 1)) * float(
                         pay.get("monthly_wage", 2000.0)
                     )
-                    # Payroll cash paid in month of incurrence (no creditor lag)
                     self.inject_token(
                         m, "PL_Expense_Payroll", "BS_Asset_Cash", gross_pool
                     )
@@ -545,7 +632,7 @@ class CommercialTrialBalanceCuboid:
                         gross_pool * nic_rate,
                     )
 
-            # --- DEPRECIATION ---
+            # Depreciation
             for outright in state.get("outright_capex", []):
                 if int(outright["month"]) <= m:
                     self.inject_token(
@@ -571,11 +658,10 @@ class CommercialTrialBalanceCuboid:
                         / 12.0,
                     )
 
-            # --- VAT QUARTERLY SETTLEMENT (WinForecast Stagger Group Support) ---
-            # Default: Months 5, 8, 11, 14, 17, 20, 23, 26, etc. (settling previous quarter)
+            # VAT quarterly settlement
             vat_settle_months = [
                 m_chk
-                for m_chk in range(1, 61)
+                for m_chk in range(1, self.horizon_months + 1)
                 if (m_chk - vat_settle_offset) % 3 == 0 and m_chk > 1
             ]
             if m in vat_settle_months:
@@ -587,7 +673,7 @@ class CommercialTrialBalanceCuboid:
                         m, "BS_Liability_VAT_Payable", "BS_Asset_Cash", vat_acc
                     )
 
-            # --- CORPORATION TAX MONTHLY PROVISION (WinForecast 19% Rule) ---
+            # Corporation Tax Monthly Provision
             m_lbl = f"M{str(m).zfill(2)}"
             m_rev = sum(
                 t.amount
@@ -631,14 +717,14 @@ class CommercialTrialBalanceCuboid:
                 )
                 annual_taxable_profits[yr_idx] += tax_provision
 
-        # --- CORPORATION TAX STATUTORY CASH SETTLEMENT (9 MONTHS AFTER YEAR-END) ---
-        # Year 1 ends M12 -> Settle M21 (Mar of Year 2 in June-year-end)
-        # Year 2 ends M24 -> Settle M33
-        # Year 3 ends M36 -> Settle M45
-        # Year 4 ends M48 -> Settle M57
+        # Corporation Tax Cash Settlements (9 months lag post-fiscal-year-end)
         tax_settle_schedule = {1: 21, 2: 33, 3: 45, 4: 57}
         for yr, settle_m in tax_settle_schedule.items():
-            if settle_m <= 60 and annual_taxable_profits[yr] > 0:
+            if (
+                settle_m <= self.horizon_months
+                and yr in annual_taxable_profits
+                and annual_taxable_profits[yr] > 0
+            ):
                 self.inject_token(
                     settle_m,
                     "BS_Liability_Corp_Tax_Provision",
@@ -659,7 +745,9 @@ class CommercialTrialBalanceCuboid:
         return bal
 
     def compile_financial_matrices(self):
-        months_labels = [f"M{str(i).zfill(2)}" for i in range(0, 61)]
+        months_labels = [
+            f"M{str(i).zfill(2)}" for i in range(0, self.horizon_months + 1)
+        ]
         df_pl = pd.DataFrame(
             0.0,
             index=[
@@ -821,13 +909,11 @@ class CommercialTrialBalanceCuboid:
                 )
             )
 
-            # Retained earnings = cumulative Profit After Tax
             h_sum = 0.0
             for pm in months_labels[1 : m_idx + 1]:
                 h_sum += df_pl.at["Profit After Tax (PAT) (£)", pm]
             df_bs.at["Retained Earnings Accumulation (£)", m_lbl] = h_sum
 
-            # Complete Double-Entry Balance Sheet Checksum
             assets = (
                 df_bs.at["Net Book Value Asset Worth (£)", m_lbl]
                 + df_bs.at["Trade Debtors Balance (£)", m_lbl]
@@ -859,18 +945,31 @@ st.caption(
 st.page_link("pages/app.py", label="✍️ Return to Data Entry Panel")
 st.markdown("---")
 
-cuboid_engine = CommercialTrialBalanceCuboid()
+# MASTER REPORTING HORIZON CONFIGURATION
+horizon_choice = st.radio(
+    "Select Master Forecasting Horizon Window:",
+    [
+        "3-Year Horizon (M00 - M36) [WinForecast Statutory Benchmark]",
+        "5-Year Horizon (M00 - M60) [STRATA Standard Framework]",
+    ],
+    horizontal=True,
+)
+horizon_years = 3 if "3-Year" in horizon_choice else 5
+horizon_months = horizon_years * 12
+
+cuboid_engine = CommercialTrialBalanceCuboid(horizon_months=horizon_months)
 active_data_context = st.session_state.get("active_data", {})
 df_pl, df_cf, df_bs = cuboid_engine.run_simulation_engine(active_data_context)
 
+term_month_col = f"M{str(horizon_months).zfill(2)}"
 closing_cash_array = df_cf.loc["Closing Bank Cash Reserves (£)"].astype(float).values
 peak_cash, lowest_cash = closing_cash_array.max(), closing_cash_array.min()
-y5_worth = df_bs.loc["Retained Earnings Accumulation (£)", "M60"]
+terminal_worth = df_bs.loc["Retained Earnings Accumulation (£)", term_month_col]
 
 kpi1, kpi2, kpi3 = st.columns(3)
 kpi1.metric("Peak Cash Runway Worth", f"£{peak_cash:,.2f}")
 kpi2.metric("Max Venture Risk Valley", f"£{lowest_cash:,.2f}")
-kpi3.metric("Year 5 Horizon Value", f"£{y5_worth:,.2f}")
+kpi3.metric(f"Year {horizon_years} Retained Value", f"£{terminal_worth:,.2f}")
 st.markdown("---")
 
 if "cached_ai_analysis" not in st.session_state:
@@ -885,7 +984,7 @@ with exp_col1:
     st.download_button(
         "📥 Download Profit & Loss CSV",
         data=df_pl.to_csv().encode("utf-8"),
-        file_name="STRATA_Profit_and_Loss.csv",
+        file_name=f"STRATA_PL_{horizon_years}Yr.csv",
         mime="text/csv",
         use_container_width=True,
     )
@@ -893,7 +992,7 @@ with exp_col2:
     st.download_button(
         "📥 Download Cash Flow CSV",
         data=df_cf.to_csv().encode("utf-8"),
-        file_name="STRATA_Cash_Flow.csv",
+        file_name=f"STRATA_CashFlow_{horizon_years}Yr.csv",
         mime="text/csv",
         use_container_width=True,
     )
@@ -901,7 +1000,7 @@ with exp_col3:
     st.download_button(
         "📥 Download Balance Sheet CSV",
         data=df_bs.to_csv().encode("utf-8"),
-        file_name="STRATA_Balance_Sheet.csv",
+        file_name=f"STRATA_BalanceSheet_{horizon_years}Yr.csv",
         mime="text/csv",
         use_container_width=True,
     )
@@ -919,7 +1018,7 @@ if st.button(
             try:
                 genai.configure(api_key=api_key)
                 model = genai.GenerativeModel("gemini-2.5-flash")
-                financial_summary_context = f"Project: {st.session_state.get('active_project_name')}\nPeak Cash: £{peak_cash:,.2f}\nRisk Valley: £{lowest_cash:,.2f}\nRetained: £{y5_worth:,.2f}"
+                financial_summary_context = f"Project: {st.session_state.get('active_project_name')}\nHorizon: {horizon_years} Years ({horizon_months} Months)\nPeak Cash: £{peak_cash:,.2f}\nRisk Valley: £{lowest_cash:,.2f}\nRetained Worth: £{terminal_worth:,.2f}"
                 prompt = f"Analyze this financial context as a CFO and output a professional executive summary with zero markdown asterisks:\n{financial_summary_context}"
                 response = model.generate_content(prompt)
                 st.session_state["cached_ai_analysis"] = str(response.text).replace(
@@ -933,43 +1032,39 @@ if st.session_state["cached_ai_analysis"]:
     st.markdown("---")
     st.markdown("## 🏛 Executive Strategy Summary Pack Preview")
     st.write(st.session_state["cached_ai_analysis"])
-    try:
-        pdf_binary = compile_premium_html_report(
-            project_name=st.session_state.get(
-                "active_project_name", "Unsaved_Draft_Scenario"
-            ),
-            peak_cash=peak_cash,
-            lowest_cash=lowest_cash,
-            horizon_worth=y5_worth,
-            insight_text=st.session_state["cached_ai_analysis"],
-            df_pl=df_pl,
-            df_cf=df_cf,
-            df_bs=df_bs,
-            active_data=active_data_context,
+    if not WEASYPRINT_AVAILABLE:
+        st.warning(
+            "⚠️ WeasyPrint runtime libraries are not detected in the local Windows environment. PDF generation will execute in cloud environments."
         )
-        st.download_button(
-            label="📄 Download Official Executive Management Pack PDF",
-            data=pdf_binary,
-            file_name="STRATA_Executive_Summary.pdf",
-            mime="application/pdf",
-            use_container_width=True,
-        )
-    except Exception as pdf_err:
-        st.error(f"PDF binary compiler mismatch: {str(pdf_err)}")
+    else:
+        try:
+            pdf_binary = compile_premium_html_report(
+                project_name=st.session_state.get(
+                    "active_project_name", "Unsaved_Draft_Scenario"
+                ),
+                peak_cash=peak_cash,
+                lowest_cash=lowest_cash,
+                horizon_worth=terminal_worth,
+                insight_text=st.session_state["cached_ai_analysis"],
+                df_pl=df_pl,
+                df_cf=df_cf,
+                df_bs=df_bs,
+                active_data=active_data_context,
+                horizon_years=horizon_years,
+            )
+            st.download_button(
+                label="📄 Download Official Executive Management Pack PDF",
+                data=pdf_binary,
+                file_name=f"STRATA_Executive_Summary_{horizon_years}Yr.pdf",
+                mime="application/pdf",
+                use_container_width=True,
+            )
+        except Exception as pdf_err:
+            st.error(f"PDF binary compiler mismatch: {str(pdf_err)}")
 
 st.markdown("---")
-horiz = st.selectbox(
-    "Analytical Accounting Window Filter:",
-    [
-        "Year 1 Horizon View (M00 - M12)",
-        "Full 5-Year Comprehensive Asset Track (M00 - M60)",
-    ],
-)
-targets = (
-    [f"M{str(i).zfill(2)}" for i in range(0, 13)]
-    if "Year 1" in horiz
-    else [f"M{str(i).zfill(2)}" for i in range(0, 61)]
-)
+
+targets = [f"M{str(i).zfill(2)}" for i in range(0, horizon_months + 1)]
 active_months_for_sum = [t for t in targets if t != "M00"]
 
 df_pl_view, df_cf_view, df_bs_view = (
@@ -977,12 +1072,30 @@ df_pl_view, df_cf_view, df_bs_view = (
     df_cf[targets].copy(),
     df_bs[targets].copy(),
 )
-df_pl_view["Year Total"] = df_pl[active_months_for_sum].sum(axis=1)
-df_cf_view["Year Total"] = df_cf[active_months_for_sum].sum(axis=1)
-df_cf_view.at["Closing Bank Cash Reserves (£)", "Year Total"] = df_cf.at[
-    "Closing Bank Cash Reserves (£)", targets[-1]
-]
-df_bs_view["Closing Position"] = df_bs[targets[-1]]
+df_pl_view["Horizon Total"] = df_pl[active_months_for_sum].sum(axis=1)
+df_pl_view.at["Gross Profit Margin (£)", "Horizon Total"] = (
+    df_pl_view.loc["Total Revenue (£)", "Horizon Total"]
+    - df_pl_view.loc["Cost of Goods Sold (COGS) (£)", "Horizon Total"]
+)
+df_pl_view.at["Net Operating Profit (EBIT)", "Horizon Total"] = (
+    df_pl_view.loc["Gross Profit Margin (£)", "Horizon Total"]
+    - df_pl_view.loc["Operational Overheads (£)", "Horizon Total"]
+    - df_pl_view.loc["Staff Payroll Overhead (£)", "Horizon Total"]
+    - df_pl_view.loc["Depreciation Overhead (£)", "Horizon Total"]
+    - df_pl_view.loc["Financing Interest Cost (£)", "Horizon Total"]
+)
+df_pl_view.at["Profit After Tax (PAT) (£)", "Horizon Total"] = (
+    df_pl_view.loc["Net Operating Profit (EBIT)", "Horizon Total"]
+    - df_pl_view.loc["Corporation Tax Provision (£)", "Horizon Total"]
+)
+
+df_cf_view["Horizon Total"] = df_cf[active_months_for_sum].sum(axis=1)
+df_cf_view.at["Closing Bank Cash Reserves (£)", "Horizon Total"] = (
+    df_cf[targets[-1]].iloc[0]
+    if isinstance(df_cf[targets[-1]], pd.Series)
+    else df_cf.at["Closing Bank Cash Reserves (£)", targets[-1]]
+)
+df_bs_view["Terminal Position"] = df_bs[targets[-1]]
 
 t1, t2, t3 = st.tabs(
     [
@@ -1086,7 +1199,7 @@ with t2:
                 "Metric Category": "Net Book Value (£)",
             }
             running_val = 0.0
-            for m in range(0, 61):
+            for m in range(0, horizon_months + 1):
                 m_lbl = f"M{str(m).zfill(2)}"
                 if m == item["Month"]:
                     running_val = item["value"]
@@ -1122,7 +1235,7 @@ with t3:
                 {"Facility": fin["name"], "Metric": "Non-Current Debt (>1yr) (£)"},
             )
             running_debt = 0.0
-            for m in range(0, 61):
+            for m in range(0, horizon_months + 1):
                 m_lbl = f"M{str(m).zfill(2)}"
                 if m == m_start:
                     running_debt = fin_bal
