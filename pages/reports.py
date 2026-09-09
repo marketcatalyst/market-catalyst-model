@@ -1,6 +1,6 @@
 # pages/reports.py
-# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v7.5.0-PRODUCTION
-# DYNAMIC REPORTING HORIZON (3-YEAR WINFORECAST BENCHMARK / 5-YEAR STANDARD)
+# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v7.6.0-PRODUCTION
+# RE-ENGINEERED: CUMULATIVE ANNUAL CORPORATION TAX ENGINE WITH LOSS RELEASE & DYNAMIC HORIZON
 
 import streamlit as st
 import pandas as pd
@@ -467,6 +467,8 @@ class CommercialTrialBalanceCuboid:
 
         # 2. Chronological Monthly Loop
         horizon_years = self.horizon_months // 12
+        ytd_ebt_tracker = {yr: 0.0 for yr in range(1, horizon_years + 1)}
+        ytd_tax_provided = {yr: 0.0 for yr in range(1, horizon_years + 1)}
         annual_taxable_profits = {yr: 0.0 for yr in range(1, horizon_years + 1)}
 
         for m in range(1, self.horizon_months + 1):
@@ -673,7 +675,9 @@ class CommercialTrialBalanceCuboid:
                         m, "BS_Liability_VAT_Payable", "BS_Asset_Cash", vat_acc
                     )
 
-            # Corporation Tax Monthly Provision
+            # -------------------------------------------------------------------------
+            # 🏛️ CORPORATION TAX: STATUTORY YTD CUMULATIVE ENGINE WITH TAX RELEASE
+            # -------------------------------------------------------------------------
             m_lbl = f"M{str(m).zfill(2)}"
             m_rev = sum(
                 t.amount
@@ -707,17 +711,37 @@ class CommercialTrialBalanceCuboid:
             )
 
             monthly_ebt = m_rev - m_cogs - m_opex - m_pay - m_dep - m_int
-            if monthly_ebt > 0:
-                tax_provision = monthly_ebt * corp_tax_rate
+            ytd_ebt_tracker[yr_idx] += monthly_ebt
+
+            # Calculate required cumulative tax liability for the year (floored at 0.0)
+            required_cumulative_tax = max(0.0, ytd_ebt_tracker[yr_idx] * corp_tax_rate)
+            tax_movement = required_cumulative_tax - ytd_tax_provided[yr_idx]
+
+            if tax_movement > 0.001:
+                # Profitable period: Charge P&L Tax Expense, Credit Balance Sheet Provision
                 self.inject_token(
                     m,
                     "PL_Tax_Corporation_Tax",
                     "BS_Liability_Corp_Tax_Provision",
-                    tax_provision,
+                    tax_movement,
                 )
-                annual_taxable_profits[yr_idx] += tax_provision
+                ytd_tax_provided[yr_idx] += tax_movement
+            elif tax_movement < -0.001:
+                # Loss period: Release tax provision back to P&L (Credit Tax Expense, Debit BS Provision)
+                tax_release = abs(tax_movement)
+                self.inject_token(
+                    m,
+                    "BS_Liability_Corp_Tax_Provision",
+                    "PL_Tax_Corporation_Tax",
+                    tax_release,
+                )
+                ytd_tax_provided[yr_idx] -= tax_release
 
-        # Corporation Tax Cash Settlements (9 months lag post-fiscal-year-end)
+        # Finalize annual tax liabilities for 9-month lag cash payments
+        for yr in range(1, horizon_years + 1):
+            annual_taxable_profits[yr] = ytd_tax_provided[yr]
+
+        # Corporation Tax Cash Settlements (Statutory 9-month lag post-fiscal-year-end)
         tax_settle_schedule = {1: 21, 2: 33, 3: 45, 4: 57}
         for yr, settle_m in tax_settle_schedule.items():
             if (
@@ -811,8 +835,12 @@ class CommercialTrialBalanceCuboid:
                         df_pl.at["Depreciation Overhead (£)", m_lbl] += t.amount
                     if t.debit_acct == "PL_Expense_Interest":
                         df_pl.at["Financing Interest Cost (£)", m_lbl] += t.amount
+
+                    # Net Corporation Tax: Debit is tax charge, Credit is tax release
                     if t.debit_acct == "PL_Tax_Corporation_Tax":
                         df_pl.at["Corporation Tax Provision (£)", m_lbl] += t.amount
+                    if t.credit_acct == "PL_Tax_Corporation_Tax":
+                        df_pl.at["Corporation Tax Provision (£)", m_lbl] -= t.amount
 
                     if (
                         t.debit_acct == "BS_Asset_Cash"
@@ -914,6 +942,7 @@ class CommercialTrialBalanceCuboid:
                 h_sum += df_pl.at["Profit After Tax (PAT) (£)", pm]
             df_bs.at["Retained Earnings Accumulation (£)", m_lbl] = h_sum
 
+            # Complete statutory balance sheet checksum: Assets + Liabilities = 0.00
             assets = (
                 df_bs.at["Net Book Value Asset Worth (£)", m_lbl]
                 + df_bs.at["Trade Debtors Balance (£)", m_lbl]
