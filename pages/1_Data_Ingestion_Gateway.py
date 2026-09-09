@@ -135,7 +135,7 @@ if uploaded_file is not None:
                     """
 
                     # Utilize the standard multimodal text/image model context channel
-                    model = genai.GenerativeModel("gemini-1.5-flash")
+                    model = genai.GenerativeModel("gemini-2.5-flash")
                     response = model.generate_content([prompt] + file_payload)
 
                     json_match = re.search(r"\{.*\}", response.text, re.DOTALL)
