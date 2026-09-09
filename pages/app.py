@@ -664,19 +664,3 @@ st.sidebar.page_link(
 st.sidebar.page_link("pages/onboarding.py", label="🕸️ Data Input Parameters")
 st.sidebar.page_link("pages/app.py", label="✍️ Data Entry Panel")
 st.sidebar.page_link("pages/reports.py", label="📊 Performance Tab")
-with st.expander("🔍 DBW SENSITIVITY AUDIT DATA", expanded=True):
-    st.write(
-        "### Revenue Lines", st.session_state.get("active_data", {}).get("sales", [])
-    )
-    st.write(
-        "### Payroll Lines", st.session_state.get("active_data", {}).get("payroll", [])
-    )
-    st.write(
-        "### Direct COGS Staff",
-        [
-            c
-            for c in st.session_state.get("active_data", {}).get("cogs", [])
-            if "staff" in c.get("name", "").lower()
-            or "coach" in c.get("name", "").lower()
-        ],
-    )
