@@ -1,5 +1,5 @@
 # pages/app.py
-# STRATA SUITE // DATA ENTRY & UPLOAD MASTER CANVAS v7.3.5-PRODUCTION
+# STRATA SUITE // DATA ENTRY & UPLOAD MASTER CANVAS v7.4.2-PRODUCTION
 
 import streamlit as st
 import pandas as pd
@@ -193,7 +193,7 @@ with st.expander("📈 1. THE SALES DRIVER DESK", expanded=False):
         for idx, x in enumerate(st.session_state["active_data"]["sales"]):
             r_col1, r_col2 = st.columns([10, 2])
             r_col1.caption(
-                f"✔ {x['name']} - Y1: £{x['y1_baseline']:,.2f} | Y5: £{x.get('y5_baseline',0.0):,.2f}"
+                f"✔ {x['name']} - Y1: £{x.get('y1_baseline',0.0):,.2f} | Y5: £{x.get('y5_baseline',0.0):,.2f}"
             )
             if r_col2.button("🗑️ Delete", key=f"del_s_{idx}"):
                 st.session_state["active_data"]["sales"].pop(idx)
@@ -295,7 +295,9 @@ with st.expander("📦 3. THE PRODUCTION COGS DESK", expanded=False):
     if st.session_state["active_data"].get("cogs"):
         for idx, x in enumerate(st.session_state["active_data"]["cogs"]):
             r_col1, r_col2 = st.columns([10, 2])
-            r_col1.caption(f"✔ Direct Cost: {x['name']} - Y1: £{x['y1_baseline']:,.2f}")
+            r_col1.caption(
+                f"✔ Direct Cost: {x['name']} - Y1: £{x.get('y1_baseline',0.0):,.2f}"
+            )
             if r_col2.button("🗑️ Delete", key=f"del_c_{idx}"):
                 st.session_state["active_data"]["cogs"].pop(idx)
                 st.rerun()
@@ -336,29 +338,77 @@ with st.expander("💸 4. THE GENERAL OVERHEAD CARD", expanded=False):
 
     if st.session_state["active_data"].get("opex"):
         for idx, op in enumerate(st.session_state["active_data"]["opex"]):
-            st.markdown(f"#### 📦 Account Row: **{op['name']}**")
+            # =========================================================================
+            # 🛡️ DEFENSIVE NORMALIZATION: Auto-heal imported or AI-scanned overhead rows
+            # =========================================================================
+            if "flex_rates" not in op or not isinstance(op["flex_rates"], dict):
+                op["flex_rates"] = {"Y2": 0.0, "Y3": 0.0, "Y4": 0.0, "Y5": 0.0}
+            else:
+                for yk in ["Y2", "Y3", "Y4", "Y5"]:
+                    op["flex_rates"].setdefault(yk, 0.0)
+
+            if "matrix_data" not in op or not isinstance(op["matrix_data"], dict):
+                m1 = float(op.get("y1_baseline", 0.0)) / 12.0
+                m2 = (
+                    float(op.get("y2_baseline", 0.0)) / 12.0
+                    if float(op.get("y2_baseline", 0.0)) > 0
+                    else m1
+                )
+                m3 = (
+                    float(op.get("y3_baseline", 0.0)) / 12.0
+                    if float(op.get("y3_baseline", 0.0)) > 0
+                    else m2
+                )
+                m4 = (
+                    float(op.get("y4_baseline", 0.0)) / 12.0
+                    if float(op.get("y4_baseline", 0.0)) > 0
+                    else m3
+                )
+                m5 = (
+                    float(op.get("y5_baseline", 0.0)) / 12.0
+                    if float(op.get("y5_baseline", 0.0)) > 0
+                    else m4
+                )
+                op["matrix_data"] = {
+                    "Y1": [m1] * 12,
+                    "Y2": [m2] * 12,
+                    "Y3": [m3] * 12,
+                    "Y4": [m4] * 12,
+                    "Y5": [m5] * 12,
+                    "overwrites": {},
+                }
+            else:
+                for yk in ["Y1", "Y2", "Y3", "Y4", "Y5"]:
+                    if yk not in op["matrix_data"] or len(op["matrix_data"][yk]) != 12:
+                        op["matrix_data"][yk] = [0.0] * 12
+                if "overwrites" not in op["matrix_data"]:
+                    op["matrix_data"]["overwrites"] = {}
+
+            st.markdown(
+                f"#### 📦 Account Row: **{op.get('name', 'Unassigned Overhead')}**"
+            )
             f_col1, f_col2, f_col3, f_col4 = st.columns(4)
             y2_f = f_col1.number_input(
-                f"Y2 Flex % ({op['name']})",
-                value=float(op.get("flex_rates", {}).get("Y2", 0.0)),
+                f"Y2 Flex % ({op.get('name', '')})",
+                value=float(op["flex_rates"].get("Y2", 0.0)),
                 step=0.5,
                 key=f"f2_{idx}",
             )
             y3_f = f_col2.number_input(
-                f"Y3 Flex % ({op['name']})",
-                value=float(op.get("flex_rates", {}).get("Y3", 0.0)),
+                f"Y3 Flex % ({op.get('name', '')})",
+                value=float(op["flex_rates"].get("Y3", 0.0)),
                 step=0.5,
                 key=f"f3_{idx}",
             )
             y4_f = f_col3.number_input(
-                f"Y4 Flex % ({op['name']})",
-                value=float(op.get("flex_rates", {}).get("Y4", 0.0)),
+                f"Y4 Flex % ({op.get('name', '')})",
+                value=float(op["flex_rates"].get("Y4", 0.0)),
                 step=0.5,
                 key=f"f4_{idx}",
             )
             y5_f = f_col4.number_input(
-                f"Y5 Flex % ({op['name']})",
-                value=float(op.get("flex_rates", {}).get("Y5", 0.0)),
+                f"Y5 Flex % ({op.get('name', '')})",
+                value=float(op["flex_rates"].get("Y5", 0.0)),
                 step=0.5,
                 key=f"f5_{idx}",
             )
@@ -437,7 +487,7 @@ with st.expander("💸 4. THE GENERAL OVERHEAD CARD", expanded=False):
                 op["matrix_data"] = m_data
                 st.rerun()
 
-            if st.button(f"🗑️ Delete Row: {op['name']}", key=f"del_o_{idx}"):
+            if st.button(f"🗑️ Delete Row: {op.get('name', '')}", key=f"del_o_{idx}"):
                 st.session_state["active_data"]["opex"].pop(idx)
                 st.rerun()
 
