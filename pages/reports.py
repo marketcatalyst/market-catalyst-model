@@ -1,6 +1,6 @@
 # pages/reports.py
-# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v9.0.0-STATUTORY
-# STRICT DOUBLE-ENTRY GENERAL LEDGER ARCHITECTURE (SAGE WINFORECAST RECONCILED)
+# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v9.1.0-STATUTORY
+# STRICT DOUBLE-ENTRY GENERAL LEDGER ARCHITECTURE WITH PRODUCTION-GRADE CSV FORMATTING
 
 import os
 import re
@@ -100,7 +100,6 @@ class AuditedGeneralLedger:
             return
         if month < 0 or month > self.horizon_months:
             return
-        # Strict Double-Entry: Each journal entry records equal and opposite debits and credits
         self.journal_entries.append(
             {
                 "month": month,
@@ -112,7 +111,7 @@ class AuditedGeneralLedger:
         )
 
     def get_period_movement(self, nominal_code: str, month: int) -> float:
-        """Returns the net movement of an account in a single period."""
+        """Returns net movement of an account in a single period."""
         dr = sum(
             j["amount"]
             for j in self.journal_entries
@@ -123,12 +122,11 @@ class AuditedGeneralLedger:
             for j in self.journal_entries
             if j["month"] == month and j["credit_code"] == nominal_code
         )
-        # Normal debit accounts: Dr - Cr. Normal credit accounts: Cr - Dr
         sign = CHART_OF_ACCOUNTS[nominal_code]["sign"]
         return (dr - cr) * sign
 
     def get_cumulative_balance(self, nominal_code: str, month_limit: int) -> float:
-        """Returns the cumulative ledger balance up to month_limit."""
+        """Returns cumulative ledger balance up to month_limit."""
         dr = sum(
             j["amount"]
             for j in self.journal_entries
@@ -186,7 +184,7 @@ def execute_full_simulation(state, horizon_months=36):
         for k, v in st.session_state["custom_curves"].items():
             seasonality[k] = v
 
-    # 1. Month 00 Setup: Share Capital & CapEx
+    # 1. Month 00 Setup
     for eq in state.get("equity_funding", []):
         gl.post_journal(
             int(eq.get("month", 0)),
@@ -278,7 +276,6 @@ def execute_full_simulation(state, horizon_months=36):
             vat_val = net_rev * vat_rate
             gross_rev = net_rev + vat_val
 
-            # Dr Debtors, Cr Sales, Cr VAT
             gl.post_journal(m, "1100", "4000", net_rev, "Trading Revenue Invoiced")
             if vat_val > 0:
                 gl.post_journal(
@@ -286,7 +283,6 @@ def execute_full_simulation(state, horizon_months=36):
                 )
 
             delay_m = int(int(sale.get("payment_delay", 0)) / 30)
-            # Cash collection clears debtors: Dr Bank, Cr Debtors
             gl.post_journal(
                 m + delay_m, "1200", "1100", gross_rev, "Debtor Receipt Clearing"
             )
@@ -316,11 +312,9 @@ def execute_full_simulation(state, horizon_months=36):
             is_staff = "staff" in c.get("name", "").lower()
             lag = 0 if is_staff else (1 if supplier_credit_days >= 30 else 0)
 
-            # Dr COGS, Dr VAT (Input VAT relieves liability), Cr Trade Creditors
             gl.post_journal(m, "5000", "2100", net_cost, "COGS Incurred")
             if vat_val > 0:
                 gl.post_journal(m, "2200", "2100", vat_val, "Input VAT on COGS")
-            # Payment: Dr Trade Creditors, Cr Bank
             gl.post_journal(
                 m + lag, "2100", "1200", gross_cost, "Trade Creditor Settlement"
             )
@@ -370,11 +364,8 @@ def execute_full_simulation(state, horizon_months=36):
                     pay.get("monthly_wage", 2000.0)
                 )
                 nic = gross_sal * nic_rate
-                # Dr Staff Payroll (P&L), Cr Bank (Net pay)
                 gl.post_journal(m, "7000", "1200", gross_sal, "Staff Net Wages Paid")
-                # Dr Staff Payroll (P&L), Cr PAYE/NIC Liability
                 gl.post_journal(m, "7000", "2210", nic, "Employer NIC Accrual")
-                # Payment: Dr PAYE/NIC Liability, Cr Bank in following month
                 gl.post_journal(m + 1, "2210", "1200", nic, "HMRC PAYE/NIC Payment")
 
         # Depreciation
@@ -421,25 +412,21 @@ def execute_full_simulation(state, horizon_months=36):
         period_ebt = m_rev - (m_cogs + m_opex + m_pay + m_dep + m_int)
         ytd_ebt[yr] += period_ebt
 
-        # Required cumulative provision (floored at 0)
         req_cum_tax = max(0.0, ytd_ebt[yr] * corp_tax_rate)
         tax_delta = round(req_cum_tax - ytd_tax[yr], 2)
 
         if tax_delta > 0.01:
-            # Charge: Dr 9000 Tax Expense, Cr 2220 Tax Liability
             gl.post_journal(
                 m, "9000", "2220", tax_delta, "Monthly Corp Tax Provision Accrual"
             )
             ytd_tax[yr] += tax_delta
         elif tax_delta < -0.01:
-            # Loss month release: Dr 2220 Tax Liability, Cr 9000 Tax Expense
             release = abs(tax_delta)
             gl.post_journal(
                 m, "2220", "9000", release, "Loss Month Tax Provision Release Credit"
             )
             ytd_tax[yr] -= release
 
-    # Store finalized annual corporation tax for statutory 9-month lag discharge
     for yr in range(1, horizon_years + 1):
         annual_final_tax[yr] = ytd_tax[yr]
 
@@ -516,7 +503,6 @@ def compile_financial_statements(gl: AuditedGeneralLedger, horizon_months: int):
     for m in range(0, horizon_months + 1):
         lbl = f"M{str(m).zfill(2)}"
 
-        # P&L derived from period account movements
         rev = gl.get_period_movement("4000", m)
         cogs = gl.get_period_movement("5000", m)
         opex = gl.get_period_movement("6000", m)
@@ -537,7 +523,6 @@ def compile_financial_statements(gl: AuditedGeneralLedger, horizon_months: int):
         df_pl.at["Corporation Tax Provision (£)", lbl] = tax
         df_pl.at["Profit After Tax (PAT) (£)", lbl] = ebit - tax
 
-        # Cash Flow derived strictly from Bank account (1200) journal counterparts
         inflows_trading = sum(
             j["amount"]
             for j in gl.journal_entries
@@ -585,7 +570,6 @@ def compile_financial_statements(gl: AuditedGeneralLedger, horizon_months: int):
         closing_bank = gl.get_cumulative_balance("1200", m)
         df_cf.at["Closing Bank Cash Reserves (£)", lbl] = closing_bank
 
-        # Balance Sheet derived from cumulative general ledger balances
         fa_orig = gl.get_cumulative_balance("0020", m)
         accum_dep = gl.get_cumulative_balance("0021", m)
         nbv = fa_orig - accum_dep
@@ -626,12 +610,33 @@ def compile_financial_statements(gl: AuditedGeneralLedger, horizon_months: int):
         df_bs.at["Total Liabilities & Equity Reserves (£)", lbl] = (
             total_liabs_and_equity
         )
-
-        # Formal Double-Entry Proof: Total Assets - (Total Liabilities + Equity) MUST EQUAL 0.00
-        tb_checksum = round(total_assets - total_liabs_and_equity, 2)
-        df_bs.at["Trial Balance Checksum Balance", lbl] = tb_checksum
+        df_bs.at["Trial Balance Checksum Balance", lbl] = round(
+            total_assets - total_liabs_and_equity, 2
+        )
 
     return df_pl, df_cf, df_bs
+
+
+# =========================================================================
+# 💾 EXCEL-CLEAN CSV FORMATTER PIPELINE
+# =========================================================================
+
+
+def format_df_for_csv(
+    df: pd.DataFrame, index_title: str = "Financial Line Item (£)"
+) -> str:
+    """
+    Sanitizes numerical DataFrames for CSV output:
+    - Enforces strict 2-decimal precision (avoids floating point artifacts)
+    - Sets index header so cell A1 is cleanly populated in Excel
+    """
+    df_clean = df.copy()
+    for col in df_clean.columns:
+        df_clean[col] = df_clean[col].apply(
+            lambda x: f"{float(x):.2f}" if pd.notnull(x) else "0.00"
+        )
+    df_clean.index.name = index_title
+    return df_clean.to_csv(index=True)
 
 
 # =========================================================================
@@ -872,40 +877,81 @@ kpi2.metric("Min Cash Trough", f"£{lowest_cash:,.2f}")
 kpi3.metric(f"Year {horizon_years} Retained Earnings", f"£{terminal_worth:,.2f}")
 st.markdown("---")
 
-if "cached_ai_analysis" not in st.session_state:
-    st.session_state["cached_ai_analysis"] = ""
+# Build presentation views with summary columns
+targets = [f"M{str(i).zfill(2)}" for i in range(0, horizon_months + 1)]
+active_months_for_sum = [t for t in targets if t != "M00"]
+
+df_pl_view = df_pl[targets].copy()
+df_cf_view = df_cf[targets].copy()
+df_bs_view = df_bs[targets].copy()
+
+df_pl_view["Horizon Total"] = df_pl[active_months_for_sum].sum(axis=1)
+df_pl_view.at["Gross Profit Margin (£)", "Horizon Total"] = (
+    df_pl_view.loc["Total Revenue (£)", "Horizon Total"]
+    - df_pl_view.loc["Cost of Goods Sold (COGS) (£)", "Horizon Total"]
+)
+df_pl_view.at["Net Operating Profit (EBIT)", "Horizon Total"] = (
+    df_pl_view.loc["Gross Profit Margin (£)", "Horizon Total"]
+    - df_pl_view.loc["Operational Overheads (£)", "Horizon Total"]
+    - df_pl_view.loc["Staff Payroll Overhead (£)", "Horizon Total"]
+    - df_pl_view.loc["Depreciation Overhead (£)", "Horizon Total"]
+    - df_pl_view.loc["Financing Interest Cost (£)", "Horizon Total"]
+)
+df_pl_view.at["Profit After Tax (PAT) (£)", "Horizon Total"] = (
+    df_pl_view.loc["Net Operating Profit (EBIT)", "Horizon Total"]
+    - df_pl_view.loc["Corporation Tax Provision (£)", "Horizon Total"]
+)
+
+df_cf_view["Horizon Total"] = df_cf[active_months_for_sum].sum(axis=1)
+df_cf_view.at["Closing Bank Cash Reserves (£)", "Horizon Total"] = df_cf.at[
+    "Closing Bank Cash Reserves (£)", targets[-1]
+]
+df_bs_view["Terminal Position"] = df_bs[targets[-1]]
 
 # =========================================================================
-# EXPORT CONTROLS HUB
+# 📥 PRODUCTION EXPORT CONTROLS HUB (EXCEL-CLEAN CSV GENERATORS)
 # =========================================================================
 st.subheader("📥 Executive Report Pack Export Controls")
 exp_col1, exp_col2, exp_col3 = st.columns(3)
+
 with exp_col1:
+    clean_pl_csv = format_df_for_csv(
+        df_pl_view, index_title="Profit & Loss Account (£)"
+    )
     st.download_button(
         "📥 Download Profit & Loss CSV",
-        data=df_pl.to_csv().encode("utf-8"),
-        file_name=f"STRATA_PL_{horizon_years}Yr.csv",
+        data=clean_pl_csv.encode("utf-8"),
+        file_name=f"STRATA_PL_{horizon_years}Yr_Sensitised.csv",
         mime="text/csv",
         use_container_width=True,
     )
+
 with exp_col2:
+    clean_cf_csv = format_df_for_csv(df_cf_view, index_title="Cash Flow Account (£)")
     st.download_button(
         "📥 Download Cash Flow CSV",
-        data=df_cf.to_csv().encode("utf-8"),
-        file_name=f"STRATA_CashFlow_{horizon_years}Yr.csv",
+        data=clean_cf_csv.encode("utf-8"),
+        file_name=f"STRATA_CashFlow_{horizon_years}Yr_Sensitised.csv",
         mime="text/csv",
         use_container_width=True,
     )
+
 with exp_col3:
+    clean_bs_csv = format_df_for_csv(
+        df_bs_view, index_title="Balance Sheet Account (£)"
+    )
     st.download_button(
         "📥 Download Balance Sheet CSV",
-        data=df_bs.to_csv().encode("utf-8"),
-        file_name=f"STRATA_BalanceSheet_{horizon_years}Yr.csv",
+        data=clean_bs_csv.encode("utf-8"),
+        file_name=f"STRATA_BalanceSheet_{horizon_years}Yr_Sensitised.csv",
         mime="text/csv",
         use_container_width=True,
     )
 
 st.markdown("### 🧠 Gemini AI Executive Management Pack Synthesis")
+if "cached_ai_analysis" not in st.session_state:
+    st.session_state["cached_ai_analysis"] = ""
+
 if st.button(
     "🤖 Generate AI Executive Summary Report & Compile PDF Pack",
     use_container_width=True,
@@ -974,36 +1020,6 @@ if st.session_state["cached_ai_analysis"]:
             st.error(f"PDF binary compiler mismatch: {str(pdf_err)}")
 
 st.markdown("---")
-
-targets = [f"M{str(i).zfill(2)}" for i in range(0, horizon_months + 1)]
-active_months_for_sum = [t for t in targets if t != "M00"]
-
-df_pl_view = df_pl[targets].copy()
-df_cf_view = df_cf[targets].copy()
-df_bs_view = df_bs[targets].copy()
-
-df_pl_view["Horizon Total"] = df_pl[active_months_for_sum].sum(axis=1)
-df_pl_view.at["Gross Profit Margin (£)", "Horizon Total"] = (
-    df_pl_view.loc["Total Revenue (£)", "Horizon Total"]
-    - df_pl_view.loc["Cost of Goods Sold (COGS) (£)", "Horizon Total"]
-)
-df_pl_view.at["Net Operating Profit (EBIT)", "Horizon Total"] = (
-    df_pl_view.loc["Gross Profit Margin (£)", "Horizon Total"]
-    - df_pl_view.loc["Operational Overheads (£)", "Horizon Total"]
-    - df_pl_view.loc["Staff Payroll Overhead (£)", "Horizon Total"]
-    - df_pl_view.loc["Depreciation Overhead (£)", "Horizon Total"]
-    - df_pl_view.loc["Financing Interest Cost (£)", "Horizon Total"]
-)
-df_pl_view.at["Profit After Tax (PAT) (£)", "Horizon Total"] = (
-    df_pl_view.loc["Net Operating Profit (EBIT)", "Horizon Total"]
-    - df_pl_view.loc["Corporation Tax Provision (£)", "Horizon Total"]
-)
-
-df_cf_view["Horizon Total"] = df_cf[active_months_for_sum].sum(axis=1)
-df_cf_view.at["Closing Bank Cash Reserves (£)", "Horizon Total"] = df_cf.at[
-    "Closing Bank Cash Reserves (£)", targets[-1]
-]
-df_bs_view["Terminal Position"] = df_bs[targets[-1]]
 
 t1, t2, t3 = st.tabs(
     [
