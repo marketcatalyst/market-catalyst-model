@@ -1,6 +1,6 @@
 # pages/reports.py
-# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v8.0.0-STATUTORY
-# SAGE WINFORECAST DOUBLE-ENTRY VERIFIED ENGINE (UK GAAP COMPLIANT)
+# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v9.0.0-STATUTORY
+# STRICT DOUBLE-ENTRY GENERAL LEDGER ARCHITECTURE (SAGE WINFORECAST RECONCILED)
 
 import os
 import re
@@ -16,7 +16,6 @@ except (ImportError, OSError):
     HTML = None
     WEASYPRINT_AVAILABLE = False
 
-# Enforce clean full-canvas presentation
 st.markdown(
     """
     <style>
@@ -40,699 +39,606 @@ if not st.session_state.get("authenticated"):
         st.switch_page("home.py")
     st.stop()
 
-
 # =========================================================================
-# 🏛️ DOUBLE-ENTRY JOURNAL ENGINE
+# 🏛️ AUDITED GENERAL LEDGER DOUBLE-ENTRY ENGINE
 # =========================================================================
-class JournalToken:
 
-    def __init__(self, month_label, debit_acct, credit_acct, amount):
-        self.month_label = month_label
-        self.debit_acct = debit_acct
-        self.credit_acct = credit_acct
-        self.amount = round(float(amount), 4)
+CHART_OF_ACCOUNTS = {
+    # Assets (Normal balance: DEBIT)
+    "1200": {"name": "Bank Current Account", "type": "Asset", "sign": 1},
+    "1100": {"name": "Trade Debtors Control", "type": "Asset", "sign": 1},
+    "0020": {"name": "Fixed Infrastructure Assets", "type": "Asset", "sign": 1},
+    "0021": {
+        "name": "Accumulated Depreciation Reserve",
+        "type": "Contra-Asset",
+        "sign": -1,
+    },
+    # Liabilities (Normal balance: CREDIT)
+    "2100": {"name": "Trade Creditors Control", "type": "Liability", "sign": -1},
+    "2200": {"name": "HMRC VAT Control Account", "type": "Liability", "sign": -1},
+    "2210": {"name": "HMRC PAYE/NIC Obligations", "type": "Liability", "sign": -1},
+    "2220": {
+        "name": "Corporation Tax Liability Provision",
+        "type": "Liability",
+        "sign": -1,
+    },
+    "2300": {
+        "name": "Long-Term Facility Debt Liability",
+        "type": "Liability",
+        "sign": -1,
+    },
+    # Capital & Reserves (Normal balance: CREDIT)
+    "3000": {"name": "Shareholder Invested Equity", "type": "Equity", "sign": -1},
+    "3200": {"name": "Retained Earnings Accumulation", "type": "Equity", "sign": -1},
+    # P&L Income (Normal balance: CREDIT)
+    "4000": {"name": "Gross Turnover Revenue", "type": "Income", "sign": -1},
+    # P&L Expenses (Normal balance: DEBIT)
+    "5000": {"name": "Cost of Goods Sold (COGS)", "type": "Expense", "sign": 1},
+    "6000": {"name": "Operational Overheads", "type": "Expense", "sign": 1},
+    "7000": {"name": "Staff Payroll Overhead", "type": "Expense", "sign": 1},
+    "8000": {"name": "Depreciation Expense", "type": "Expense", "sign": 1},
+    "8100": {"name": "Financing Interest Cost", "type": "Expense", "sign": 1},
+    "9000": {"name": "Corporation Tax Provision", "type": "TaxExpense", "sign": 1},
+}
 
 
-class CommercialTrialBalanceCuboid:
-
+class AuditedGeneralLedger:
     def __init__(self, horizon_months=36):
         self.horizon_months = horizon_months
-        self.months = [f"M{str(i).zfill(2)}" for i in range(0, self.horizon_months + 1)]
-        self.seasonality_profiles = {
-            "Flat_Linear": [1 / 12] * 12,
-            "Winter_Peak": [
-                0.12,
-                0.12,
-                0.10,
-                0.07,
-                0.05,
-                0.05,
-                0.05,
-                0.06,
-                0.08,
-                0.09,
-                0.10,
-                0.11,
-            ],
-            "Summer_Peak": [
-                0.05,
-                0.05,
-                0.07,
-                0.10,
-                0.12,
-                0.12,
-                0.12,
-                0.11,
-                0.09,
-                0.07,
-                0.05,
-                0.05,
-            ],
-        }
-        if "custom_curves" in st.session_state:
-            for k, v in st.session_state["custom_curves"].items():
-                self.seasonality_profiles[k] = v
-        self.token_pool = []
+        self.journal_entries = []
 
-    def inject_token(self, month_idx, debit_acct, credit_acct, amount):
-        if amount <= 0.0001 or month_idx < 0 or month_idx > self.horizon_months:
+    def post_journal(
+        self,
+        month: int,
+        debit_code: str,
+        credit_code: str,
+        amount: float,
+        memo: str = "",
+    ):
+        amt = round(float(amount), 2)
+        if amt <= 0.00:
             return
-        self.token_pool.append(
-            JournalToken(f"M{str(month_idx).zfill(2)}", debit_acct, credit_acct, amount)
+        if month < 0 or month > self.horizon_months:
+            return
+        # Strict Double-Entry: Each journal entry records equal and opposite debits and credits
+        self.journal_entries.append(
+            {
+                "month": month,
+                "debit_code": str(debit_code),
+                "credit_code": str(credit_code),
+                "amount": amt,
+                "memo": memo,
+            }
         )
 
-    def run_simulation_engine(self, state):
-        self.token_pool = []
-        sic = st.session_state.get("sic_profile", {})
-        nic_rate = float(sic.get("base_er_nic_rate", 0.138))
-        corp_tax_rate = float(sic.get("corp_tax_rate", 0.19))
-        supplier_credit_days = int(sic.get("supplier_credit_days", 30))
+    def get_period_movement(self, nominal_code: str, month: int) -> float:
+        """Returns the net movement of an account in a single period."""
+        dr = sum(
+            j["amount"]
+            for j in self.journal_entries
+            if j["month"] == month and j["debit_code"] == nominal_code
+        )
+        cr = sum(
+            j["amount"]
+            for j in self.journal_entries
+            if j["month"] == month and j["credit_code"] == nominal_code
+        )
+        # Normal debit accounts: Dr - Cr. Normal credit accounts: Cr - Dr
+        sign = CHART_OF_ACCOUNTS[nominal_code]["sign"]
+        return (dr - cr) * sign
 
-        couplings = st.session_state.get("vector_couplings", [])
+    def get_cumulative_balance(self, nominal_code: str, month_limit: int) -> float:
+        """Returns the cumulative ledger balance up to month_limit."""
+        dr = sum(
+            j["amount"]
+            for j in self.journal_entries
+            if j["month"] <= month_limit and j["debit_code"] == nominal_code
+        )
+        cr = sum(
+            j["amount"]
+            for j in self.journal_entries
+            if j["month"] <= month_limit and j["credit_code"] == nominal_code
+        )
+        sign = CHART_OF_ACCOUNTS[nominal_code]["sign"]
+        return (dr - cr) * sign
 
-        # 1. Opening Positions: Equity & Outright CapEx
-        for eq in state.get("equity_funding", []):
-            self.inject_token(
-                int(eq.get("month", 0)),
-                "BS_Asset_Cash",
-                "BS_Equity_Share_Capital",
-                float(eq.get("amount", 0.0)),
+
+def execute_full_simulation(state, horizon_months=36):
+    gl = AuditedGeneralLedger(horizon_months=horizon_months)
+    horizon_years = horizon_months // 12
+    sic = st.session_state.get("sic_profile", {})
+    nic_rate = float(sic.get("base_er_nic_rate", 0.138))
+    corp_tax_rate = float(sic.get("corp_tax_rate", 0.19))
+    supplier_credit_days = int(sic.get("supplier_credit_days", 30))
+
+    seasonality = {
+        "Flat_Linear": [1 / 12] * 12,
+        "Winter_Peak": [
+            0.12,
+            0.12,
+            0.10,
+            0.07,
+            0.05,
+            0.05,
+            0.05,
+            0.06,
+            0.08,
+            0.09,
+            0.10,
+            0.11,
+        ],
+        "Summer_Peak": [
+            0.05,
+            0.05,
+            0.07,
+            0.10,
+            0.12,
+            0.12,
+            0.12,
+            0.11,
+            0.09,
+            0.07,
+            0.05,
+            0.05,
+        ],
+    }
+    if "custom_curves" in st.session_state:
+        for k, v in st.session_state["custom_curves"].items():
+            seasonality[k] = v
+
+    # 1. Month 00 Setup: Share Capital & CapEx
+    for eq in state.get("equity_funding", []):
+        gl.post_journal(
+            int(eq.get("month", 0)),
+            "1200",
+            "3000",
+            float(eq.get("amount", 0.0)),
+            "Initial Share Capital",
+        )
+
+    for cap in state.get("outright_capex", []):
+        gl.post_journal(
+            int(cap.get("month", 1)),
+            "0020",
+            "1200",
+            float(cap.get("amount", 0.0)),
+            "Direct CapEx Purchase",
+        )
+
+    for fa in state.get("financed_assets", []):
+        m_start = int(fa.get("month", 1))
+        t_val = float(fa.get("amount", 0.0))
+        dp_pct = float(fa.get("deposit_pct", 10.0)) / 100.0
+        dp_cash = t_val * dp_pct
+        financed = t_val - dp_cash
+
+        gl.post_journal(m_start, "0020", "1200", dp_cash, f"HP Deposit: {fa['name']}")
+        if financed > 0:
+            gl.post_journal(
+                m_start,
+                "0020",
+                "2300",
+                financed,
+                f"HP Facility Principal: {fa['name']}",
+            )
+            term = max(1, int(fa.get("term_months", 36)))
+            m_principal = financed / term
+            apr = float(fa.get("interest_rate", 5.0)) / 100.0
+            for t in range(1, term + 1):
+                m_target = m_start + t
+                if m_target > horizon_months:
+                    break
+                interest = (financed - (m_principal * (t - 1))) * (apr / 12.0)
+                gl.post_journal(
+                    m_target,
+                    "2300",
+                    "1200",
+                    m_principal,
+                    f"HP Principal Pay: {fa['name']}",
+                )
+                gl.post_journal(
+                    m_target, "8100", "1200", interest, f"HP Interest: {fa['name']}"
+                )
+
+    # 2. Monthly Ledger Operations
+    ytd_ebt = {yr: 0.0 for yr in range(1, horizon_years + 1)}
+    ytd_tax = {yr: 0.0 for yr in range(1, horizon_years + 1)}
+    annual_final_tax = {yr: 0.0 for yr in range(1, horizon_years + 1)}
+
+    vat_settle_months = [
+        m for m in range(1, horizon_months + 1) if (m >= 5 and (m - 2) % 3 == 0)
+    ]
+
+    for m in range(1, horizon_months + 1):
+        yr = ((m - 1) // 12) + 1
+
+        # Revenue & Debtors
+        for sale in state.get("sales", []):
+            if sale.get("overrides", {}).get(f"M{str(m).zfill(2)}", 0.0) > 0:
+                net_rev = float(sale["overrides"][f"M{str(m).zfill(2)}"])
+            else:
+                y_base = float(
+                    sale.get(f"y{yr}_baseline", sale.get("y1_baseline", 0.0))
+                )
+                flex = (
+                    (1.0 + (float(sale.get("flex_pct", 0.0)) / 100.0))
+                    if yr > 1
+                    else 1.0
+                )
+                crv = seasonality.get(
+                    sale.get("seasonality", "Flat_Linear"), seasonality["Flat_Linear"]
+                )
+                net_rev = y_base * flex * crv[(m - 1) % 12]
+
+            vat_rate = (
+                0.20
+                if "Standard" in sale.get("vat_rate_type", "Standard")
+                else 0.05 if "Reduced" in sale.get("vat_rate_type", "") else 0.0
+            )
+            vat_val = net_rev * vat_rate
+            gross_rev = net_rev + vat_val
+
+            # Dr Debtors, Cr Sales, Cr VAT
+            gl.post_journal(m, "1100", "4000", net_rev, "Trading Revenue Invoiced")
+            if vat_val > 0:
+                gl.post_journal(
+                    m, "1100", "2200", vat_val, "Output VAT on Invoiced Sales"
+                )
+
+            delay_m = int(int(sale.get("payment_delay", 0)) / 30)
+            # Cash collection clears debtors: Dr Bank, Cr Debtors
+            gl.post_journal(
+                m + delay_m, "1200", "1100", gross_rev, "Debtor Receipt Clearing"
             )
 
-        for cap in state.get("outright_capex", []):
-            self.inject_token(
-                int(cap.get("month", 1)),
-                "BS_Asset_Fixed_Assets",
-                "BS_Asset_Cash",
-                float(cap.get("amount", 0.0)),
+        # COGS & Direct Creditors
+        for c in state.get("cogs", []):
+            if c.get("overrides", {}).get(f"M{str(m).zfill(2)}", 0.0) > 0:
+                net_cost = float(c["overrides"][f"M{str(m).zfill(2)}"])
+            else:
+                y_base = float(c.get(f"y{yr}_baseline", c.get("y1_baseline", 0.0)))
+                flex = (
+                    (1.0 + (float(c.get("flex_pct", 0.0)) / 100.0)) if yr > 1 else 1.0
+                )
+                crv = seasonality.get(
+                    c.get("seasonality", "Flat_Linear"), seasonality["Flat_Linear"]
+                )
+                net_cost = y_base * flex * crv[(m - 1) % 12]
+
+            vat_rate = (
+                0.05
+                if "Commercial Energy" in c.get("vat_rate_type", "")
+                else (0.20 if "Standard" in c.get("vat_rate_type", "Standard") else 0.0)
+            )
+            vat_val = net_cost * vat_rate
+            gross_cost = net_cost + vat_val
+
+            is_staff = "staff" in c.get("name", "").lower()
+            lag = 0 if is_staff else (1 if supplier_credit_days >= 30 else 0)
+
+            # Dr COGS, Dr VAT (Input VAT relieves liability), Cr Trade Creditors
+            gl.post_journal(m, "5000", "2100", net_cost, "COGS Incurred")
+            if vat_val > 0:
+                gl.post_journal(m, "2200", "2100", vat_val, "Input VAT on COGS")
+            # Payment: Dr Trade Creditors, Cr Bank
+            gl.post_journal(
+                m + lag, "2100", "1200", gross_cost, "Trade Creditor Settlement"
             )
 
-        # Financed Assets (Hire Purchase / Leases)
-        for fa in state.get("financed_assets", []):
-            m_start = int(fa.get("month", 1))
-            total_val = float(fa.get("amount", 0.0))
-            deposit_cash = total_val * (float(fa.get("deposit_pct", 10.0)) / 100.0)
-            financed_balance = total_val - deposit_cash
+        # OPEX Overheads
+        for op in state.get("opex", []):
+            if "matrix_data" in op and f"Y{yr}" in op["matrix_data"]:
+                net_op = float(op["matrix_data"][f"Y{yr}"][(m - 1) % 12])
+            else:
+                net_op = (
+                    float(op.get(f"y{yr}_baseline", op.get("y1_baseline", 0.0))) / 12.0
+                )
 
-            self.inject_token(
-                m_start, "BS_Asset_Fixed_Assets", "BS_Asset_Cash", deposit_cash
+            vat_rate = (
+                0.05
+                if "Commercial Energy" in op.get("vat_rate_type", "")
+                else (
+                    0.20 if "Standard" in op.get("vat_rate_type", "Standard") else 0.0
+                )
             )
-            if financed_balance > 0:
-                self.inject_token(
-                    m_start,
-                    "BS_Asset_Fixed_Assets",
-                    "BS_Liability_Long_Term_Debt",
-                    financed_balance,
-                )
-                term = max(1, int(fa.get("term_months", 36)))
-                apr = float(fa.get("interest_rate", 5.0)) / 100.0
-                monthly_p_base = financed_balance / term
-                for t in range(1, term + 1):
-                    m_curr = m_start + t
-                    if m_curr > self.horizon_months:
-                        break
-                    interest_charge = (
-                        financed_balance - (monthly_p_base * (t - 1))
-                    ) * (apr / 12.0)
-                    self.inject_token(
-                        m_curr,
-                        "BS_Liability_Long_Term_Debt",
-                        "BS_Asset_Cash",
-                        monthly_p_base,
-                    )
-                    self.inject_token(
-                        m_curr,
-                        "PL_Expense_Interest",
-                        "BS_Asset_Cash",
-                        interest_charge,
-                    )
+            vat_val = net_op * vat_rate
+            gross_op = net_op + vat_val
 
-        # 2. Chronological Monthly Execution Loop
-        horizon_years = self.horizon_months // 12
-        ytd_ebt_tracker = {yr: 0.0 for yr in range(1, horizon_years + 1)}
-        ytd_tax_provided = {yr: 0.0 for yr in range(1, horizon_years + 1)}
-        annual_taxable_profits = {yr: 0.0 for yr in range(1, horizon_years + 1)}
-
-        # Standard HMRC Stagger 1 Quarterly VAT Months: M05, M08, M11, M14, M17, M20, M23, M26, M29, M32, M35, M38, ...
-        vat_settle_months = [
-            m
-            for m in range(1, self.horizon_months + 1)
-            if (m >= 5 and (m - 2) % 3 == 0)
-        ]
-
-        for m in range(1, self.horizon_months + 1):
-            yr_idx = ((m - 1) // 12) + 1
-            sales_computed_map = {}
-
-            # --- REVENUE ---
-            for sale in state.get("sales", []):
-                val = 0.0
-                if sale.get("overrides", {}).get(f"M{str(m).zfill(2)}", 0.0) > 0:
-                    val = float(sale["overrides"][f"M{str(m).zfill(2)}"])
-                else:
-                    y_base = float(
-                        sale.get(f"y{yr_idx}_baseline", sale.get("y1_baseline", 0.0))
-                    )
-                    flex = (
-                        (1.0 + (float(sale.get("flex_pct", 0.0)) / 100.0))
-                        if yr_idx > 1
-                        else 1.0
-                    )
-                    seasonality_curve = self.seasonality_profiles.get(
-                        sale.get("seasonality", "Flat_Linear"),
-                        self.seasonality_profiles["Flat_Linear"],
-                    )
-                    val = y_base * flex * seasonality_curve[(m - 1) % 12]
-
-                sales_computed_map[sale["name"]] = val
-                vat_pct = (
-                    0.20
-                    if "Standard" in sale.get("vat_rate_type", "Standard")
-                    else (0.05 if "Reduced" in sale.get("vat_rate_type", "") else 0.0)
-                )
-                pay_delay = int(int(sale.get("payment_delay", 0)) / 30)
-
-                self.inject_token(m, "BS_Asset_Debtors", "PL_Revenue_Gross", val)
-                if val * vat_pct > 0:
-                    self.inject_token(
-                        m,
-                        "BS_Asset_Debtors",
-                        "BS_Liability_VAT_Payable",
-                        val * vat_pct,
-                    )
-                self.inject_token(
-                    m + pay_delay,
-                    "BS_Asset_Cash",
-                    "BS_Asset_Debtors",
-                    val * (1.0 + vat_pct),
-                )
-
-            # --- COGS ---
-            for c in state.get("cogs", []):
-                val = 0.0
-                matched_coupling = next(
-                    (cp for cp in couplings if cp["cogs_target"] == c["name"]),
-                    None,
-                )
-                if (
-                    matched_coupling
-                    and matched_coupling["sales_driver"] in sales_computed_map
-                ):
-                    val = (
-                        sales_computed_map[matched_coupling["sales_driver"]]
-                        * matched_coupling["coefficient"]
-                    )
-                elif c.get("overrides", {}).get(f"M{str(m).zfill(2)}", 0.0) > 0:
-                    val = float(c["overrides"][f"M{str(m).zfill(2)}"])
-                else:
-                    y_base = float(
-                        c.get(f"y{yr_idx}_baseline", c.get("y1_baseline", 0.0))
-                    )
-                    flex = (
-                        (1.0 + (float(c.get("flex_pct", 0.0)) / 100.0))
-                        if yr_idx > 1
-                        else 1.0
-                    )
-                    seasonality_curve = self.seasonality_profiles.get(
-                        c.get("seasonality", "Flat_Linear"),
-                        self.seasonality_profiles["Flat_Linear"],
-                    )
-                    val = y_base * flex * seasonality_curve[(m - 1) % 12]
-
-                vat_pct = (
-                    0.05
-                    if "Commercial Energy" in c.get("vat_rate_type", "")
-                    else (
-                        0.20
-                        if "Standard" in c.get("vat_rate_type", "Standard")
-                        else 0.0
-                    )
-                )
-                is_staff = "staff" in c.get("name", "").lower()
-                creditor_lag = (
-                    0 if is_staff else (1 if supplier_credit_days >= 30 else 0)
-                )
-
-                self.inject_token(
-                    m, "PL_Expense_COGS", "BS_Liability_Trade_Creditors", val
-                )
-                if val * vat_pct > 0:
-                    self.inject_token(
-                        m,
-                        "BS_Liability_VAT_Payable",
-                        "BS_Liability_Trade_Creditors",
-                        val * vat_pct,
-                    )
-                self.inject_token(
-                    m + creditor_lag,
-                    "BS_Liability_Trade_Creditors",
-                    "BS_Asset_Cash",
-                    val * (1.0 + vat_pct),
-                )
-
-            # --- OPEX ---
-            for op in state.get("opex", []):
-                val = 0.0
-                if "matrix_data" in op and f"Y{yr_idx}" in op["matrix_data"]:
-                    val = float(op["matrix_data"][f"Y{yr_idx}"][(m - 1) % 12])
-                else:
-                    val = (
-                        float(
-                            op.get(
-                                f"y{yr_idx}_baseline",
-                                op.get("y1_baseline", 0.0),
-                            )
-                        )
-                        / 12.0
-                    )
-
-                vat_pct = (
-                    0.05
-                    if "Commercial Energy" in op.get("vat_rate_type", "")
-                    else (
-                        0.20
-                        if "Standard" in op.get("vat_rate_type", "Standard")
-                        else 0.0
-                    )
-                )
-                self.inject_token(
+            gl.post_journal(
+                m, "6000", "2100", net_op, f"Overhead Incurred: {op.get('name')}"
+            )
+            if vat_val > 0:
+                gl.post_journal(
                     m,
-                    "PL_Expense_Overheads",
-                    "BS_Liability_Trade_Creditors",
-                    val,
+                    "2200",
+                    "2100",
+                    vat_val,
+                    f"Input VAT on Overhead: {op.get('name')}",
                 )
-                if val * vat_pct > 0:
-                    self.inject_token(
-                        m,
-                        "BS_Liability_VAT_Payable",
-                        "BS_Liability_Trade_Creditors",
-                        val * vat_pct,
-                    )
-                self.inject_token(
-                    m + 1,
-                    "BS_Liability_Trade_Creditors",
-                    "BS_Asset_Cash",
-                    val * (1.0 + vat_pct),
-                )
-
-            # --- PAYROLL ---
-            for pay in state.get("payroll", []):
-                if (
-                    int(pay.get("start_month", 1))
-                    <= m
-                    <= min(int(pay.get("end_month", 60)), self.horizon_months)
-                ):
-                    gross_pool = int(pay.get("headcount", 1)) * float(
-                        pay.get("monthly_wage", 2000.0)
-                    )
-                    self.inject_token(
-                        m, "PL_Expense_Payroll", "BS_Asset_Cash", gross_pool
-                    )
-                    self.inject_token(
-                        m,
-                        "PL_Expense_Payroll",
-                        "BS_Liability_PAYE_NIC_Payable",
-                        gross_pool * nic_rate,
-                    )
-                    self.inject_token(
-                        m + 1,
-                        "BS_Liability_PAYE_NIC_Payable",
-                        "BS_Asset_Cash",
-                        gross_pool * nic_rate,
-                    )
-
-            # --- DEPRECIATION ---
-            for outright in state.get("outright_capex", []):
-                if int(outright.get("month", 1)) <= m:
-                    dep_charge = (
-                        float(outright.get("amount", 0.0))
-                        * float(outright.get("depreciation_rate", 0.20))
-                    ) / 12.0
-                    self.inject_token(
-                        m,
-                        "PL_Expense_Depreciation",
-                        "BS_Asset_Accumulated_Depreciation",
-                        dep_charge,
-                    )
-
-            for fin in state.get("financed_assets", []):
-                if int(fin.get("month", 1)) <= m:
-                    dep_charge = (
-                        float(fin.get("amount", 0.0))
-                        * float(fin.get("depreciation_rate", 0.15))
-                    ) / 12.0
-                    self.inject_token(
-                        m,
-                        "PL_Expense_Depreciation",
-                        "BS_Asset_Accumulated_Depreciation",
-                        dep_charge,
-                    )
-
-            # --- QUARTERLY VAT DISCHARGE ---
-            if m in vat_settle_months:
-                # Calculate net credit balance in VAT liability account prior to this period's entries
-                vat_balance = self.get_net_liability_balance(
-                    "BS_Liability_VAT_Payable", m - 1
-                )
-                if vat_balance > 0.001:
-                    self.inject_token(
-                        m,
-                        "BS_Liability_VAT_Payable",
-                        "BS_Asset_Cash",
-                        vat_balance,
-                    )
-
-            # --- STATUTORY YTD CUMULATIVE TAX ENGINE WITH LOSS RELEASE ---
-            m_lbl = f"M{str(m).zfill(2)}"
-            m_rev = sum(
-                t.amount
-                for t in self.token_pool
-                if t.month_label == m_lbl and t.credit_acct == "PL_Revenue_Gross"
-            )
-            m_cogs = sum(
-                t.amount
-                for t in self.token_pool
-                if t.month_label == m_lbl and t.debit_acct == "PL_Expense_COGS"
-            )
-            m_opex = sum(
-                t.amount
-                for t in self.token_pool
-                if t.month_label == m_lbl and t.debit_acct == "PL_Expense_Overheads"
-            )
-            m_pay = sum(
-                t.amount
-                for t in self.token_pool
-                if t.month_label == m_lbl and t.debit_acct == "PL_Expense_Payroll"
-            )
-            m_dep = sum(
-                t.amount
-                for t in self.token_pool
-                if t.month_label == m_lbl and t.debit_acct == "PL_Expense_Depreciation"
-            )
-            m_int = sum(
-                t.amount
-                for t in self.token_pool
-                if t.month_label == m_lbl and t.debit_acct == "PL_Expense_Interest"
+            gl.post_journal(
+                m + 1, "2100", "1200", gross_op, f"Overhead Paid: {op.get('name')}"
             )
 
-            monthly_ebt = m_rev - m_cogs - m_opex - m_pay - m_dep - m_int
-            ytd_ebt_tracker[yr_idx] += monthly_ebt
-
-            required_cumulative_tax = max(0.0, ytd_ebt_tracker[yr_idx] * corp_tax_rate)
-            tax_delta = required_cumulative_tax - ytd_tax_provided[yr_idx]
-
-            if tax_delta > 0.0001:
-                self.inject_token(
-                    m,
-                    "PL_Tax_Corporation_Tax",
-                    "BS_Liability_Corp_Tax_Provision",
-                    tax_delta,
-                )
-                ytd_tax_provided[yr_idx] += tax_delta
-            elif tax_delta < -0.0001:
-                release_amt = abs(tax_delta)
-                self.inject_token(
-                    m,
-                    "BS_Liability_Corp_Tax_Provision",
-                    "PL_Tax_Corporation_Tax",
-                    release_amt,
-                )
-                ytd_tax_provided[yr_idx] -= release_amt
-
-        # Store annual tax totals for 9-month lag discharge schedule
-        for yr in range(1, horizon_years + 1):
-            annual_taxable_profits[yr] = ytd_tax_provided[yr]
-
-        # 9-Month Lag Tax Cash Settlements
-        tax_settle_map = {1: 21, 2: 33, 3: 45, 4: 57}
-        for yr, settle_m in tax_settle_map.items():
+        # Payroll & PAYE
+        for pay in state.get("payroll", []):
             if (
-                settle_m <= self.horizon_months
-                and annual_taxable_profits.get(yr, 0.0) > 0
+                int(pay.get("start_month", 1))
+                <= m
+                <= min(int(pay.get("end_month", 60)), horizon_months)
             ):
-                self.inject_token(
-                    settle_m,
-                    "BS_Liability_Corp_Tax_Provision",
-                    "BS_Asset_Cash",
-                    annual_taxable_profits[yr],
+                gross_sal = int(pay.get("headcount", 1)) * float(
+                    pay.get("monthly_wage", 2000.0)
+                )
+                nic = gross_sal * nic_rate
+                # Dr Staff Payroll (P&L), Cr Bank (Net pay)
+                gl.post_journal(m, "7000", "1200", gross_sal, "Staff Net Wages Paid")
+                # Dr Staff Payroll (P&L), Cr PAYE/NIC Liability
+                gl.post_journal(m, "7000", "2210", nic, "Employer NIC Accrual")
+                # Payment: Dr PAYE/NIC Liability, Cr Bank in following month
+                gl.post_journal(m + 1, "2210", "1200", nic, "HMRC PAYE/NIC Payment")
+
+        # Depreciation
+        for outright in state.get("outright_capex", []):
+            if int(outright.get("month", 1)) <= m:
+                dep = (
+                    float(outright.get("amount", 0.0))
+                    * float(outright.get("depreciation_rate", 0.20))
+                ) / 12.0
+                gl.post_journal(
+                    m, "8000", "0021", dep, f"Depr Direct CapEx: {outright['name']}"
                 )
 
-        return self.compile_financial_matrices()
+        for fin in state.get("financed_assets", []):
+            if int(fin.get("month", 1)) <= m:
+                dep = (
+                    float(fin.get("amount", 0.0))
+                    * float(fin.get("depreciation_rate", 0.15))
+                ) / 12.0
+                gl.post_journal(
+                    m, "8000", "0021", dep, f"Depr Lease Asset: {fin['name']}"
+                )
 
-    def get_net_liability_balance(self, account, month_limit):
-        """Returns the accumulated net liability (credit minus debit) up to month_limit."""
-        cr = sum(
-            t.amount
-            for t in self.token_pool
-            if t.credit_acct == account
-            and int(t.month_label.replace("M", "")) <= month_limit
+        # VAT Quarterly Settlement
+        if m in vat_settle_months:
+            vat_liability = gl.get_cumulative_balance("2200", m - 1)
+            if vat_liability > 0.01:
+                gl.post_journal(
+                    m,
+                    "2200",
+                    "1200",
+                    vat_liability,
+                    "Quarterly VAT Return Payment to HMRC",
+                )
+
+        # Cumulative Annual Corporation Tax with Loss Release
+        m_rev = gl.get_period_movement("4000", m)
+        m_cogs = gl.get_period_movement("5000", m)
+        m_opex = gl.get_period_movement("6000", m)
+        m_pay = gl.get_period_movement("7000", m)
+        m_dep = gl.get_period_movement("8000", m)
+        m_int = gl.get_period_movement("8100", m)
+
+        period_ebt = m_rev - (m_cogs + m_opex + m_pay + m_dep + m_int)
+        ytd_ebt[yr] += period_ebt
+
+        # Required cumulative provision (floored at 0)
+        req_cum_tax = max(0.0, ytd_ebt[yr] * corp_tax_rate)
+        tax_delta = round(req_cum_tax - ytd_tax[yr], 2)
+
+        if tax_delta > 0.01:
+            # Charge: Dr 9000 Tax Expense, Cr 2220 Tax Liability
+            gl.post_journal(
+                m, "9000", "2220", tax_delta, "Monthly Corp Tax Provision Accrual"
+            )
+            ytd_tax[yr] += tax_delta
+        elif tax_delta < -0.01:
+            # Loss month release: Dr 2220 Tax Liability, Cr 9000 Tax Expense
+            release = abs(tax_delta)
+            gl.post_journal(
+                m, "2220", "9000", release, "Loss Month Tax Provision Release Credit"
+            )
+            ytd_tax[yr] -= release
+
+    # Store finalized annual corporation tax for statutory 9-month lag discharge
+    for yr in range(1, horizon_years + 1):
+        annual_final_tax[yr] = ytd_tax[yr]
+
+    corp_tax_pay_calendar = {1: 21, 2: 33, 3: 45, 4: 57}
+    for yr, settle_m in corp_tax_pay_calendar.items():
+        if settle_m <= horizon_months and annual_final_tax.get(yr, 0.0) > 0.01:
+            gl.post_journal(
+                settle_m,
+                "2220",
+                "1200",
+                annual_final_tax[yr],
+                f"Year {yr} Corporation Tax Discharge to HMRC",
+            )
+
+    return compile_financial_statements(gl, horizon_months)
+
+
+# =========================================================================
+# 🏛️ FINANCIAL STATEMENTS COMPILED DIRECTLY FROM TRIAL BALANCE
+# =========================================================================
+
+
+def compile_financial_statements(gl: AuditedGeneralLedger, horizon_months: int):
+    months_labels = [f"M{str(i).zfill(2)}" for i in range(0, horizon_months + 1)]
+
+    # 1. Profit & Loss Matrix
+    pl_rows = [
+        "Total Revenue (£)",
+        "Cost of Goods Sold (COGS) (£)",
+        "Gross Profit Margin (£)",
+        "Operational Overheads (£)",
+        "Staff Payroll Overhead (£)",
+        "Depreciation Overhead (£)",
+        "Financing Interest Cost (£)",
+        "Net Operating Profit (EBIT)",
+        "Corporation Tax Provision (£)",
+        "Profit After Tax (PAT) (£)",
+    ]
+    df_pl = pd.DataFrame(0.0, index=pl_rows, columns=months_labels)
+
+    # 2. Cash Flow Matrix
+    cf_rows = [
+        "Trading Cash Collections (£)",
+        "Equity Capital Funding Injections (£)",
+        "Operational Cash Outflows (£)",
+        "Corporation Tax Settlement Paid (£)",
+        "HMRC VAT Settlement Paid (£)",
+        "Net Trading Cash Movement (£)",
+        "Closing Bank Cash Reserves (£)",
+    ]
+    df_cf = pd.DataFrame(0.0, index=cf_rows, columns=months_labels)
+
+    # 3. Balance Sheet Matrix
+    bs_rows = [
+        "Fixed Infrastructure Assets (£)",
+        "Accumulated Depreciation Reserve (£)",
+        "Net Book Value Asset Worth (£)",
+        "Trade Debtors Balance (£)",
+        "Closing Bank Cash Reserves (£)",
+        "Total Assets (£)",
+        "Trade Creditors Balance (£)",
+        "HMRC VAT Reserves Owing (£)",
+        "Provision for Corporation Tax (£)",
+        "HMRC PAYE Obligations Liability (£)",
+        "Long Term Facility Debt Liability (£)",
+        "Total Current & Long-Term Liabilities (£)",
+        "Shareholder Invested Equity Reserves (£)",
+        "Retained Earnings Accumulation (£)",
+        "Total Liabilities & Equity Reserves (£)",
+        "Trial Balance Checksum Balance",
+    ]
+    df_bs = pd.DataFrame(0.0, index=bs_rows, columns=months_labels)
+
+    for m in range(0, horizon_months + 1):
+        lbl = f"M{str(m).zfill(2)}"
+
+        # P&L derived from period account movements
+        rev = gl.get_period_movement("4000", m)
+        cogs = gl.get_period_movement("5000", m)
+        opex = gl.get_period_movement("6000", m)
+        pay = gl.get_period_movement("7000", m)
+        dep = gl.get_period_movement("8000", m)
+        int_cost = gl.get_period_movement("8100", m)
+        tax = gl.get_period_movement("9000", m)
+
+        df_pl.at["Total Revenue (£)", lbl] = rev
+        df_pl.at["Cost of Goods Sold (COGS) (£)", lbl] = cogs
+        df_pl.at["Gross Profit Margin (£)", lbl] = rev - cogs
+        df_pl.at["Operational Overheads (£)", lbl] = opex
+        df_pl.at["Staff Payroll Overhead (£)", lbl] = pay
+        df_pl.at["Depreciation Overhead (£)", lbl] = dep
+        df_pl.at["Financing Interest Cost (£)", lbl] = int_cost
+        ebit = rev - cogs - opex - pay - dep - int_cost
+        df_pl.at["Net Operating Profit (EBIT)", lbl] = ebit
+        df_pl.at["Corporation Tax Provision (£)", lbl] = tax
+        df_pl.at["Profit After Tax (PAT) (£)", lbl] = ebit - tax
+
+        # Cash Flow derived strictly from Bank account (1200) journal counterparts
+        inflows_trading = sum(
+            j["amount"]
+            for j in gl.journal_entries
+            if j["month"] == m
+            and j["debit_code"] == "1200"
+            and j["credit_code"] == "1100"
         )
-        dr = sum(
-            t.amount
-            for t in self.token_pool
-            if t.debit_acct == account
-            and int(t.month_label.replace("M", "")) <= month_limit
+        inflows_equity = sum(
+            j["amount"]
+            for j in gl.journal_entries
+            if j["month"] == m
+            and j["debit_code"] == "1200"
+            and j["credit_code"] == "3000"
         )
-        return max(0.0, cr - dr)
-
-    def get_net_asset_balance(self, account, month_limit):
-        """Returns the accumulated net asset (debit minus credit) up to month_limit."""
-        dr = sum(
-            t.amount
-            for t in self.token_pool
-            if t.debit_acct == account
-            and int(t.month_label.replace("M", "")) <= month_limit
+        outflows_vat = sum(
+            j["amount"]
+            for j in gl.journal_entries
+            if j["month"] == m
+            and j["credit_code"] == "1200"
+            and j["debit_code"] == "2200"
         )
-        cr = sum(
-            t.amount
-            for t in self.token_pool
-            if t.credit_acct == account
-            and int(t.month_label.replace("M", "")) <= month_limit
+        outflows_tax = sum(
+            j["amount"]
+            for j in gl.journal_entries
+            if j["month"] == m
+            and j["credit_code"] == "1200"
+            and j["debit_code"] == "2220"
         )
-        return max(0.0, dr - cr)
-
-    def compile_financial_matrices(self):
-        months_labels = [
-            f"M{str(i).zfill(2)}" for i in range(0, self.horizon_months + 1)
-        ]
-
-        df_pl = pd.DataFrame(
-            0.0,
-            index=[
-                "Total Revenue (£)",
-                "Cost of Goods Sold (COGS) (£)",
-                "Gross Profit Margin (£)",
-                "Operational Overheads (£)",
-                "Staff Payroll Overhead (£)",
-                "Depreciation Overhead (£)",
-                "Financing Interest Cost (£)",
-                "Net Operating Profit (EBIT)",
-                "Corporation Tax Provision (£)",
-                "Profit After Tax (PAT) (£)",
-            ],
-            columns=months_labels,
+        outflows_other = sum(
+            j["amount"]
+            for j in gl.journal_entries
+            if j["month"] == m
+            and j["credit_code"] == "1200"
+            and j["debit_code"] not in ["2200", "2220"]
         )
 
-        df_cf = pd.DataFrame(
-            0.0,
-            index=[
-                "Trading Cash Collections (£)",
-                "Equity Capital Funding Injections (£)",
-                "Operational Cash Outflows (£)",
-                "Corporation Tax Settlement Paid (£)",
-                "HMRC VAT Settlement Paid (£)",
-                "Net Trading Cash Movement (£)",
-                "Closing Bank Cash Reserves (£)",
-            ],
-            columns=months_labels,
+        df_cf.at["Trading Cash Collections (£)", lbl] = inflows_trading
+        df_cf.at["Equity Capital Funding Injections (£)", lbl] = inflows_equity
+        df_cf.at["Operational Cash Outflows (£)", lbl] = outflows_other
+        df_cf.at["Corporation Tax Settlement Paid (£)", lbl] = outflows_tax
+        df_cf.at["HMRC VAT Settlement Paid (£)", lbl] = outflows_vat
+        df_cf.at["Net Trading Cash Movement (£)", lbl] = (
+            inflows_trading + inflows_equity
+        ) - (outflows_other + outflows_tax + outflows_vat)
+        closing_bank = gl.get_cumulative_balance("1200", m)
+        df_cf.at["Closing Bank Cash Reserves (£)", lbl] = closing_bank
+
+        # Balance Sheet derived from cumulative general ledger balances
+        fa_orig = gl.get_cumulative_balance("0020", m)
+        accum_dep = gl.get_cumulative_balance("0021", m)
+        nbv = fa_orig - accum_dep
+        debtors = gl.get_cumulative_balance("1100", m)
+        total_assets = nbv + debtors + closing_bank
+
+        df_bs.at["Fixed Infrastructure Assets (£)", lbl] = fa_orig
+        df_bs.at["Accumulated Depreciation Reserve (£)", lbl] = accum_dep
+        df_bs.at["Net Book Value Asset Worth (£)", lbl] = nbv
+        df_bs.at["Trade Debtors Balance (£)", lbl] = debtors
+        df_bs.at["Closing Bank Cash Reserves (£)", lbl] = closing_bank
+        df_bs.at["Total Assets (£)", lbl] = total_assets
+
+        creditors = gl.get_cumulative_balance("2100", m)
+        vat_owing = gl.get_cumulative_balance("2200", m)
+        tax_owing = gl.get_cumulative_balance("2220", m)
+        paye_owing = gl.get_cumulative_balance("2210", m)
+        debt_owing = gl.get_cumulative_balance("2300", m)
+        total_liabs = creditors + vat_owing + tax_owing + paye_owing + debt_owing
+
+        df_bs.at["Trade Creditors Balance (£)", lbl] = creditors
+        df_bs.at["HMRC VAT Reserves Owing (£)", lbl] = vat_owing
+        df_bs.at["Provision for Corporation Tax (£)", lbl] = tax_owing
+        df_bs.at["HMRC PAYE Obligations Liability (£)", lbl] = paye_owing
+        df_bs.at["Long Term Facility Debt Liability (£)", lbl] = debt_owing
+        df_bs.at["Total Current & Long-Term Liabilities (£)", lbl] = total_liabs
+
+        equity = gl.get_cumulative_balance("3000", m)
+        cum_retained = sum(
+            df_pl.at["Profit After Tax (PAT) (£)", f"M{str(i).zfill(2)}"]
+            for i in range(1, m + 1)
         )
 
-        df_bs = pd.DataFrame(
-            0.0,
-            index=[
-                "Fixed Infrastructure Assets (£)",
-                "Accumulated Depreciation Reserve (£)",
-                "Net Book Value Asset Worth (£)",
-                "Trade Debtors Balance (£)",
-                "Closing Bank Cash Reserves (£)",
-                "Total Assets (£)",
-                "Trade Creditors Balance (£)",
-                "HMRC VAT Reserves Owing (£)",
-                "Provision for Corporation Tax (£)",
-                "HMRC PAYE Obligations Liability (£)",
-                "Long Term Facility Debt Liability (£)",
-                "Total Current & Long-Term Liabilities (£)",
-                "Shareholder Invested Equity Reserves (£)",
-                "Retained Earnings Accumulation (£)",
-                "Total Liabilities & Equity Reserves (£)",
-                "Ledger Verification Checksum Balance",
-            ],
-            columns=months_labels,
+        df_bs.at["Shareholder Invested Equity Reserves (£)", lbl] = equity
+        df_bs.at["Retained Earnings Accumulation (£)", lbl] = cum_retained
+
+        total_liabs_and_equity = total_liabs + equity + cum_retained
+        df_bs.at["Total Liabilities & Equity Reserves (£)", lbl] = (
+            total_liabs_and_equity
         )
 
-        for m_idx, m_lbl in enumerate(months_labels):
-            for t in self.token_pool:
-                if t.month_label == m_lbl:
-                    if t.credit_acct == "PL_Revenue_Gross":
-                        df_pl.at["Total Revenue (£)", m_lbl] += t.amount
-                    if t.debit_acct == "PL_Expense_COGS":
-                        df_pl.at["Cost of Goods Sold (COGS) (£)", m_lbl] += t.amount
-                    if t.debit_acct == "PL_Expense_Overheads":
-                        df_pl.at["Operational Overheads (£)", m_lbl] += t.amount
-                    if t.debit_acct == "PL_Expense_Payroll":
-                        df_pl.at["Staff Payroll Overhead (£)", m_lbl] += t.amount
-                    if t.debit_acct == "PL_Expense_Depreciation":
-                        df_pl.at["Depreciation Overhead (£)", m_lbl] += t.amount
-                    if t.debit_acct == "PL_Expense_Interest":
-                        df_pl.at["Financing Interest Cost (£)", m_lbl] += t.amount
+        # Formal Double-Entry Proof: Total Assets - (Total Liabilities + Equity) MUST EQUAL 0.00
+        tb_checksum = round(total_assets - total_liabs_and_equity, 2)
+        df_bs.at["Trial Balance Checksum Balance", lbl] = tb_checksum
 
-                    # Corporation tax charge (Debit) vs tax release (Credit)
-                    if t.debit_acct == "PL_Tax_Corporation_Tax":
-                        df_pl.at["Corporation Tax Provision (£)", m_lbl] += t.amount
-                    if t.credit_acct == "PL_Tax_Corporation_Tax":
-                        df_pl.at["Corporation Tax Provision (£)", m_lbl] -= t.amount
-
-                    # Cash Flow Mapping
-                    if (
-                        t.debit_acct == "BS_Asset_Cash"
-                        and t.credit_acct == "BS_Asset_Debtors"
-                    ):
-                        df_cf.at["Trading Cash Collections (£)", m_lbl] += t.amount
-                    if (
-                        t.debit_acct == "BS_Asset_Cash"
-                        and t.credit_acct == "BS_Equity_Share_Capital"
-                    ):
-                        df_cf.at[
-                            "Equity Capital Funding Injections (£)", m_lbl
-                        ] += t.amount
-                    if t.credit_acct == "BS_Asset_Cash":
-                        if t.debit_acct == "BS_Liability_Corp_Tax_Provision":
-                            df_cf.at[
-                                "Corporation Tax Settlement Paid (£)", m_lbl
-                            ] += t.amount
-                        elif t.debit_acct == "BS_Liability_VAT_Payable":
-                            df_cf.at["HMRC VAT Settlement Paid (£)", m_lbl] += t.amount
-                        else:
-                            df_cf.at["Operational Cash Outflows (£)", m_lbl] += t.amount
-
-            # Computed P&L Totals
-            df_pl.at["Gross Profit Margin (£)", m_lbl] = (
-                df_pl.at["Total Revenue (£)", m_lbl]
-                - df_pl.at["Cost of Goods Sold (COGS) (£)", m_lbl]
-            )
-            df_pl.at["Net Operating Profit (EBIT)", m_lbl] = (
-                df_pl.at["Gross Profit Margin (£)", m_lbl]
-                - df_pl.at["Operational Overheads (£)", m_lbl]
-                - df_pl.at["Staff Payroll Overhead (£)", m_lbl]
-                - df_pl.at["Depreciation Overhead (£)", m_lbl]
-                - df_pl.at["Financing Interest Cost (£)", m_lbl]
-            )
-            df_pl.at["Profit After Tax (PAT) (£)", m_lbl] = (
-                df_pl.at["Net Operating Profit (EBIT)", m_lbl]
-                - df_pl.at["Corporation Tax Provision (£)", m_lbl]
-            )
-
-            # Cash Flow Closing Position
-            df_cf.at["Net Trading Cash Movement (£)", m_lbl] = (
-                df_cf.at["Trading Cash Collections (£)", m_lbl]
-                + df_cf.at["Equity Capital Funding Injections (£)", m_lbl]
-                - df_cf.at["Operational Cash Outflows (£)", m_lbl]
-                - df_cf.at["Corporation Tax Settlement Paid (£)", m_lbl]
-                - df_cf.at["HMRC VAT Settlement Paid (£)", m_lbl]
-            )
-
-            # Cumulative Cash Balance
-            cash_dr = sum(
-                t.amount
-                for t in self.token_pool
-                if t.debit_acct == "BS_Asset_Cash"
-                and int(t.month_label.replace("M", "")) <= m_idx
-            )
-            cash_cr = sum(
-                t.amount
-                for t in self.token_pool
-                if t.credit_acct == "BS_Asset_Cash"
-                and int(t.month_label.replace("M", "")) <= m_idx
-            )
-            closing_cash = round(cash_dr - cash_cr, 2)
-            df_cf.at["Closing Bank Cash Reserves (£)", m_lbl] = closing_cash
-
-            # --- BALANCE SHEET MAPPING (STRICT POSITIVE DISPLAY CONVENTION) ---
-            fixed_assets = self.get_net_asset_balance("BS_Asset_Fixed_Assets", m_idx)
-            accum_dep = self.get_net_liability_balance(
-                "BS_Asset_Accumulated_Depreciation", m_idx
-            )
-            nbv = max(0.0, fixed_assets - accum_dep)
-            debtors = self.get_net_asset_balance("BS_Asset_Debtors", m_idx)
-
-            df_bs.at["Fixed Infrastructure Assets (£)", m_lbl] = fixed_assets
-            df_bs.at["Accumulated Depreciation Reserve (£)", m_lbl] = accum_dep
-            df_bs.at["Net Book Value Asset Worth (£)", m_lbl] = nbv
-            df_bs.at["Trade Debtors Balance (£)", m_lbl] = debtors
-            df_bs.at["Closing Bank Cash Reserves (£)", m_lbl] = closing_cash
-
-            total_assets = round(nbv + debtors + closing_cash, 2)
-            df_bs.at["Total Assets (£)", m_lbl] = total_assets
-
-            trade_creditors = self.get_net_liability_balance(
-                "BS_Liability_Trade_Creditors", m_idx
-            )
-            vat_owing = self.get_net_liability_balance(
-                "BS_Liability_VAT_Payable", m_idx
-            )
-            tax_owing = self.get_net_liability_balance(
-                "BS_Liability_Corp_Tax_Provision", m_idx
-            )
-            paye_owing = self.get_net_liability_balance(
-                "BS_Liability_PAYE_NIC_Payable", m_idx
-            )
-            debt_owing = self.get_net_liability_balance(
-                "BS_Liability_Long_Term_Debt", m_idx
-            )
-            share_capital = self.get_net_liability_balance(
-                "BS_Equity_Share_Capital", m_idx
-            )
-
-            df_bs.at["Trade Creditors Balance (£)", m_lbl] = trade_creditors
-            df_bs.at["HMRC VAT Reserves Owing (£)", m_lbl] = vat_owing
-            df_bs.at["Provision for Corporation Tax (£)", m_lbl] = tax_owing
-            df_bs.at["HMRC PAYE Obligations Liability (£)", m_lbl] = paye_owing
-            df_bs.at["Long Term Facility Debt Liability (£)", m_lbl] = debt_owing
-
-            total_liabs = round(
-                trade_creditors + vat_owing + tax_owing + paye_owing + debt_owing,
-                2,
-            )
-            df_bs.at["Total Current & Long-Term Liabilities (£)", m_lbl] = total_liabs
-
-            # Cumulative Retained Earnings from P&L PAT
-            cum_pat = sum(
-                df_pl.at["Profit After Tax (PAT) (£)", pm]
-                for pm in months_labels[1 : m_idx + 1]
-            )
-            retained_earnings = round(cum_pat, 2)
-
-            df_bs.at["Shareholder Invested Equity Reserves (£)", m_lbl] = share_capital
-            df_bs.at["Retained Earnings Accumulation (£)", m_lbl] = retained_earnings
-
-            total_liabs_and_equity = round(
-                total_liabs + share_capital + retained_earnings, 2
-            )
-            df_bs.at["Total Liabilities & Equity Reserves (£)", m_lbl] = (
-                total_liabs_and_equity
-            )
-
-            # Statutory Verification Checksum: Assets - (Liabilities + Equity) = 0.00
-            df_bs.at["Ledger Verification Checksum Balance", m_lbl] = round(
-                total_assets - total_liabs_and_equity, 2
-            )
-
-        return df_pl, df_cf, df_bs
+    return df_pl, df_cf, df_bs
 
 
 # =========================================================================
 # 🏛️ EXECUTIVE REPORT PACK HTML / PDF COMPILER
 # =========================================================================
+
+
 def compile_premium_html_report(
     project_name,
     peak_cash,
@@ -756,8 +662,7 @@ def compile_premium_html_report(
 
     annual_pl, annual_cf, annual_bs = {}, {}, {}
     for idx, yr in enumerate(years_labels):
-        m_start = (idx * 12) + 1
-        m_end = (idx + 1) * 12
+        m_start, m_end = (idx * 12) + 1, (idx + 1) * 12
         cols = [f"M{str(i).zfill(2)}" for i in range(m_start, m_end + 1)]
         bs_col = f"M{str(m_end).zfill(2)}"
 
@@ -782,8 +687,6 @@ def compile_premium_html_report(
             "Closing": df_cf.at["Closing Bank Cash Reserves (£)", bs_col],
         }
         annual_bs[yr] = {
-            "Fixed": df_bs.at["Fixed Infrastructure Assets (£)", bs_col],
-            "AccumDep": df_bs.at["Accumulated Depreciation Reserve (£)", bs_col],
             "NBV": df_bs.at["Net Book Value Asset Worth (£)", bs_col],
             "Debtors": df_bs.at["Trade Debtors Balance (£)", bs_col],
             "Cash": df_bs.at["Closing Bank Cash Reserves (£)", bs_col],
@@ -798,12 +701,11 @@ def compile_premium_html_report(
             "TotalLiabEquity": df_bs.at[
                 "Total Liabilities & Equity Reserves (£)", bs_col
             ],
-            "Checksum": df_bs.at["Ledger Verification Checksum Balance", bs_col],
+            "Checksum": df_bs.at["Trial Balance Checksum Balance", bs_col],
         }
 
     html_pl = "".join(
-        f"<tr style='{'font-weight:bold; background:#f8fafc;' if k in ['Revenue','Gross','EBIT','PAT'] else ''}'>"
-        f"<td>{lbl}</td>"
+        f"<tr style='{'font-weight:bold; background:#f8fafc;' if k in ['Revenue','Gross','EBIT','PAT'] else ''}'><td>{lbl}</td>"
         + "".join(
             f"<td class='text-right'>£{annual_pl[y][k]:,.2f}</td>" for y in years_labels
         )
@@ -823,8 +725,7 @@ def compile_premium_html_report(
     )
 
     html_cf = "".join(
-        f"<tr style='{'font-weight:bold; background:#f8fafc;' if k=='Closing' else ''}'>"
-        f"<td>{lbl}</td>"
+        f"<tr style='{'font-weight:bold; background:#f8fafc;' if k=='Closing' else ''}'><td>{lbl}</td>"
         + "".join(
             f"<td class='text-right'>£{annual_cf[y][k]:,.2f}</td>" for y in years_labels
         )
@@ -840,8 +741,7 @@ def compile_premium_html_report(
     )
 
     html_bs = "".join(
-        f"<tr style='{'font-weight:bold; background:#f8fafc;' if k in ['TotalAssets','TotalLiabEquity','Checksum'] else ''}'>"
-        f"<td>{lbl}</td>"
+        f"<tr style='{'font-weight:bold; background:#f8fafc;' if k in ['TotalAssets','TotalLiabEquity','Checksum'] else ''}'><td>{lbl}</td>"
         + "".join(
             f"<td class='text-right'>{'£' if k != 'Checksum' else ''}{annual_bs[y][k]:,.2f}</td>"
             for y in years_labels
@@ -860,7 +760,7 @@ def compile_premium_html_report(
             ("Shareholder Invested Equity Reserves", "Equity"),
             ("Retained Earnings Accumulation", "Retained"),
             ("Total Liabilities & Equity Reserves", "TotalLiabEquity"),
-            ("Ledger Verification Checksum Balance", "Checksum"),
+            ("Trial Balance Checksum Balance", "Checksum"),
         ]
     )
 
@@ -876,7 +776,7 @@ def compile_premium_html_report(
             @page {{
                 size: A4 portrait; margin: 18mm 15mm;
                 @bottom-right {{ content: "Page " counter(page); font-family: sans-serif; font-size: 8pt; color: #94a3b8; }}
-                @bottom-left {{ content: "STRATA Suite // Statutory Accounting Engine"; font-family: sans-serif; font-size: 8pt; color: #94a3b8; }}
+                @bottom-left {{ content: "STRATA Suite // Statutory General Ledger Engine"; font-family: sans-serif; font-size: 8pt; color: #94a3b8; }}
             }}
             body {{ font-family: Arial, sans-serif; color: #0f172a; line-height: 1.4; font-size: 8.5pt; }}
             .banner {{ background-color: #1e3a8a; color: #ffffff; padding: 18px; border-radius: 4px; margin-bottom: 15px; }}
@@ -894,7 +794,7 @@ def compile_premium_html_report(
     <body>
         <div class="banner">
             <h1>STRATA EXECUTIVE FINANCIAL REPORT PACK</h1>
-            <p>Statutory {horizon_years}-Year Integrated Financial Projections (Dual-Entry Audited)</p>
+            <p>Statutory {horizon_years}-Year Integrated Financial Projections (Trial Balance Audited)</p>
         </div>
         <div class="ctx">Project: {project_name} | Accounting Horizon: {horizon_years} Operating Years ({total_months} Months)</div>
         <table>
@@ -933,8 +833,9 @@ def compile_premium_html_report(
 
 
 # =========================================================================
-# WORKSPACE DISPLAY RENDERING CANVAS
+# 🎛️ WORKSPACE DISPLAY RENDERING CANVAS
 # =========================================================================
+
 st.title("📊 Performance & Reporting Summary Pack")
 st.caption(
     f"Active Scenario Context: `{st.session_state.get('active_project_name', 'Unsaved_Draft_Scenario')}`"
@@ -954,15 +855,15 @@ horizon_choice = st.radio(
 horizon_years = 3 if "3-Year" in horizon_choice else 5
 horizon_months = horizon_years * 12
 
-cuboid_engine = CommercialTrialBalanceCuboid(horizon_months=horizon_months)
 active_data_context = st.session_state.get("active_data", {})
-df_pl, df_cf, df_bs = cuboid_engine.run_simulation_engine(active_data_context)
+df_pl, df_cf, df_bs = execute_full_simulation(
+    active_data_context, horizon_months=horizon_months
+)
 
 term_month_col = f"M{str(horizon_months).zfill(2)}"
 closing_cash_array = df_cf.loc["Closing Bank Cash Reserves (£)"].astype(float).values
-peak_cash, lowest_cash = float(closing_cash_array.max()), float(
-    closing_cash_array.min()
-)
+peak_cash = float(closing_cash_array.max())
+lowest_cash = float(closing_cash_array.min())
 terminal_worth = float(df_bs.loc["Retained Earnings Accumulation (£)", term_month_col])
 
 kpi1, kpi2, kpi3 = st.columns(3)
@@ -1074,7 +975,6 @@ if st.session_state["cached_ai_analysis"]:
 
 st.markdown("---")
 
-# Presentation Slices
 targets = [f"M{str(i).zfill(2)}" for i in range(0, horizon_months + 1)]
 active_months_for_sum = [t for t in targets if t != "M00"]
 
@@ -1103,7 +1003,6 @@ df_cf_view["Horizon Total"] = df_cf[active_months_for_sum].sum(axis=1)
 df_cf_view.at["Closing Bank Cash Reserves (£)", "Horizon Total"] = df_cf.at[
     "Closing Bank Cash Reserves (£)", targets[-1]
 ]
-
 df_bs_view["Terminal Position"] = df_bs[targets[-1]]
 
 t1, t2, t3 = st.tabs(
@@ -1125,7 +1024,7 @@ def highlight_totals(row):
         "Total Assets (£)",
         "Total Current & Long-Term Liabilities (£)",
         "Total Liabilities & Equity Reserves (£)",
-        "Ledger Verification Checksum Balance",
+        "Trial Balance Checksum Balance",
     ]
     if row.name in highlight_rows:
         return ["font-weight: bold; background-color: #f1f5f9; color: #1e3a8a;"] * len(
@@ -1188,8 +1087,7 @@ with t2:
                     running_val = item["value"]
                 if m >= item["Month"] and running_val > 0:
                     running_val = max(
-                        0.0,
-                        running_val - ((item["value"] * item["Rate"]) / 12.0),
+                        0.0, running_val - ((item["value"] * item["Rate"]) / 12.0)
                     )
                 v_rec[m_lbl] = running_val
             ledger_rows.append(v_rec)
@@ -1213,18 +1111,12 @@ with t3:
             )
             term = max(1, int(fin.get("term_months", 36)))
             monthly_principal = fin_bal / term
-            bal_rec = {
-                "Facility": fin["name"],
-                "Metric": "Total Outstanding (£)",
-            }
+            bal_rec = {"Facility": fin["name"], "Metric": "Total Outstanding (£)"}
             st_rec = {
                 "Facility": fin["name"],
                 "Metric": "Current Liabilities (<12m) (£)",
             }
-            lt_rec = {
-                "Facility": fin["name"],
-                "Metric": "Non-Current Debt (>1yr) (£)",
-            }
+            lt_rec = {"Facility": fin["name"], "Metric": "Non-Current Debt (>1yr) (£)"}
 
             running_debt = 0.0
             for m in range(0, horizon_months + 1):
