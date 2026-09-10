@@ -3,10 +3,16 @@
 # WINFORECAST GROUND TRUTH // MODERN GOOGLE-GENAI SDK // UNIFIED SCENARIO CONTROL DESK
 
 import os
+import sys
 import re
 from io import BytesIO
 import pandas as pd
 import streamlit as st
+
+# Inject project root into Python system path for pages/ directory imports
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
 # Centralized Scenario Persistence Engine
 from utils.scenario_manager import render_global_scenario_sidebar

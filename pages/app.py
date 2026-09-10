@@ -4,8 +4,21 @@
 
 import json
 import os
+import sys
 import pandas as pd
 import streamlit as st
+
+# Inject project root into Python system path for pages/ directory imports
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
+# Centralized Scenario Persistence Engine
+from utils.scenario_manager import (
+    load_scenario_from_disk,
+    save_scenario_to_disk,
+    render_global_scenario_sidebar,
+)
 
 # Clean layout styling
 st.markdown(
@@ -30,15 +43,6 @@ if not st.session_state.get("authenticated"):
     if st.button("🔑 Return to Home Portal & Sign In", width="stretch"):
         st.switch_page("home.py")
     st.stop()
-
-# =========================================================================
-# 💾 DISK-BASED SCENARIO PERSISTENCE ENGINE (CENTRALIZED)
-# =========================================================================
-from utils.scenario_manager import (
-    load_scenario_from_disk,
-    save_scenario_to_disk,
-    render_global_scenario_sidebar,
-)
 
 # Initialize Session State structures if absent
 if "active_data" not in st.session_state:
