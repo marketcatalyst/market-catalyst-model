@@ -1,6 +1,6 @@
 # pages/reports.py
-# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v9.6.0-STATUTORY
-# WINFORECAST INGESTED GROUND TRUTH // PURE PYTHON xhtml2pdf // EXCEL-CLEAN BOM CSV
+# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v9.7.0-STATUTORY
+# WINFORECAST GROUND TRUTH // INGESTION COMPLETENESS AUDIT // AGGREGATION ANALYSIS
 
 import os
 import re
@@ -146,8 +146,10 @@ def get_exact_period_value(
     item_dict: dict, month_idx: int, yr_idx: int, seasonality_profiles: dict
 ) -> float:
     """
-    Primary Ground Truth: Uses exact monthly figures ingested from the WinForecast PDF pack.
-    Only falls back to annual flex division if explicit monthly data is absent.
+    Safely retrieves the monthly period value:
+    1. Check overrides: must be float > 0.0 to override baseline.
+    2. Check matrix_data: must have elements > 0.0.
+    3. Fallback: Annual baseline distributed across seasonality curve.
     """
     m_lbl = f"M{str(month_idx).zfill(2)}"
 
@@ -155,11 +157,12 @@ def get_exact_period_value(
     if "overrides" in item_dict and isinstance(item_dict["overrides"], dict):
         if m_lbl in item_dict["overrides"]:
             val = item_dict["overrides"][m_lbl]
-            if val is not None and str(val).strip() != "":
-                try:
-                    return float(val)
-                except (ValueError, TypeError):
-                    pass
+            try:
+                f_val = float(val)
+                if f_val > 0.0:
+                    return f_val
+            except (ValueError, TypeError):
+                pass
 
     # 2. Ingested matrix_data (Year/Month 12-slot array)
     if "matrix_data" in item_dict and isinstance(item_dict["matrix_data"], dict):
@@ -169,11 +172,13 @@ def get_exact_period_value(
             arr = item_dict["matrix_data"][y_key]
             if isinstance(arr, list) and len(arr) > month_offset:
                 try:
-                    return float(arr[month_offset])
+                    f_val = float(arr[month_offset])
+                    if f_val > 0.0:
+                        return f_val
                 except (ValueError, TypeError):
                     pass
 
-    # 3. Fallback only if no monthly figures exist
+    # 3. Standard statutory calculation from baseline targets
     y_base = float(
         item_dict.get(f"y{yr_idx}_baseline", item_dict.get("y1_baseline", 0.0))
     )
@@ -185,6 +190,105 @@ def get_exact_period_value(
         season_name, seasonality_profiles.get("Flat_Linear", [1 / 12] * 12)
     )
     return y_base * flex * crv[(month_idx - 1) % 12]
+
+
+# =========================================================================
+# 🔍 INGESTION COMPLETENESS AUDITOR & AGGREGATION DETECTOR
+# =========================================================================
+
+
+def audit_ingestion_completeness(state: dict, horizon_years: int = 3):
+    """
+    Self-audit to verify that every ingested line item is active, valid, and accounted for.
+    Generates detailed breakdown tables for every aggregated P&L total.
+    """
+    warnings = []
+    aggregation_notes = {"Sales": [], "COGS": [], "OPEX": [], "Payroll": []}
+
+    # Audit Sales Drivers
+    sales = state.get("sales", [])
+    if not sales:
+        warnings.append(
+            "⚠️ CRITICAL: No Sales Revenue vectors found in active scenario."
+        )
+    for s in sales:
+        name = s.get("name", "Unnamed Sales Vector")
+        y1 = float(s.get("y1_baseline", 0.0))
+        y2 = float(s.get("y2_baseline", 0.0))
+        y3 = float(s.get("y3_baseline", 0.0))
+        has_ov = any(
+            float(v) > 0 for v in s.get("overrides", {}).values() if str(v).strip()
+        )
+        if y1 == 0 and y2 == 0 and y3 == 0 and not has_ov:
+            warnings.append(
+                f"⚠️ Vector '{name}' in Sales has zero revenue across all years and overrides."
+            )
+        aggregation_notes["Sales"].append(
+            {
+                "Line Item": name,
+                "VAT Profile": s.get("vat_rate_type", "Standard 20%"),
+                "Payment Terms": f"{s.get('payment_delay', 0)} Days Lag",
+                "Year 1": y1,
+                "Year 2": y2,
+                "Year 3": y3,
+            }
+        )
+
+    # Audit Direct COGS
+    cogs = state.get("cogs", [])
+    for c in cogs:
+        name = c.get("name", "Unnamed COGS Vector")
+        y1 = float(c.get("y1_baseline", 0.0))
+        y2 = float(c.get("y2_baseline", 0.0))
+        y3 = float(c.get("y3_baseline", 0.0))
+        aggregation_notes["COGS"].append(
+            {
+                "Line Item": name,
+                "VAT Profile": c.get("vat_rate_type", "Standard 20%"),
+                "Cost Nature": (
+                    "Direct Personnel"
+                    if "staff" in name.lower()
+                    else "Direct Operating Cost"
+                ),
+                "Year 1": y1,
+                "Year 2": y2,
+                "Year 3": y3,
+            }
+        )
+
+    # Audit OPEX
+    opex = state.get("opex", [])
+    for op in opex:
+        name = op.get("name", "Unnamed Overhead")
+        y1 = float(op.get("y1_baseline", 0.0))
+        y2 = float(op.get("y2_baseline", 0.0))
+        y3 = float(op.get("y3_baseline", 0.0))
+        aggregation_notes["OPEX"].append(
+            {
+                "Line Item": name,
+                "VAT Profile": op.get("vat_rate_type", "Standard 20%"),
+                "Year 1": y1,
+                "Year 2": y2,
+                "Year 3": y3,
+            }
+        )
+
+    # Audit Payroll
+    payroll = state.get("payroll", [])
+    for p in payroll:
+        name = p.get("name", "Unnamed Role")
+        hc = int(p.get("headcount", 1))
+        mw = float(p.get("monthly_wage", 0.0))
+        ann = hc * mw * 12
+        aggregation_notes["Payroll"].append(
+            {
+                "Line Item": f"{name} (x{hc})",
+                "Monthly Wage": f"£{mw:,.2f}",
+                "Annual Cost": ann,
+            }
+        )
+
+    return warnings, aggregation_notes
 
 
 def execute_full_simulation(state, horizon_months=36):
@@ -691,10 +795,6 @@ def compile_premium_html_report(
     active_data,
     horizon_years=3,
 ) -> bytes:
-    """
-    Compiles executive reporting pack into a PDF using pure Python xhtml2pdf.
-    Eliminates all external Windows C runtime dependencies.
-    """
     clean_insight = (
         insight_text.replace("\n", "<br>")
         .replace("â€™", "'")
@@ -907,6 +1007,17 @@ horizon_years = 3 if "3-Year" in horizon_choice else 5
 horizon_months = horizon_years * 12
 
 active_data_context = st.session_state.get("active_data", {})
+
+# =========================================================================
+# 🔍 RUN INGESTION INTEGRITY AUDIT
+# =========================================================================
+warnings_list, agg_breakdowns = audit_ingestion_completeness(
+    active_data_context, horizon_years
+)
+if warnings_list:
+    for w in warnings_list:
+        st.warning(w)
+
 df_pl, df_cf, df_bs = execute_full_simulation(
     active_data_context, horizon_months=horizon_months
 )
@@ -993,6 +1104,76 @@ with exp_col3:
         mime="text/csv",
         use_container_width=True,
     )
+
+# =========================================================================
+# 📋 AGGREGATED LINE ITEM COMPOSITION ANALYSIS & NOTES
+# =========================================================================
+with st.expander(
+    "📋 Statutory Notes & Analysis of Aggregated Performance Lines", expanded=True
+):
+    st.caption(
+        "Detailed line-item disclosures showing exact vector compositions of aggregated P&L rows."
+    )
+
+    an_col1, an_col2 = st.columns(2)
+    with an_col1:
+        st.markdown("##### 1. Total Turnover Revenue Vectors Composition")
+        if agg_breakdowns["Sales"]:
+            df_sales_notes = pd.DataFrame(agg_breakdowns["Sales"]).set_index(
+                "Line Item"
+            )
+            st.dataframe(
+                df_sales_notes.style.format(
+                    {"Year 1": "£{:,.2f}", "Year 2": "£{:,.2f}", "Year 3": "£{:,.2f}"}
+                ),
+                use_container_width=True,
+            )
+        else:
+            st.info("No active sales vectors ingested.")
+
+    with an_col2:
+        st.markdown("##### 2. Direct Cost of Goods Sold (COGS) Breakdown")
+        if agg_breakdowns["COGS"]:
+            df_cogs_notes = pd.DataFrame(agg_breakdowns["COGS"]).set_index("Line Item")
+            st.dataframe(
+                df_cogs_notes.style.format(
+                    {"Year 1": "£{:,.2f}", "Year 2": "£{:,.2f}", "Year 3": "£{:,.2f}"}
+                ),
+                use_container_width=True,
+            )
+        else:
+            st.info("No active direct COGS vectors ingested.")
+
+    an_col3, an_col4 = st.columns(2)
+    with an_col3:
+        st.markdown("##### 3. Operational Overheads (OPEX) Composition")
+        if agg_breakdowns["OPEX"]:
+            df_opex_notes = pd.DataFrame(agg_breakdowns["OPEX"]).set_index("Line Item")
+            st.dataframe(
+                df_opex_notes.style.format(
+                    {"Year 1": "£{:,.2f}", "Year 2": "£{:,.2f}", "Year 3": "£{:,.2f}"}
+                ),
+                use_container_width=True,
+            )
+        else:
+            st.info("No overhead expense lines registered.")
+
+    with an_col4:
+        st.markdown("##### 4. Salaried Personnel & Payroll Obligations")
+        if agg_breakdowns["Payroll"]:
+            df_pay_notes = pd.DataFrame(agg_breakdowns["Payroll"]).set_index(
+                "Line Item"
+            )
+            st.dataframe(
+                df_pay_notes.style.format({"Annual Cost": "£{:,.2f}"}),
+                use_container_width=True,
+            )
+        else:
+            st.info(
+                "No administrative payroll items registered (direct court/canteen staff are allocated to COGS)."
+            )
+
+st.markdown("---")
 
 st.markdown("### 🧠 Gemini AI Executive Management Pack Synthesis")
 if "cached_ai_analysis" not in st.session_state:
