@@ -1,5 +1,5 @@
 # pages/app.py
-# STRATA SUITE PRODUCTION ENGINE // DATA ENTRY & SCENARIO MANAGER v9.3.0-ENTERPRISE
+# STRATA SUITE PRODUCTION ENGINE // DATA ENTRY & SCENARIO MANAGER v9.8.0-ENTERPRISE
 # FULL UNABRIDGED SPECIFICATION: DISK PERSISTENCE, VECTOR COUPLINGS, MATRIX OVERRIDES, CUSTOM CURVES
 
 import json
@@ -27,14 +27,15 @@ if not st.session_state.get("authenticated"):
     st.warning(
         "🔒 This workspace session is currently unauthenticated or has timed out."
     )
-    if st.button("🔑 Return to Home Portal & Sign In", use_container_width=True):
+    if st.button("🔑 Return to Home Portal & Sign In", width="stretch"):
         st.switch_page("home.py")
     st.stop()
 
 # =========================================================================
-# 💾 DISK-BASED SCENARIO PERSISTENCE ENGINE
+# 💾 DISK-BASED SCENARIO PERSISTENCE ENGINE (ABSOLUTE PATH ANCHOR)
 # =========================================================================
-SCENARIOS_DIR = "saved_scenarios"
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SCENARIOS_DIR = os.path.join(PROJECT_ROOT, "saved_scenarios")
 os.makedirs(SCENARIOS_DIR, exist_ok=True)
 
 
@@ -148,23 +149,29 @@ with st.container():
     with scen_col1:
         saved_list = list_saved_scenarios()
         options = ["-- Select Scenario from Disk --"] + saved_list
+        default_index = 0
+        if st.session_state.get("active_project_name") in saved_list:
+            default_index = options.index(st.session_state["active_project_name"])
+
         selected_file = st.selectbox(
-            "📂 Load Existing Scenario:", options=options, index=0
+            "📂 Load Existing Scenario:", options=options, index=default_index
         )
-        if st.button("📥 Load Scenario into Active Memory", use_container_width=True):
+        if st.button("📥 Load Scenario into Active Memory", width="stretch"):
             if selected_file != "-- Select Scenario from Disk --":
                 if load_scenario_from_disk(selected_file):
                     st.success(f"✔️ Loaded scenario `{selected_file}` from disk.")
                     st.rerun()
                 else:
-                    st.error("Failed to load scenario file.")
+                    st.error(f"Failed to load scenario file from {SCENARIOS_DIR}.")
+            else:
+                st.warning("Please select a scenario from the dropdown.")
 
     with scen_col2:
         save_as_name = st.text_input(
             "💾 Save Current Parameters to Disk as:",
             value=st.session_state.get("active_project_name", "Padel_Centre_Baseline"),
         )
-        if st.button("💾 Save Scenario to Disk", use_container_width=True):
+        if st.button("💾 Save Scenario to Disk", width="stretch"):
             if save_as_name.strip():
                 if save_scenario_to_disk(save_as_name.strip()):
                     st.session_state["active_project_name"] = save_as_name.strip()
@@ -379,7 +386,7 @@ with st.expander("📈 1. THE SALES DRIVER DESK", expanded=True):
         st.markdown("---")
 
     col_btn1, col_btn2 = st.columns(2)
-    if col_btn1.button("➕ Add New Sales Revenue Vector"):
+    if col_btn1.button("➕ Add New Sales Revenue Vector", width="stretch"):
         sales_list.append(
             {
                 "name": f"New Revenue Stream {len(sales_list)+1}",
@@ -395,7 +402,7 @@ with st.expander("📈 1. THE SALES DRIVER DESK", expanded=True):
         )
         st.rerun()
 
-    if sales_list and col_btn2.button("🗑️ Remove Last Sales Vector"):
+    if sales_list and col_btn2.button("🗑️ Remove Last Sales Vector", width="stretch"):
         sales_list.pop()
         st.rerun()
 
@@ -477,7 +484,7 @@ with st.expander("📦 2. THE PRODUCTION COGS DESK", expanded=True):
         st.markdown("---")
 
     col_btn1, col_btn2 = st.columns(2)
-    if col_btn1.button("➕ Add New COGS Direct Cost Vector"):
+    if col_btn1.button("➕ Add New COGS Direct Cost Vector", width="stretch"):
         cogs_list.append(
             {
                 "name": f"New COGS Stream {len(cogs_list)+1}",
@@ -492,7 +499,7 @@ with st.expander("📦 2. THE PRODUCTION COGS DESK", expanded=True):
         )
         st.rerun()
 
-    if cogs_list and col_btn2.button("🗑️ Remove Last COGS Vector"):
+    if cogs_list and col_btn2.button("🗑️ Remove Last COGS Vector", width="stretch"):
         cogs_list.pop()
         st.rerun()
 
@@ -538,7 +545,7 @@ with st.expander("🏢 3. THE OPERATIONAL OVERHEADS DESK", expanded=False):
         )
 
     col_btn1, col_btn2 = st.columns(2)
-    if col_btn1.button("➕ Add Operational Overhead Line"):
+    if col_btn1.button("➕ Add Operational Overhead Line", width="stretch"):
         opex_list.append(
             {
                 "name": f"Overhead Item {len(opex_list)+1}",
@@ -549,7 +556,7 @@ with st.expander("🏢 3. THE OPERATIONAL OVERHEADS DESK", expanded=False):
             }
         )
         st.rerun()
-    if opex_list and col_btn2.button("🗑️ Remove Last Overhead Line"):
+    if opex_list and col_btn2.button("🗑️ Remove Last Overhead Line", width="stretch"):
         opex_list.pop()
         st.rerun()
 
@@ -596,7 +603,7 @@ with st.expander("👥 4. THE PERSONNEL HORIZON DESK", expanded=False):
         )
 
     col_btn1, col_btn2 = st.columns(2)
-    if col_btn1.button("➕ Add Salaried Staff Position"):
+    if col_btn1.button("➕ Add Salaried Staff Position", width="stretch"):
         payroll_list.append(
             {
                 "name": "Operations Manager",
@@ -607,7 +614,9 @@ with st.expander("👥 4. THE PERSONNEL HORIZON DESK", expanded=False):
             }
         )
         st.rerun()
-    if payroll_list and col_btn2.button("🗑️ Remove Last Personnel Position"):
+    if payroll_list and col_btn2.button(
+        "🗑️ Remove Last Personnel Position", width="stretch"
+    ):
         payroll_list.pop()
         st.rerun()
 
@@ -644,7 +653,7 @@ with st.expander("🚜 5. DIRECT INFRASTRUCTURE & OUTRIGHT CAPEX", expanded=Fals
         )
 
     col_btn1, col_btn2 = st.columns(2)
-    if col_btn1.button("➕ Register Direct CapEx Asset"):
+    if col_btn1.button("➕ Register Direct CapEx Asset", width="stretch"):
         capex_list.append(
             {
                 "name": "Canopy & Court Infrastructure",
@@ -654,7 +663,7 @@ with st.expander("🚜 5. DIRECT INFRASTRUCTURE & OUTRIGHT CAPEX", expanded=Fals
             }
         )
         st.rerun()
-    if capex_list and col_btn2.button("🗑️ Remove Last CapEx Asset"):
+    if capex_list and col_btn2.button("🗑️ Remove Last CapEx Asset", width="stretch"):
         capex_list.pop()
         st.rerun()
 
@@ -697,7 +706,7 @@ with st.expander("📑 6. FINANCED ASSETS & FACILITY LIABILITIES", expanded=Fals
         )
 
     col_btn1, col_btn2 = st.columns(2)
-    if col_btn1.button("➕ Register Financed HP Facility"):
+    if col_btn1.button("➕ Register Financed HP Facility", width="stretch"):
         fin_list.append(
             {
                 "name": "Court Lighting HP Facility",
@@ -710,7 +719,9 @@ with st.expander("📑 6. FINANCED ASSETS & FACILITY LIABILITIES", expanded=Fals
             }
         )
         st.rerun()
-    if fin_list and col_btn2.button("🗑️ Remove Last Financed Facility"):
+    if fin_list and col_btn2.button(
+        "🗑️ Remove Last Financed Facility", width="stretch"
+    ):
         fin_list.pop()
         st.rerun()
 
@@ -745,7 +756,7 @@ with st.expander("🏛️ 7. SHAREHOLDER EQUITY & SEED FUNDING", expanded=False)
         )
 
     col_btn1, col_btn2 = st.columns(2)
-    if col_btn1.button("➕ Add Equity Funding Inflow"):
+    if col_btn1.button("➕ Add Equity Funding Inflow", width="stretch"):
         eq_list.append(
             {
                 "name": f"Investor Round {len(eq_list)+1}",
@@ -754,7 +765,7 @@ with st.expander("🏛️ 7. SHAREHOLDER EQUITY & SEED FUNDING", expanded=False)
             }
         )
         st.rerun()
-    if eq_list and col_btn2.button("🗑️ Remove Last Equity Tranche"):
+    if eq_list and col_btn2.button("🗑️ Remove Last Equity Tranche", width="stretch"):
         eq_list.pop()
         st.rerun()
 
@@ -765,14 +776,14 @@ st.markdown("---")
 # =========================================================================
 b_save, b_rep = st.columns(2)
 with b_save:
-    if st.button("💾 Persist Current Working State to Disk", use_container_width=True):
+    if st.button("💾 Persist Current Working State to Disk", width="stretch"):
         cur_scen = st.session_state.get("active_project_name", "Padel_Centre_Baseline")
         if save_scenario_to_disk(cur_scen):
             st.success(
-                f"✔️ Active data successfully written to `saved_scenarios/{sanitize_filename(cur_scen)}.json`."
+                f"✔️ Active data successfully written to `{SCENARIOS_DIR}/{sanitize_filename(cur_scen)}.json`."
             )
 with b_rep:
-    if st.button("🚀 Calculate & View Reconciled Reports", use_container_width=True):
+    if st.button("🚀 Calculate & View Reconciled Reports", width="stretch"):
         st.switch_page("pages/reports.py")
 
 # Fixed Sidebar Compass
