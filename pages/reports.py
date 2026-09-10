@@ -55,6 +55,19 @@ if not st.session_state.get("authenticated"):
     st.stop()
 
 # =========================================================================
+# 🧭 FIXED SIDEBAR COMPASS & UNIFIED SCENARIO CONTROLS (EXECUTE FIRST)
+# =========================================================================
+st.sidebar.markdown("### Compass Options")
+st.sidebar.page_link("home.py", label="🏠 Home Portal")
+st.sidebar.page_link("pages/1_Data_Ingestion_Gateway.py", label="📥 Data Ingestion Gateway")
+st.sidebar.page_link("pages/onboarding.py", label="🕸️ Data Input Parameters")
+st.sidebar.page_link("pages/app.py", label="✍️ Data Entry Panel")
+st.sidebar.page_link("pages/reports.py", label="📊 Performance Tab")
+
+# Unified Global Scenario Manager loaded before simulation calculations
+render_global_scenario_sidebar()
+
+# =========================================================================
 # 🏛️ AUDITED GENERAL LEDGER DOUBLE-ENTRY ENGINE
 # =========================================================================
 
@@ -558,7 +571,7 @@ def compile_premium_html_report(project_name, peak_cash, lowest_cash, horizon_wo
 
     html_pl = "".join(
         f"<tr style='{'font-weight:bold; background-color:#f1f5f9;' if k in ['Revenue','Gross','EBIT','PAT'] else ''}'><td>{lbl}</td>"
-        + "".join(f"<td align='right'>£{annual_pl[y][k]:,.2f}</td>" for y in years_labels) + "</tr>"
+        + "".join(f"<td align='right' style='text-align: right;'>£{annual_pl[y][k]:,.2f}</td>" for y in years_labels) + "</tr>"
         for lbl, k in [
             ("Total Revenue", "Revenue"),
             ("Cost of Goods Sold (COGS)", "COGS"),
@@ -575,7 +588,7 @@ def compile_premium_html_report(project_name, peak_cash, lowest_cash, horizon_wo
 
     html_cf = "".join(
         f"<tr style='{'font-weight:bold; background-color:#f1f5f9;' if k=='Closing' else ''}'><td>{lbl}</td>"
-        + "".join(f"<td align='right'>£{annual_cf[y][k]:,.2f}</td>" for y in years_labels) + "</tr>"
+        + "".join(f"<td align='right' style='text-align: right;'>£{annual_cf[y][k]:,.2f}</td>" for y in years_labels) + "</tr>"
         for lbl, k in [
             ("Trading Cash Collections", "Inflow"),
             ("Equity Capital Injections", "Equity"),
@@ -588,7 +601,7 @@ def compile_premium_html_report(project_name, peak_cash, lowest_cash, horizon_wo
 
     html_bs = "".join(
         f"<tr style='{'font-weight:bold; background-color:#f1f5f9;' if k in ['TotalAssets','TotalLiabEquity','Checksum'] else ''}'><td>{lbl}</td>"
-        + "".join(f"<td align='right'>{'£' if k != 'Checksum' else ''}{annual_bs[y][k]:,.2f}</td>" for y in years_labels) + "</tr>"
+        + "".join(f"<td align='right' style='text-align: right;'>{'£' if k != 'Checksum' else ''}{annual_bs[y][k]:,.2f}</td>" for y in years_labels) + "</tr>"
         for lbl, k in [
             ("Net Book Value Asset Worth", "NBV"),
             ("Trade Debtors Balance", "Debtors"),
@@ -606,7 +619,8 @@ def compile_premium_html_report(project_name, peak_cash, lowest_cash, horizon_wo
         ]
     )
 
-    th_headers = "".join(f"<th>{y}</th>" for y in years_labels)
+    # Right-align the period headers to align with numeric values
+    th_headers = "".join(f"<th align='right' style='text-align: right;'>{y}</th>" for y in years_labels)
     total_months = horizon_years * 12
 
     html_template = f"""
@@ -633,7 +647,7 @@ def compile_premium_html_report(project_name, peak_cash, lowest_cash, horizon_wo
             .ctx {{ margin-bottom: 12px; font-size: 8.5pt; font-weight: bold; color: #334155; }}
             h2 {{ color: #1e3a8a; font-size: 10pt; margin-top: 14px; margin-bottom: 6px; border-bottom: 1px solid #3b82f6; padding-bottom: 2px; }}
             table {{ width: 100%; border-collapse: collapse; margin-bottom: 12px; }}
-            th {{ background-color: #f8fafc; color: #475569; padding: 4px 6px; font-size: 7.5pt; border-bottom: 1px solid #cbd5e1; text-align: left; }}
+            th {{ background-color: #f8fafc; color: #475569; padding: 4px 6px; font-size: 7.5pt; border-bottom: 1px solid #cbd5e1; }}
             td {{ padding: 4px 6px; border-bottom: 1px solid #e2e8f0; font-size: 7.5pt; }}
         </style>
     </head>
@@ -649,11 +663,11 @@ def compile_premium_html_report(project_name, peak_cash, lowest_cash, horizon_wo
         <div class="ctx">Project: {project_name} | Accounting Horizon: {horizon_years} Operating Years ({total_months} Months)</div>
         
         <table>
-            <thead><tr><th>Target Core Metric</th><th align="right">Projected Value Position</th></tr></thead>
+            <thead><tr><th align="left" style="text-align: left;">Target Core Metric</th><th align="right" style="text-align: right;">Projected Value Position</th></tr></thead>
             <tbody>
-                <tr><td>Peak Cumulative Cash Reserves</td><td align="right">£{peak_cash:,.2f}</td></tr>
-                <tr><td>Maximum Working Capital Trough</td><td align="right">£{lowest_cash:,.2f}</td></tr>
-                <tr><td>Year {horizon_years} Terminal Retained Equity Worth</td><td align="right">£{horizon_worth:,.2f}</td></tr>
+                <tr><td>Peak Cumulative Cash Reserves</td><td align="right" style="text-align: right;">£{peak_cash:,.2f}</td></tr>
+                <tr><td>Maximum Working Capital Trough</td><td align="right" style="text-align: right;">£{lowest_cash:,.2f}</td></tr>
+                <tr><td>Year {horizon_years} Terminal Retained Equity Worth</td><td align="right" style="text-align: right;">£{horizon_worth:,.2f}</td></tr>
             </tbody>
         </table>
 
@@ -663,13 +677,13 @@ def compile_premium_html_report(project_name, peak_cash, lowest_cash, horizon_wo
         <pdf:nextpage />
 
         <h2>Profit & Loss Forecast Statement (Years 1 to {horizon_years})</h2>
-        <table><thead><tr><th>Performance Component</th>{th_headers}</tr></thead><tbody>{html_pl}</tbody></table>
+        <table><thead><tr><th align="left" style="text-align: left;">Performance Component</th>{th_headers}</tr></thead><tbody>{html_pl}</tbody></table>
 
         <h2>Cash Flow Forecast Statement (Years 1 to {horizon_years})</h2>
-        <table><thead><tr><th>Liquidity Flow Component</th>{th_headers}</tr></thead><tbody>{html_cf}</tbody></table>
+        <table><thead><tr><th align="left" style="text-align: left;">Liquidity Flow Component</th>{th_headers}</tr></thead><tbody>{html_cf}</tbody></table>
 
         <h2>Balance Sheet Capital Statement (Years 1 to {horizon_years})</h2>
-        <table><thead><tr><th>Ledger Balance Structure</th>{th_headers}</tr></thead><tbody>{html_bs}</tbody></table>
+        <table><thead><tr><th align="left" style="text-align: left;">Ledger Balance Structure</th>{th_headers}</tr></thead><tbody>{html_bs}</tbody></table>
     </body>
     </html>
     """
@@ -981,16 +995,3 @@ with t3:
         st.dataframe(pd.DataFrame(loan_rows).set_index(["Facility", "Metric"])[targets].style.format("{:,.2f}"), width="stretch")
     else:
         st.info("No long-term debt facilities registered in active scenario.")
-
-# =========================================================================
-# 🧭 FIXED SIDEBAR COMPASS & UNIFIED SCENARIO CONTROLS
-# =========================================================================
-st.sidebar.markdown("### Compass Options")
-st.sidebar.page_link("home.py", label="🏠 Home Portal")
-st.sidebar.page_link("pages/1_Data_Ingestion_Gateway.py", label="📥 Data Ingestion Gateway")
-st.sidebar.page_link("pages/onboarding.py", label="🕸️ Data Input Parameters")
-st.sidebar.page_link("pages/app.py", label="✍️ Data Entry Panel")
-st.sidebar.page_link("pages/reports.py", label="📊 Performance Tab")
-
-# Unified Global Scenario Manager
-render_global_scenario_sidebar()
