@@ -1,13 +1,21 @@
 # pages/reports.py
-# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v9.7.0-STATUTORY
-# WINFORECAST GROUND TRUTH // INGESTION COMPLETENESS AUDIT // AGGREGATION ANALYSIS
+# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v9.8.0-STATUTORY
+# WINFORECAST GROUND TRUTH // MODERN GOOGLE-GENAI SDK // STREAMLIT 'STRETCH' COMPLIANT
 
 import os
 import re
 from io import BytesIO
-import google.generativeai as genai
 import pandas as pd
 import streamlit as st
+
+# Modern Google GenAI SDK
+try:
+    from google import genai
+
+    GENAI_AVAILABLE = True
+except ImportError:
+    genai = None
+    GENAI_AVAILABLE = False
 
 try:
     from xhtml2pdf import pisa
@@ -36,7 +44,7 @@ if not st.session_state.get("authenticated"):
     st.warning(
         "🔒 This workspace session is currently unauthenticated or has timed out."
     )
-    if st.button("🔑 Return to Home Portal & Sign In", use_container_width=True):
+    if st.button("🔑 Return to Home Portal & Sign In", width="stretch"):
         st.switch_page("home.py")
     st.stop()
 
@@ -112,7 +120,6 @@ class AuditedGeneralLedger:
         )
 
     def get_period_movement(self, nominal_code: str, month: int) -> float:
-        """Returns net movement of an account in a single period."""
         dr = sum(
             j["amount"]
             for j in self.journal_entries
@@ -127,7 +134,6 @@ class AuditedGeneralLedger:
         return (dr - cr) * sign
 
     def get_cumulative_balance(self, nominal_code: str, month_limit: int) -> float:
-        """Returns cumulative ledger balance up to month_limit."""
         dr = sum(
             j["amount"]
             for j in self.journal_entries
@@ -145,15 +151,8 @@ class AuditedGeneralLedger:
 def get_exact_period_value(
     item_dict: dict, month_idx: int, yr_idx: int, seasonality_profiles: dict
 ) -> float:
-    """
-    Safely retrieves the monthly period value:
-    1. Check overrides: must be float > 0.0 to override baseline.
-    2. Check matrix_data: must have elements > 0.0.
-    3. Fallback: Annual baseline distributed across seasonality curve.
-    """
     m_lbl = f"M{str(month_idx).zfill(2)}"
 
-    # 1. Exact monthly overrides from ingested WinForecast matrix
     if "overrides" in item_dict and isinstance(item_dict["overrides"], dict):
         if m_lbl in item_dict["overrides"]:
             val = item_dict["overrides"][m_lbl]
@@ -164,7 +163,6 @@ def get_exact_period_value(
             except (ValueError, TypeError):
                 pass
 
-    # 2. Ingested matrix_data (Year/Month 12-slot array)
     if "matrix_data" in item_dict and isinstance(item_dict["matrix_data"], dict):
         y_key = f"Y{yr_idx}"
         if y_key in item_dict["matrix_data"]:
@@ -178,7 +176,6 @@ def get_exact_period_value(
                 except (ValueError, TypeError):
                     pass
 
-    # 3. Standard statutory calculation from baseline targets
     y_base = float(
         item_dict.get(f"y{yr_idx}_baseline", item_dict.get("y1_baseline", 0.0))
     )
@@ -192,20 +189,10 @@ def get_exact_period_value(
     return y_base * flex * crv[(month_idx - 1) % 12]
 
 
-# =========================================================================
-# 🔍 INGESTION COMPLETENESS AUDITOR & AGGREGATION DETECTOR
-# =========================================================================
-
-
 def audit_ingestion_completeness(state: dict, horizon_years: int = 3):
-    """
-    Self-audit to verify that every ingested line item is active, valid, and accounted for.
-    Generates detailed breakdown tables for every aggregated P&L total.
-    """
     warnings = []
     aggregation_notes = {"Sales": [], "COGS": [], "OPEX": [], "Payroll": []}
 
-    # Audit Sales Drivers
     sales = state.get("sales", [])
     if not sales:
         warnings.append(
@@ -234,7 +221,6 @@ def audit_ingestion_completeness(state: dict, horizon_years: int = 3):
             }
         )
 
-    # Audit Direct COGS
     cogs = state.get("cogs", [])
     for c in cogs:
         name = c.get("name", "Unnamed COGS Vector")
@@ -256,7 +242,6 @@ def audit_ingestion_completeness(state: dict, horizon_years: int = 3):
             }
         )
 
-    # Audit OPEX
     opex = state.get("opex", [])
     for op in opex:
         name = op.get("name", "Unnamed Overhead")
@@ -273,7 +258,6 @@ def audit_ingestion_completeness(state: dict, horizon_years: int = 3):
             }
         )
 
-    # Audit Payroll
     payroll = state.get("payroll", [])
     for p in payroll:
         name = p.get("name", "Unnamed Role")
@@ -336,7 +320,6 @@ def execute_full_simulation(state, horizon_months=36):
 
     couplings = st.session_state.get("vector_couplings", [])
 
-    # 1. Month 00 Setup: Equity & CapEx
     for eq in state.get("equity_funding", []):
         gl.post_journal(
             int(eq.get("month", 0)),
@@ -392,12 +375,10 @@ def execute_full_simulation(state, horizon_months=36):
                     m_target, "8100", "1200", interest, f"HP Interest: {fa.get('name')}"
                 )
 
-    # 2. Monthly Operations Loop
     ytd_ebt = {yr: 0.0 for yr in range(1, horizon_years + 1)}
     ytd_tax = {yr: 0.0 for yr in range(1, horizon_years + 1)}
     annual_final_tax = {yr: 0.0 for yr in range(1, horizon_years + 1)}
 
-    # Standard Stagger 1 Quarterly VAT Months (M05, M08, M11, M14, M17, M20, M23, M26, M29, M32, M35...)
     vat_settle_months = [
         m for m in range(1, horizon_months + 1) if (m >= 5 and (m - 2) % 3 == 0)
     ]
@@ -406,7 +387,6 @@ def execute_full_simulation(state, horizon_months=36):
         yr = ((m - 1) // 12) + 1
         sales_computed_map = {}
 
-        # REVENUE (WinForecast Ingested Ground Truth)
         for sale in state.get("sales", []):
             net_rev = get_exact_period_value(sale, m, yr, seasonality)
             sales_computed_map[sale.get("name", "")] = net_rev
@@ -430,7 +410,6 @@ def execute_full_simulation(state, horizon_months=36):
                 m + delay_m, "1200", "1100", gross_rev, "Debtor Receipt Clearing"
             )
 
-        # COGS (WinForecast Ingested Ground Truth)
         for c in state.get("cogs", []):
             matched_coupling = next(
                 (cp for cp in couplings if cp.get("cogs_target") == c.get("name")), None
@@ -463,7 +442,6 @@ def execute_full_simulation(state, horizon_months=36):
                 m + lag, "2100", "1200", gross_cost, "Trade Creditor Settlement"
             )
 
-        # OPEX Overheads (WinForecast Ingested Ground Truth)
         for op in state.get("opex", []):
             net_op = get_exact_period_value(op, m, yr, seasonality)
             vat_rate = (
@@ -491,7 +469,6 @@ def execute_full_simulation(state, horizon_months=36):
                 m + 1, "2100", "1200", gross_op, f"Overhead Paid: {op.get('name')}"
             )
 
-        # Payroll & PAYE
         for pay in state.get("payroll", []):
             if (
                 int(pay.get("start_month", 1))
@@ -506,7 +483,6 @@ def execute_full_simulation(state, horizon_months=36):
                 gl.post_journal(m, "7000", "2210", nic, "Employer NIC Accrual")
                 gl.post_journal(m + 1, "2210", "1200", nic, "HMRC PAYE/NIC Payment")
 
-        # Depreciation
         for outright in state.get("outright_capex", []):
             if int(outright.get("month", 1)) <= m:
                 dep = (
@@ -527,7 +503,6 @@ def execute_full_simulation(state, horizon_months=36):
                     m, "8000", "0021", dep, f"Depr Lease Asset: {fin.get('name')}"
                 )
 
-        # VAT Quarterly Settlement
         if m in vat_settle_months:
             vat_liability = gl.get_cumulative_balance("2200", m - 1)
             if vat_liability > 0.01:
@@ -539,7 +514,6 @@ def execute_full_simulation(state, horizon_months=36):
                     "Quarterly VAT Return Payment to HMRC",
                 )
 
-        # Statutory YTD Cumulative Corporation Tax Engine with Loss Relief
         m_rev = gl.get_period_movement("4000", m)
         m_cogs = gl.get_period_movement("5000", m)
         m_opex = gl.get_period_movement("6000", m)
@@ -568,7 +542,6 @@ def execute_full_simulation(state, horizon_months=36):
     for yr in range(1, horizon_years + 1):
         annual_final_tax[yr] = ytd_tax[yr]
 
-    # 9-Month Lag Corporation Tax Cash Settlements
     corp_tax_pay_calendar = {1: 21, 2: 33, 3: 45, 4: 57}
     for yr, settle_m in corp_tax_pay_calendar.items():
         if settle_m <= horizon_months and annual_final_tax.get(yr, 0.0) > 0.01:
@@ -581,11 +554,6 @@ def execute_full_simulation(state, horizon_months=36):
             )
 
     return compile_financial_statements(gl, horizon_months)
-
-
-# =========================================================================
-# 🏛️ FINANCIAL STATEMENTS COMPILED DIRECTLY FROM TRIAL BALANCE
-# =========================================================================
 
 
 def compile_financial_statements(gl: AuditedGeneralLedger, horizon_months: int):
@@ -753,20 +721,9 @@ def compile_financial_statements(gl: AuditedGeneralLedger, horizon_months: int):
     return df_pl, df_cf, df_bs
 
 
-# =========================================================================
-# 💾 EXCEL-CLEAN CSV FORMATTER (BOM-ENCODED WITH STRICT 2-DECIMAL STRINGS)
-# =========================================================================
-
-
 def format_df_for_csv(
     df: pd.DataFrame, index_title: str = "Financial Line Item (£)"
 ) -> bytes:
-    """
-    Sanitizes numerical DataFrames for Microsoft Excel CSV output:
-    - Enforces strict 2-decimal strings (e.g. 10639.10, 0.00)
-    - Sets index header so cell A1 is cleanly populated
-    - Encodes with 'utf-8-sig' (UTF-8 with BOM) to eliminate Â£ character corruption in Excel
-    """
     df_clean = df.copy()
     for col in df_clean.columns:
         df_clean[col] = df_clean[col].apply(
@@ -776,11 +733,6 @@ def format_df_for_csv(
         )
     df_clean.index.name = index_title
     return df_clean.to_csv(index=True).encode("utf-8-sig")
-
-
-# =========================================================================
-# 🏛️ EXECUTIVE REPORT PACK PDF COMPILER (PURE PYTHON xhtml2pdf ENGINE)
-# =========================================================================
 
 
 def compile_premium_html_report(
@@ -994,7 +946,6 @@ st.caption(
 st.page_link("pages/app.py", label="✍️ Return to Data Entry Panel")
 st.markdown("---")
 
-# MASTER REPORTING HORIZON CONFIGURATION
 horizon_choice = st.radio(
     "Select Master Forecasting Horizon Window:",
     [
@@ -1008,9 +959,6 @@ horizon_months = horizon_years * 12
 
 active_data_context = st.session_state.get("active_data", {})
 
-# =========================================================================
-# 🔍 RUN INGESTION INTEGRITY AUDIT
-# =========================================================================
 warnings_list, agg_breakdowns = audit_ingestion_completeness(
     active_data_context, horizon_years
 )
@@ -1034,7 +982,6 @@ kpi2.metric("Min Cash Trough", f"£{lowest_cash:,.2f}")
 kpi3.metric(f"Year {horizon_years} Retained Earnings", f"£{terminal_worth:,.2f}")
 st.markdown("---")
 
-# Build presentation views with summary totals
 targets = [f"M{str(i).zfill(2)}" for i in range(0, horizon_months + 1)]
 active_months_for_sum = [t for t in targets if t != "M00"]
 
@@ -1066,7 +1013,7 @@ df_cf_view.at["Closing Bank Cash Reserves (£)", "Horizon Total"] = df_cf.at[
 df_bs_view["Terminal Position"] = df_bs[targets[-1]]
 
 # =========================================================================
-# 📥 PRODUCTION EXPORT CONTROLS (EXCEL-CLEAN BOM FORMATTER)
+# 📥 PRODUCTION EXPORT CONTROLS (WIDTH='STRETCH' COMPLIANT)
 # =========================================================================
 st.subheader("📥 Executive Report Pack Export Controls")
 exp_col1, exp_col2, exp_col3 = st.columns(3)
@@ -1080,7 +1027,7 @@ with exp_col1:
         data=clean_pl_bytes,
         file_name=f"STRATA_PL_{horizon_years}Yr_Sensitised.csv",
         mime="text/csv",
-        use_container_width=True,
+        width="stretch",
     )
 
 with exp_col2:
@@ -1090,7 +1037,7 @@ with exp_col2:
         data=clean_cf_bytes,
         file_name=f"STRATA_CashFlow_{horizon_years}Yr_Sensitised.csv",
         mime="text/csv",
-        use_container_width=True,
+        width="stretch",
     )
 
 with exp_col3:
@@ -1102,12 +1049,9 @@ with exp_col3:
         data=clean_bs_bytes,
         file_name=f"STRATA_BalanceSheet_{horizon_years}Yr_Sensitised.csv",
         mime="text/csv",
-        use_container_width=True,
+        width="stretch",
     )
 
-# =========================================================================
-# 📋 AGGREGATED LINE ITEM COMPOSITION ANALYSIS & NOTES
-# =========================================================================
 with st.expander(
     "📋 Statutory Notes & Analysis of Aggregated Performance Lines", expanded=True
 ):
@@ -1126,7 +1070,7 @@ with st.expander(
                 df_sales_notes.style.format(
                     {"Year 1": "£{:,.2f}", "Year 2": "£{:,.2f}", "Year 3": "£{:,.2f}"}
                 ),
-                use_container_width=True,
+                width="stretch",
             )
         else:
             st.info("No active sales vectors ingested.")
@@ -1139,7 +1083,7 @@ with st.expander(
                 df_cogs_notes.style.format(
                     {"Year 1": "£{:,.2f}", "Year 2": "£{:,.2f}", "Year 3": "£{:,.2f}"}
                 ),
-                use_container_width=True,
+                width="stretch",
             )
         else:
             st.info("No active direct COGS vectors ingested.")
@@ -1153,7 +1097,7 @@ with st.expander(
                 df_opex_notes.style.format(
                     {"Year 1": "£{:,.2f}", "Year 2": "£{:,.2f}", "Year 3": "£{:,.2f}"}
                 ),
-                use_container_width=True,
+                width="stretch",
             )
         else:
             st.info("No overhead expense lines registered.")
@@ -1165,8 +1109,7 @@ with st.expander(
                 "Line Item"
             )
             st.dataframe(
-                df_pay_notes.style.format({"Annual Cost": "£{:,.2f}"}),
-                use_container_width=True,
+                df_pay_notes.style.format({"Annual Cost": "£{:,.2f}"}), width="stretch"
             )
         else:
             st.info(
@@ -1175,22 +1118,26 @@ with st.expander(
 
 st.markdown("---")
 
+# =========================================================================
+# 🧠 MODERN GEMINI AI SYNTHESIS (google-genai SDK)
+# =========================================================================
 st.markdown("### 🧠 Gemini AI Executive Management Pack Synthesis")
 if "cached_ai_analysis" not in st.session_state:
     st.session_state["cached_ai_analysis"] = ""
 
 if st.button(
-    "🤖 Generate AI Executive Summary Report & Compile PDF Pack",
-    use_container_width=True,
+    "🤖 Generate AI Executive Summary Report & Compile PDF Pack", width="stretch"
 ):
     api_key = os.environ.get("GEMINI_API_KEY") or st.secrets.get("GEMINI_API_KEY", None)
     if not api_key:
-        st.error("❌ Configuration Error: Gemini credential vector missing.")
+        st.error("❌ Configuration Error: GEMINI_API_KEY credential missing.")
+    elif not GENAI_AVAILABLE:
+        st.error("❌ google-genai library missing. Run `pip install google-genai`.")
     else:
         with st.spinner("🤖 Analytical Engine scanning active matrices..."):
             try:
-                genai.configure(api_key=api_key)
-                model = genai.GenerativeModel("gemini-2.5-flash")
+                # Modern Client-based initialization
+                client = genai.Client(api_key=api_key)
                 financial_summary_context = (
                     f"Project: {st.session_state.get('active_project_name')}\n"
                     f"Horizon: {horizon_years} Years ({horizon_months} Months)\n"
@@ -1204,7 +1151,10 @@ if st.button(
                     f"tax & working capital drag, and liquidity adequacy. Do not use any markdown asterisks (**):\n"
                     f"{financial_summary_context}"
                 )
-                response = model.generate_content(prompt)
+                response = client.models.generate_content(
+                    model="gemini-2.5-flash",
+                    contents=prompt,
+                )
                 st.session_state["cached_ai_analysis"] = str(response.text).replace(
                     "**", ""
                 )
@@ -1219,7 +1169,7 @@ if st.session_state["cached_ai_analysis"]:
 
     if not PDF_ENGINE_AVAILABLE:
         st.warning(
-            "⚠️ PDF generation engine not installed. Please run `pip install xhtml2pdf`."
+            "⚠️ PDF generation engine not installed. Run `pip install xhtml2pdf`."
         )
     else:
         try:
@@ -1242,7 +1192,7 @@ if st.session_state["cached_ai_analysis"]:
                 data=pdf_binary,
                 file_name=f"STRATA_Executive_Summary_{horizon_years}Yr.pdf",
                 mime="application/pdf",
-                use_container_width=True,
+                width="stretch",
             )
         except Exception as pdf_err:
             st.error(f"PDF binary compiler mismatch: {str(pdf_err)}")
@@ -1281,17 +1231,17 @@ with t1:
     st.markdown("#### Profit & Loss Statement (£)")
     st.dataframe(
         df_pl_view.style.format("{:,.2f}").apply(highlight_totals, axis=1),
-        use_container_width=True,
+        width="stretch",
     )
     st.markdown("#### Cash Flow Statement (£)")
     st.dataframe(
         df_cf_view.style.format("{:,.2f}").apply(highlight_totals, axis=1),
-        use_container_width=True,
+        width="stretch",
     )
     st.markdown("#### Balance Sheet Ledger (£)")
     st.dataframe(
         df_bs_view.style.format("{:,.2f}").apply(highlight_totals, axis=1),
-        use_container_width=True,
+        width="stretch",
     )
 
 with t2:
@@ -1339,7 +1289,7 @@ with t2:
             pd.DataFrame(ledger_rows)
             .set_index(["Asset Item", "Metric Category"])[targets]
             .style.format("{:,.2f}"),
-            use_container_width=True,
+            width="stretch",
         )
     else:
         st.info("No fixed capital assets registered in active scenario.")
@@ -1385,7 +1335,7 @@ with t3:
             pd.DataFrame(loan_rows)
             .set_index(["Facility", "Metric"])[targets]
             .style.format("{:,.2f}"),
-            use_container_width=True,
+            width="stretch",
         )
     else:
         st.info("No long-term debt facilities registered in active scenario.")
