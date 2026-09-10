@@ -1,6 +1,6 @@
 # pages/reports.py
-# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v9.1.0-STATUTORY
-# STRICT DOUBLE-ENTRY GENERAL LEDGER ARCHITECTURE WITH PRODUCTION-GRADE CSV FORMATTING
+# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v9.5.0-STATUTORY
+# WINFORECAST INGESTED GROUND TRUTH // STRICT DOUBLE-ENTRY GENERAL LEDGER ARCHITECTURE
 
 import os
 import re
@@ -141,6 +141,51 @@ class AuditedGeneralLedger:
         return (dr - cr) * sign
 
 
+def get_exact_period_value(
+    item_dict: dict, month_idx: int, yr_idx: int, seasonality_profiles: dict
+) -> float:
+    """
+    Primary Ground Truth: Uses exact monthly figures ingested from the WinForecast PDF pack.
+    Only falls back to annual curve flex if explicit monthly data is absent.
+    """
+    m_lbl = f"M{str(month_idx).zfill(2)}"
+
+    # 1. Check exact monthly overrides from ingested WinForecast matrix
+    if "overrides" in item_dict and isinstance(item_dict["overrides"], dict):
+        if m_lbl in item_dict["overrides"]:
+            val = item_dict["overrides"][m_lbl]
+            if val is not None and str(val).strip() != "":
+                try:
+                    return float(val)
+                except (ValueError, TypeError):
+                    pass
+
+    # 2. Check ingested matrix_data (Year/Month 12-slot array)
+    if "matrix_data" in item_dict and isinstance(item_dict["matrix_data"], dict):
+        y_key = f"Y{yr_idx}"
+        if y_key in item_dict["matrix_data"]:
+            month_offset = (month_idx - 1) % 12
+            arr = item_dict["matrix_data"][y_key]
+            if isinstance(arr, list) and len(arr) > month_offset:
+                try:
+                    return float(arr[month_offset])
+                except (ValueError, TypeError):
+                    pass
+
+    # 3. Fallback only if no monthly figures exist
+    y_base = float(
+        item_dict.get(f"y{yr_idx}_baseline", item_dict.get("y1_baseline", 0.0))
+    )
+    flex = (
+        (1.0 + (float(item_dict.get("flex_pct", 0.0)) / 100.0)) if yr_idx > 1 else 1.0
+    )
+    season_name = item_dict.get("seasonality", "Flat_Linear")
+    crv = seasonality_profiles.get(
+        season_name, seasonality_profiles.get("Flat_Linear", [1 / 12] * 12)
+    )
+    return y_base * flex * crv[(month_idx - 1) % 12]
+
+
 def execute_full_simulation(state, horizon_months=36):
     gl = AuditedGeneralLedger(horizon_months=horizon_months)
     horizon_years = horizon_months // 12
@@ -184,7 +229,9 @@ def execute_full_simulation(state, horizon_months=36):
         for k, v in st.session_state["custom_curves"].items():
             seasonality[k] = v
 
-    # 1. Month 00 Setup
+    couplings = st.session_state.get("vector_couplings", [])
+
+    # 1. Month 00 Setup: Equity & CapEx
     for eq in state.get("equity_funding", []):
         gl.post_journal(
             int(eq.get("month", 0)),
@@ -210,14 +257,16 @@ def execute_full_simulation(state, horizon_months=36):
         dp_cash = t_val * dp_pct
         financed = t_val - dp_cash
 
-        gl.post_journal(m_start, "0020", "1200", dp_cash, f"HP Deposit: {fa['name']}")
+        gl.post_journal(
+            m_start, "0020", "1200", dp_cash, f"HP Deposit: {fa.get('name')}"
+        )
         if financed > 0:
             gl.post_journal(
                 m_start,
                 "0020",
                 "2300",
                 financed,
-                f"HP Facility Principal: {fa['name']}",
+                f"HP Facility Principal: {fa.get('name')}",
             )
             term = max(1, int(fa.get("term_months", 36)))
             m_principal = financed / term
@@ -232,46 +281,35 @@ def execute_full_simulation(state, horizon_months=36):
                     "2300",
                     "1200",
                     m_principal,
-                    f"HP Principal Pay: {fa['name']}",
+                    f"HP Principal Pay: {fa.get('name')}",
                 )
                 gl.post_journal(
-                    m_target, "8100", "1200", interest, f"HP Interest: {fa['name']}"
+                    m_target, "8100", "1200", interest, f"HP Interest: {fa.get('name')}"
                 )
 
-    # 2. Monthly Ledger Operations
+    # 2. Monthly Operations Loop
     ytd_ebt = {yr: 0.0 for yr in range(1, horizon_years + 1)}
     ytd_tax = {yr: 0.0 for yr in range(1, horizon_years + 1)}
     annual_final_tax = {yr: 0.0 for yr in range(1, horizon_years + 1)}
 
+    # Standard Stagger 1 Quarterly VAT Months (M05, M08, M11, M14, M17, M20, M23, M26, M29, M32, M35...)
     vat_settle_months = [
         m for m in range(1, horizon_months + 1) if (m >= 5 and (m - 2) % 3 == 0)
     ]
 
     for m in range(1, horizon_months + 1):
         yr = ((m - 1) // 12) + 1
+        sales_computed_map = {}
 
-        # Revenue & Debtors
+        # REVENUE (WinForecast Ingested Ground Truth)
         for sale in state.get("sales", []):
-            if sale.get("overrides", {}).get(f"M{str(m).zfill(2)}", 0.0) > 0:
-                net_rev = float(sale["overrides"][f"M{str(m).zfill(2)}"])
-            else:
-                y_base = float(
-                    sale.get(f"y{yr}_baseline", sale.get("y1_baseline", 0.0))
-                )
-                flex = (
-                    (1.0 + (float(sale.get("flex_pct", 0.0)) / 100.0))
-                    if yr > 1
-                    else 1.0
-                )
-                crv = seasonality.get(
-                    sale.get("seasonality", "Flat_Linear"), seasonality["Flat_Linear"]
-                )
-                net_rev = y_base * flex * crv[(m - 1) % 12]
+            net_rev = get_exact_period_value(sale, m, yr, seasonality)
+            sales_computed_map[sale.get("name", "")] = net_rev
 
             vat_rate = (
                 0.20
                 if "Standard" in sale.get("vat_rate_type", "Standard")
-                else 0.05 if "Reduced" in sale.get("vat_rate_type", "") else 0.0
+                else (0.05 if "Reduced" in sale.get("vat_rate_type", "") else 0.0)
             )
             vat_val = net_rev * vat_rate
             gross_rev = net_rev + vat_val
@@ -287,19 +325,20 @@ def execute_full_simulation(state, horizon_months=36):
                 m + delay_m, "1200", "1100", gross_rev, "Debtor Receipt Clearing"
             )
 
-        # COGS & Direct Creditors
+        # COGS (WinForecast Ingested Ground Truth)
         for c in state.get("cogs", []):
-            if c.get("overrides", {}).get(f"M{str(m).zfill(2)}", 0.0) > 0:
-                net_cost = float(c["overrides"][f"M{str(m).zfill(2)}"])
+            matched_coupling = next(
+                (cp for cp in couplings if cp.get("cogs_target") == c.get("name")), None
+            )
+            if (
+                matched_coupling
+                and matched_coupling.get("sales_driver") in sales_computed_map
+            ):
+                net_cost = sales_computed_map[
+                    matched_coupling["sales_driver"]
+                ] * matched_coupling.get("coefficient", 0.0)
             else:
-                y_base = float(c.get(f"y{yr}_baseline", c.get("y1_baseline", 0.0)))
-                flex = (
-                    (1.0 + (float(c.get("flex_pct", 0.0)) / 100.0)) if yr > 1 else 1.0
-                )
-                crv = seasonality.get(
-                    c.get("seasonality", "Flat_Linear"), seasonality["Flat_Linear"]
-                )
-                net_cost = y_base * flex * crv[(m - 1) % 12]
+                net_cost = get_exact_period_value(c, m, yr, seasonality)
 
             vat_rate = (
                 0.05
@@ -319,15 +358,9 @@ def execute_full_simulation(state, horizon_months=36):
                 m + lag, "2100", "1200", gross_cost, "Trade Creditor Settlement"
             )
 
-        # OPEX Overheads
+        # OPEX Overheads (WinForecast Ingested Ground Truth)
         for op in state.get("opex", []):
-            if "matrix_data" in op and f"Y{yr}" in op["matrix_data"]:
-                net_op = float(op["matrix_data"][f"Y{yr}"][(m - 1) % 12])
-            else:
-                net_op = (
-                    float(op.get(f"y{yr}_baseline", op.get("y1_baseline", 0.0))) / 12.0
-                )
-
+            net_op = get_exact_period_value(op, m, yr, seasonality)
             vat_rate = (
                 0.05
                 if "Commercial Energy" in op.get("vat_rate_type", "")
@@ -376,7 +409,7 @@ def execute_full_simulation(state, horizon_months=36):
                     * float(outright.get("depreciation_rate", 0.20))
                 ) / 12.0
                 gl.post_journal(
-                    m, "8000", "0021", dep, f"Depr Direct CapEx: {outright['name']}"
+                    m, "8000", "0021", dep, f"Depr Direct CapEx: {outright.get('name')}"
                 )
 
         for fin in state.get("financed_assets", []):
@@ -386,7 +419,7 @@ def execute_full_simulation(state, horizon_months=36):
                     * float(fin.get("depreciation_rate", 0.15))
                 ) / 12.0
                 gl.post_journal(
-                    m, "8000", "0021", dep, f"Depr Lease Asset: {fin['name']}"
+                    m, "8000", "0021", dep, f"Depr Lease Asset: {fin.get('name')}"
                 )
 
         # VAT Quarterly Settlement
@@ -401,7 +434,7 @@ def execute_full_simulation(state, horizon_months=36):
                     "Quarterly VAT Return Payment to HMRC",
                 )
 
-        # Cumulative Annual Corporation Tax with Loss Release
+        # Statutory YTD Cumulative Corporation Tax Engine with Loss Relief
         m_rev = gl.get_period_movement("4000", m)
         m_cogs = gl.get_period_movement("5000", m)
         m_opex = gl.get_period_movement("6000", m)
@@ -430,6 +463,7 @@ def execute_full_simulation(state, horizon_months=36):
     for yr in range(1, horizon_years + 1):
         annual_final_tax[yr] = ytd_tax[yr]
 
+    # 9-Month Lag Corporation Tax Cash Settlements
     corp_tax_pay_calendar = {1: 21, 2: 33, 3: 45, 4: 57}
     for yr, settle_m in corp_tax_pay_calendar.items():
         if settle_m <= horizon_months and annual_final_tax.get(yr, 0.0) > 0.01:
@@ -452,7 +486,6 @@ def execute_full_simulation(state, horizon_months=36):
 def compile_financial_statements(gl: AuditedGeneralLedger, horizon_months: int):
     months_labels = [f"M{str(i).zfill(2)}" for i in range(0, horizon_months + 1)]
 
-    # 1. Profit & Loss Matrix
     pl_rows = [
         "Total Revenue (£)",
         "Cost of Goods Sold (COGS) (£)",
@@ -467,7 +500,6 @@ def compile_financial_statements(gl: AuditedGeneralLedger, horizon_months: int):
     ]
     df_pl = pd.DataFrame(0.0, index=pl_rows, columns=months_labels)
 
-    # 2. Cash Flow Matrix
     cf_rows = [
         "Trading Cash Collections (£)",
         "Equity Capital Funding Injections (£)",
@@ -479,7 +511,6 @@ def compile_financial_statements(gl: AuditedGeneralLedger, horizon_months: int):
     ]
     df_cf = pd.DataFrame(0.0, index=cf_rows, columns=months_labels)
 
-    # 3. Balance Sheet Matrix
     bs_rows = [
         "Fixed Infrastructure Assets (£)",
         "Accumulated Depreciation Reserve (£)",
@@ -618,25 +649,28 @@ def compile_financial_statements(gl: AuditedGeneralLedger, horizon_months: int):
 
 
 # =========================================================================
-# 💾 EXCEL-CLEAN CSV FORMATTER PIPELINE
+# 💾 EXCEL-CLEAN CSV FORMATTER (BOM-ENCODED WITH STRICT 2-DECIMAL STRINGS)
 # =========================================================================
 
 
 def format_df_for_csv(
     df: pd.DataFrame, index_title: str = "Financial Line Item (£)"
-) -> str:
+) -> bytes:
     """
-    Sanitizes numerical DataFrames for CSV output:
-    - Enforces strict 2-decimal precision (avoids floating point artifacts)
-    - Sets index header so cell A1 is cleanly populated in Excel
+    Sanitizes numerical DataFrames for Microsoft Excel CSV output:
+    - Enforces strict 2-decimal strings (e.g. 10639.10, 0.00)
+    - Sets index header so cell A1 is cleanly populated
+    - Encodes with 'utf-8-sig' (UTF-8 with BOM) to eliminate Â£ character corruption in Excel
     """
     df_clean = df.copy()
     for col in df_clean.columns:
         df_clean[col] = df_clean[col].apply(
-            lambda x: f"{float(x):.2f}" if pd.notnull(x) else "0.00"
+            lambda x: (
+                f"{float(x):.2f}" if pd.notnull(x) and str(x).strip() != "" else "0.00"
+            )
         )
     df_clean.index.name = index_title
-    return df_clean.to_csv(index=True)
+    return df_clean.to_csv(index=True).encode("utf-8-sig")
 
 
 # =========================================================================
@@ -877,7 +911,7 @@ kpi2.metric("Min Cash Trough", f"£{lowest_cash:,.2f}")
 kpi3.metric(f"Year {horizon_years} Retained Earnings", f"£{terminal_worth:,.2f}")
 st.markdown("---")
 
-# Build presentation views with summary columns
+# Build presentation views with summary totals
 targets = [f"M{str(i).zfill(2)}" for i in range(0, horizon_months + 1)]
 active_months_for_sum = [t for t in targets if t != "M00"]
 
@@ -909,40 +943,40 @@ df_cf_view.at["Closing Bank Cash Reserves (£)", "Horizon Total"] = df_cf.at[
 df_bs_view["Terminal Position"] = df_bs[targets[-1]]
 
 # =========================================================================
-# 📥 PRODUCTION EXPORT CONTROLS HUB (EXCEL-CLEAN CSV GENERATORS)
+# 📥 PRODUCTION EXPORT CONTROLS (EXCEL-CLEAN BOM FORMATTER)
 # =========================================================================
 st.subheader("📥 Executive Report Pack Export Controls")
 exp_col1, exp_col2, exp_col3 = st.columns(3)
 
 with exp_col1:
-    clean_pl_csv = format_df_for_csv(
+    clean_pl_bytes = format_df_for_csv(
         df_pl_view, index_title="Profit & Loss Account (£)"
     )
     st.download_button(
         "📥 Download Profit & Loss CSV",
-        data=clean_pl_csv.encode("utf-8"),
+        data=clean_pl_bytes,
         file_name=f"STRATA_PL_{horizon_years}Yr_Sensitised.csv",
         mime="text/csv",
         use_container_width=True,
     )
 
 with exp_col2:
-    clean_cf_csv = format_df_for_csv(df_cf_view, index_title="Cash Flow Account (£)")
+    clean_cf_bytes = format_df_for_csv(df_cf_view, index_title="Cash Flow Account (£)")
     st.download_button(
         "📥 Download Cash Flow CSV",
-        data=clean_cf_csv.encode("utf-8"),
+        data=clean_cf_bytes,
         file_name=f"STRATA_CashFlow_{horizon_years}Yr_Sensitised.csv",
         mime="text/csv",
         use_container_width=True,
     )
 
 with exp_col3:
-    clean_bs_csv = format_df_for_csv(
+    clean_bs_bytes = format_df_for_csv(
         df_bs_view, index_title="Balance Sheet Account (£)"
     )
     st.download_button(
         "📥 Download Balance Sheet CSV",
-        data=clean_bs_csv.encode("utf-8"),
+        data=clean_bs_bytes,
         file_name=f"STRATA_BalanceSheet_{horizon_years}Yr_Sensitised.csv",
         mime="text/csv",
         use_container_width=True,
@@ -1072,20 +1106,20 @@ with t2:
     for outright in active_data_context.get("outright_capex", []):
         fa_rows.append(
             {
-                "Asset Item": outright["name"],
+                "Asset Item": outright.get("name"),
                 "Type": "Direct Purchase",
-                "value": float(outright["amount"]),
-                "Month": int(outright["month"]),
+                "value": float(outright.get("amount", 0.0)),
+                "Month": int(outright.get("month", 1)),
                 "Rate": float(outright.get("depreciation_rate", 0.20)),
             }
         )
     for fin in active_data_context.get("financed_assets", []):
         fa_rows.append(
             {
-                "Asset Item": fin["name"],
+                "Asset Item": fin.get("name"),
                 "Type": "Financed HP",
-                "value": float(fin["amount"]),
-                "Month": int(fin["month"]),
+                "value": float(fin.get("amount", 0.0)),
+                "Month": int(fin.get("month", 1)),
                 "Rate": float(fin.get("depreciation_rate", 0.15)),
             }
         )
@@ -1121,18 +1155,21 @@ with t3:
     if active_data_context.get("financed_assets"):
         loan_rows = []
         for fin in active_data_context["financed_assets"]:
-            m_start = int(fin["month"])
-            fin_bal = float(fin["amount"]) * (
+            m_start = int(fin.get("month", 1))
+            fin_bal = float(fin.get("amount", 0.0)) * (
                 1.0 - (float(fin.get("deposit_pct", 10.0)) / 100.0)
             )
             term = max(1, int(fin.get("term_months", 36)))
             monthly_principal = fin_bal / term
-            bal_rec = {"Facility": fin["name"], "Metric": "Total Outstanding (£)"}
+            bal_rec = {"Facility": fin.get("name"), "Metric": "Total Outstanding (£)"}
             st_rec = {
-                "Facility": fin["name"],
+                "Facility": fin.get("name"),
                 "Metric": "Current Liabilities (<12m) (£)",
             }
-            lt_rec = {"Facility": fin["name"], "Metric": "Non-Current Debt (>1yr) (£)"}
+            lt_rec = {
+                "Facility": fin.get("name"),
+                "Metric": "Non-Current Debt (>1yr) (£)",
+            }
 
             running_debt = 0.0
             for m in range(0, horizon_months + 1):
