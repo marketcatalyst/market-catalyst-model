@@ -14,7 +14,7 @@ if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
 # Centralized Scenario Persistence Engine
-from utils.scenario_manager import (
+from from utils.scenario_manager import (  # type: ignore[import-untyped]
     load_scenario_from_disk,
     save_scenario_to_disk,
     render_global_scenario_sidebar,

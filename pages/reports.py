@@ -15,7 +15,7 @@ if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
 # Centralized Scenario Persistence Engine
-from utils.scenario_manager import render_global_scenario_sidebar
+from utils.scenario_manager import render_global_scenario_sidebar  # type: ignore[import-untyped]
 
 # Modern Google GenAI SDK
 try:
