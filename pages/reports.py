@@ -1,3 +1,4 @@
+﻿# pyright: reportMissingImports=false
 # pages/reports.py
 # STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v9.8.0-STATUTORY
 # WINFORECAST GROUND TRUTH // MODERN GOOGLE-GENAI SDK // UNIFIED SCENARIO CONTROL DESK
@@ -15,12 +16,11 @@ if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
 # Centralized Scenario Persistence Engine
-from utils.scenario_manager import render_global_scenario_sidebar  # type: ignore[import-untyped]
+from utils.scenario_manager import render_global_scenario_sidebar
 
 # Modern Google GenAI SDK
 try:
     from google import genai
-
     GENAI_AVAILABLE = True
 except ImportError:
     genai = None
@@ -28,7 +28,6 @@ except ImportError:
 
 try:
     from xhtml2pdf import pisa
-
     PDF_ENGINE_AVAILABLE = True
 except ImportError:
     pisa = None
@@ -50,9 +49,7 @@ st.markdown(
 
 if not st.session_state.get("authenticated"):
     st.title("🏛️ STRATA // Security Intercept")
-    st.warning(
-        "🔒 This workspace session is currently unauthenticated or has timed out."
-    )
+    st.warning("🔒 This workspace session is currently unauthenticated or has timed out.")
     if st.button("🔑 Return to Home Portal & Sign In", width="stretch"):
         st.switch_page("home.py")
     st.stop()
@@ -66,25 +63,13 @@ CHART_OF_ACCOUNTS = {
     "1200": {"name": "Bank Current Account", "type": "Asset", "sign": 1},
     "1100": {"name": "Trade Debtors Control", "type": "Asset", "sign": 1},
     "0020": {"name": "Fixed Infrastructure Assets", "type": "Asset", "sign": 1},
-    "0021": {
-        "name": "Accumulated Depreciation Reserve",
-        "type": "Contra-Asset",
-        "sign": -1,
-    },
+    "0021": {"name": "Accumulated Depreciation Reserve", "type": "Contra-Asset", "sign": -1},
     # Liabilities (Normal balance: CREDIT)
     "2100": {"name": "Trade Creditors Control", "type": "Liability", "sign": -1},
     "2200": {"name": "HMRC VAT Control Account", "type": "Liability", "sign": -1},
     "2210": {"name": "HMRC PAYE/NIC Obligations", "type": "Liability", "sign": -1},
-    "2220": {
-        "name": "Corporation Tax Liability Provision",
-        "type": "Liability",
-        "sign": -1,
-    },
-    "2300": {
-        "name": "Long-Term Facility Debt Liability",
-        "type": "Liability",
-        "sign": -1,
-    },
+    "2220": {"name": "Corporation Tax Liability Provision", "type": "Liability", "sign": -1},
+    "2300": {"name": "Long-Term Facility Debt Liability", "type": "Liability", "sign": -1},
     # Capital & Reserves (Normal balance: CREDIT)
     "3000": {"name": "Shareholder Invested Equity", "type": "Equity", "sign": -1},
     "3200": {"name": "Retained Earnings Accumulation", "type": "Equity", "sign": -1},
@@ -105,61 +90,34 @@ class AuditedGeneralLedger:
         self.horizon_months = horizon_months
         self.journal_entries = []
 
-    def post_journal(
-        self,
-        month: int,
-        debit_code: str,
-        credit_code: str,
-        amount: float,
-        memo: str = "",
-    ):
+    def post_journal(self, month: int, debit_code: str, credit_code: str, amount: float, memo: str = ""):
         amt = round(float(amount), 2)
         if amt <= 0.00:
             return
         if month < 0 or month > self.horizon_months:
             return
-        self.journal_entries.append(
-            {
-                "month": month,
-                "debit_code": str(debit_code),
-                "credit_code": str(credit_code),
-                "amount": amt,
-                "memo": memo,
-            }
-        )
+        self.journal_entries.append({
+            "month": month,
+            "debit_code": str(debit_code),
+            "credit_code": str(credit_code),
+            "amount": amt,
+            "memo": memo,
+        })
 
     def get_period_movement(self, nominal_code: str, month: int) -> float:
-        dr = sum(
-            j["amount"]
-            for j in self.journal_entries
-            if j["month"] == month and j["debit_code"] == nominal_code
-        )
-        cr = sum(
-            j["amount"]
-            for j in self.journal_entries
-            if j["month"] == month and j["credit_code"] == nominal_code
-        )
+        dr = sum(j["amount"] for j in self.journal_entries if j["month"] == month and j["debit_code"] == nominal_code)
+        cr = sum(j["amount"] for j in self.journal_entries if j["month"] == month and j["credit_code"] == nominal_code)
         sign = CHART_OF_ACCOUNTS[nominal_code]["sign"]
         return (dr - cr) * sign
 
     def get_cumulative_balance(self, nominal_code: str, month_limit: int) -> float:
-        dr = sum(
-            j["amount"]
-            for j in self.journal_entries
-            if j["month"] <= month_limit and j["debit_code"] == nominal_code
-        )
-        cr = sum(
-            j["amount"]
-            for j in self.journal_entries
-            if j["month"] <= month_limit and j["credit_code"] == nominal_code
-        )
+        dr = sum(j["amount"] for j in self.journal_entries if j["month"] <= month_limit and j["debit_code"] == nominal_code)
+        cr = sum(j["amount"] for j in self.journal_entries if j["month"] <= month_limit and j["credit_code"] == nominal_code)
         sign = CHART_OF_ACCOUNTS[nominal_code]["sign"]
         return (dr - cr) * sign
 
 
-def get_exact_period_value(
-    item_dict: dict, month_idx: int, yr_idx: int, seasonality_profiles: dict
-) -> float:
+def get_exact_period_value(item_dict: dict, month_idx: int, yr_idx: int, seasonality_profiles: dict) -> float:
     m_lbl = f"M{str(month_idx).zfill(2)}"
 
     if "overrides" in item_dict and isinstance(item_dict["overrides"], dict):
@@ -185,16 +143,10 @@ def get_exact_period_value(
                 except (ValueError, TypeError):
                     pass
 
-    y_base = float(
-        item_dict.get(f"y{yr_idx}_baseline", item_dict.get("y1_baseline", 0.0))
-    )
-    flex = (
-        (1.0 + (float(item_dict.get("flex_pct", 0.0)) / 100.0)) if yr_idx > 1 else 1.0
-    )
+    y_base = float(item_dict.get(f"y{yr_idx}_baseline", item_dict.get("y1_baseline", 0.0)))
+    flex = (1.0 + (float(item_dict.get("flex_pct", 0.0)) / 100.0)) if yr_idx > 1 else 1.0
     season_name = item_dict.get("seasonality", "Flat_Linear")
-    crv = seasonality_profiles.get(
-        season_name, seasonality_profiles.get("Flat_Linear", [1 / 12] * 12)
-    )
+    crv = seasonality_profiles.get(season_name, seasonality_profiles.get("Flat_Linear", [1 / 12] * 12))
     return y_base * flex * crv[(month_idx - 1) % 12]
 
 
@@ -204,31 +156,23 @@ def audit_ingestion_completeness(state: dict, horizon_years: int = 3):
 
     sales = state.get("sales", [])
     if not sales:
-        warnings.append(
-            "⚠️ CRITICAL: No Sales Revenue vectors found in active scenario."
-        )
+        warnings.append("⚠️ CRITICAL: No Sales Revenue vectors found in active scenario.")
     for s in sales:
         name = s.get("name", "Unnamed Sales Vector")
         y1 = float(s.get("y1_baseline", 0.0))
         y2 = float(s.get("y2_baseline", 0.0))
         y3 = float(s.get("y3_baseline", 0.0))
-        has_ov = any(
-            float(v) > 0 for v in s.get("overrides", {}).values() if str(v).strip()
-        )
+        has_ov = any(float(v) > 0 for v in s.get("overrides", {}).values() if str(v).strip())
         if y1 == 0 and y2 == 0 and y3 == 0 and not has_ov:
-            warnings.append(
-                f"⚠️ Vector '{name}' in Sales has zero revenue across all years and overrides."
-            )
-        aggregation_notes["Sales"].append(
-            {
-                "Line Item": name,
-                "VAT Profile": s.get("vat_rate_type", "Standard 20%"),
-                "Payment Terms": f"{s.get('payment_delay', 0)} Days Lag",
-                "Year 1": y1,
-                "Year 2": y2,
-                "Year 3": y3,
-            }
-        )
+            warnings.append(f"⚠️ Vector '{name}' in Sales has zero revenue across all years and overrides.")
+        aggregation_notes["Sales"].append({
+            "Line Item": name,
+            "VAT Profile": s.get("vat_rate_type", "Standard 20%"),
+            "Payment Terms": f"{s.get('payment_delay', 0)} Days Lag",
+            "Year 1": y1,
+            "Year 2": y2,
+            "Year 3": y3,
+        })
 
     cogs = state.get("cogs", [])
     for c in cogs:
@@ -236,20 +180,14 @@ def audit_ingestion_completeness(state: dict, horizon_years: int = 3):
         y1 = float(c.get("y1_baseline", 0.0))
         y2 = float(c.get("y2_baseline", 0.0))
         y3 = float(c.get("y3_baseline", 0.0))
-        aggregation_notes["COGS"].append(
-            {
-                "Line Item": name,
-                "VAT Profile": c.get("vat_rate_type", "Standard 20%"),
-                "Cost Nature": (
-                    "Direct Personnel"
-                    if "staff" in name.lower()
-                    else "Direct Operating Cost"
-                ),
-                "Year 1": y1,
-                "Year 2": y2,
-                "Year 3": y3,
-            }
-        )
+        aggregation_notes["COGS"].append({
+            "Line Item": name,
+            "VAT Profile": c.get("vat_rate_type", "Standard 20%"),
+            "Cost Nature": "Direct Personnel" if "staff" in name.lower() else "Direct Operating Cost",
+            "Year 1": y1,
+            "Year 2": y2,
+            "Year 3": y3,
+        })
 
     opex = state.get("opex", [])
     for op in opex:
@@ -257,15 +195,13 @@ def audit_ingestion_completeness(state: dict, horizon_years: int = 3):
         y1 = float(op.get("y1_baseline", 0.0))
         y2 = float(op.get("y2_baseline", 0.0))
         y3 = float(op.get("y3_baseline", 0.0))
-        aggregation_notes["OPEX"].append(
-            {
-                "Line Item": name,
-                "VAT Profile": op.get("vat_rate_type", "Standard 20%"),
-                "Year 1": y1,
-                "Year 2": y2,
-                "Year 3": y3,
-            }
-        )
+        aggregation_notes["OPEX"].append({
+            "Line Item": name,
+            "VAT Profile": op.get("vat_rate_type", "Standard 20%"),
+            "Year 1": y1,
+            "Year 2": y2,
+            "Year 3": y3,
+        })
 
     payroll = state.get("payroll", [])
     for p in payroll:
@@ -273,13 +209,11 @@ def audit_ingestion_completeness(state: dict, horizon_years: int = 3):
         hc = int(p.get("headcount", 1))
         mw = float(p.get("monthly_wage", 0.0))
         ann = hc * mw * 12
-        aggregation_notes["Payroll"].append(
-            {
-                "Line Item": f"{name} (x{hc})",
-                "Monthly Wage": f"£{mw:,.2f}",
-                "Annual Cost": ann,
-            }
-        )
+        aggregation_notes["Payroll"].append({
+            "Line Item": f"{name} (x{hc})",
+            "Monthly Wage": f"£{mw:,.2f}",
+            "Annual Cost": ann,
+        })
 
     return warnings, aggregation_notes
 
@@ -294,34 +228,8 @@ def execute_full_simulation(state, horizon_months=36):
 
     seasonality = {
         "Flat_Linear": [1 / 12] * 12,
-        "Winter_Peak": [
-            0.12,
-            0.12,
-            0.10,
-            0.07,
-            0.05,
-            0.05,
-            0.05,
-            0.06,
-            0.08,
-            0.09,
-            0.10,
-            0.11,
-        ],
-        "Summer_Peak": [
-            0.05,
-            0.05,
-            0.07,
-            0.10,
-            0.12,
-            0.12,
-            0.12,
-            0.11,
-            0.09,
-            0.07,
-            0.05,
-            0.05,
-        ],
+        "Winter_Peak": [0.12, 0.12, 0.10, 0.07, 0.05, 0.05, 0.05, 0.06, 0.08, 0.09, 0.10, 0.11],
+        "Summer_Peak": [0.05, 0.05, 0.07, 0.10, 0.12, 0.12, 0.12, 0.11, 0.09, 0.07, 0.05, 0.05],
     }
     if "custom_curves" in st.session_state:
         for k, v in st.session_state["custom_curves"].items():
@@ -330,22 +238,10 @@ def execute_full_simulation(state, horizon_months=36):
     couplings = st.session_state.get("vector_couplings", [])
 
     for eq in state.get("equity_funding", []):
-        gl.post_journal(
-            int(eq.get("month", 0)),
-            "1200",
-            "3000",
-            float(eq.get("amount", 0.0)),
-            "Initial Share Capital",
-        )
+        gl.post_journal(int(eq.get("month", 0)), "1200", "3000", float(eq.get("amount", 0.0)), "Initial Share Capital")
 
     for cap in state.get("outright_capex", []):
-        gl.post_journal(
-            int(cap.get("month", 1)),
-            "0020",
-            "1200",
-            float(cap.get("amount", 0.0)),
-            "Direct CapEx Purchase",
-        )
+        gl.post_journal(int(cap.get("month", 1)), "0020", "1200", float(cap.get("amount", 0.0)), "Direct CapEx Purchase")
 
     for fa in state.get("financed_assets", []):
         m_start = int(fa.get("month", 1))
@@ -354,17 +250,9 @@ def execute_full_simulation(state, horizon_months=36):
         dp_cash = t_val * dp_pct
         financed = t_val - dp_cash
 
-        gl.post_journal(
-            m_start, "0020", "1200", dp_cash, f"HP Deposit: {fa.get('name')}"
-        )
+        gl.post_journal(m_start, "0020", "1200", dp_cash, f"HP Deposit: {fa.get('name')}")
         if financed > 0:
-            gl.post_journal(
-                m_start,
-                "0020",
-                "2300",
-                financed,
-                f"HP Facility Principal: {fa.get('name')}",
-            )
+            gl.post_journal(m_start, "0020", "2300", financed, f"HP Facility Principal: {fa.get('name')}")
             term = max(1, int(fa.get("term_months", 36)))
             m_principal = financed / term
             apr = float(fa.get("interest_rate", 5.0)) / 100.0
@@ -373,24 +261,14 @@ def execute_full_simulation(state, horizon_months=36):
                 if m_target > horizon_months:
                     break
                 interest = (financed - (m_principal * (t - 1))) * (apr / 12.0)
-                gl.post_journal(
-                    m_target,
-                    "2300",
-                    "1200",
-                    m_principal,
-                    f"HP Principal Pay: {fa.get('name')}",
-                )
-                gl.post_journal(
-                    m_target, "8100", "1200", interest, f"HP Interest: {fa.get('name')}"
-                )
+                gl.post_journal(m_target, "2300", "1200", m_principal, f"HP Principal Pay: {fa.get('name')}")
+                gl.post_journal(m_target, "8100", "1200", interest, f"HP Interest: {fa.get('name')}")
 
     ytd_ebt = {yr: 0.0 for yr in range(1, horizon_years + 1)}
     ytd_tax = {yr: 0.0 for yr in range(1, horizon_years + 1)}
     annual_final_tax = {yr: 0.0 for yr in range(1, horizon_years + 1)}
 
-    vat_settle_months = [
-        m for m in range(1, horizon_months + 1) if (m >= 5 and (m - 2) % 3 == 0)
-    ]
+    vat_settle_months = [m for m in range(1, horizon_months + 1) if (m >= 5 and (m - 2) % 3 == 0)]
 
     for m in range(1, horizon_months + 1):
         yr = ((m - 1) // 12) + 1
@@ -400,44 +278,25 @@ def execute_full_simulation(state, horizon_months=36):
             net_rev = get_exact_period_value(sale, m, yr, seasonality)
             sales_computed_map[sale.get("name", "")] = net_rev
 
-            vat_rate = (
-                0.20
-                if "Standard" in sale.get("vat_rate_type", "Standard")
-                else (0.05 if "Reduced" in sale.get("vat_rate_type", "") else 0.0)
-            )
+            vat_rate = 0.20 if "Standard" in sale.get("vat_rate_type", "Standard") else (0.05 if "Reduced" in sale.get("vat_rate_type", "") else 0.0)
             vat_val = net_rev * vat_rate
             gross_rev = net_rev + vat_val
 
             gl.post_journal(m, "1100", "4000", net_rev, "Trading Revenue Invoiced")
             if vat_val > 0:
-                gl.post_journal(
-                    m, "1100", "2200", vat_val, "Output VAT on Invoiced Sales"
-                )
+                gl.post_journal(m, "1100", "2200", vat_val, "Output VAT on Invoiced Sales")
 
             delay_m = int(int(sale.get("payment_delay", 0)) / 30)
-            gl.post_journal(
-                m + delay_m, "1200", "1100", gross_rev, "Debtor Receipt Clearing"
-            )
+            gl.post_journal(m + delay_m, "1200", "1100", gross_rev, "Debtor Receipt Clearing")
 
         for c in state.get("cogs", []):
-            matched_coupling = next(
-                (cp for cp in couplings if cp.get("cogs_target") == c.get("name")), None
-            )
-            if (
-                matched_coupling
-                and matched_coupling.get("sales_driver") in sales_computed_map
-            ):
-                net_cost = sales_computed_map[
-                    matched_coupling["sales_driver"]
-                ] * matched_coupling.get("coefficient", 0.0)
+            matched_coupling = next((cp for cp in couplings if cp.get("cogs_target") == c.get("name")), None)
+            if matched_coupling and matched_coupling.get("sales_driver") in sales_computed_map:
+                net_cost = sales_computed_map[matched_coupling["sales_driver"]] * matched_coupling.get("coefficient", 0.0)
             else:
                 net_cost = get_exact_period_value(c, m, yr, seasonality)
 
-            vat_rate = (
-                0.05
-                if "Commercial Energy" in c.get("vat_rate_type", "")
-                else (0.20 if "Standard" in c.get("vat_rate_type", "Standard") else 0.0)
-            )
+            vat_rate = 0.05 if "Commercial Energy" in c.get("vat_rate_type", "") else (0.20 if "Standard" in c.get("vat_rate_type", "Standard") else 0.0)
             vat_val = net_cost * vat_rate
             gross_cost = net_cost + vat_val
 
@@ -447,46 +306,22 @@ def execute_full_simulation(state, horizon_months=36):
             gl.post_journal(m, "5000", "2100", net_cost, "COGS Incurred")
             if vat_val > 0:
                 gl.post_journal(m, "2200", "2100", vat_val, "Input VAT on COGS")
-            gl.post_journal(
-                m + lag, "2100", "1200", gross_cost, "Trade Creditor Settlement"
-            )
+            gl.post_journal(m + lag, "2100", "1200", gross_cost, "Trade Creditor Settlement")
 
         for op in state.get("opex", []):
             net_op = get_exact_period_value(op, m, yr, seasonality)
-            vat_rate = (
-                0.05
-                if "Commercial Energy" in op.get("vat_rate_type", "")
-                else (
-                    0.20 if "Standard" in op.get("vat_rate_type", "Standard") else 0.0
-                )
-            )
+            vat_rate = 0.05 if "Commercial Energy" in op.get("vat_rate_type", "") else (0.20 if "Standard" in op.get("vat_rate_type", "Standard") else 0.0)
             vat_val = net_op * vat_rate
             gross_op = net_op + vat_val
 
-            gl.post_journal(
-                m, "6000", "2100", net_op, f"Overhead Incurred: {op.get('name')}"
-            )
+            gl.post_journal(m, "6000", "2100", net_op, f"Overhead Incurred: {op.get('name')}")
             if vat_val > 0:
-                gl.post_journal(
-                    m,
-                    "2200",
-                    "2100",
-                    vat_val,
-                    f"Input VAT on Overhead: {op.get('name')}",
-                )
-            gl.post_journal(
-                m + 1, "2100", "1200", gross_op, f"Overhead Paid: {op.get('name')}"
-            )
+                gl.post_journal(m, "2200", "2100", vat_val, f"Input VAT on Overhead: {op.get('name')}")
+            gl.post_journal(m + 1, "2100", "1200", gross_op, f"Overhead Paid: {op.get('name')}")
 
         for pay in state.get("payroll", []):
-            if (
-                int(pay.get("start_month", 1))
-                <= m
-                <= min(int(pay.get("end_month", 60)), horizon_months)
-            ):
-                gross_sal = int(pay.get("headcount", 1)) * float(
-                    pay.get("monthly_wage", 2000.0)
-                )
+            if int(pay.get("start_month", 1)) <= m <= min(int(pay.get("end_month", 60)), horizon_months):
+                gross_sal = int(pay.get("headcount", 1)) * float(pay.get("monthly_wage", 2000.0))
                 nic = gross_sal * nic_rate
                 gl.post_journal(m, "7000", "1200", gross_sal, "Staff Net Wages Paid")
                 gl.post_journal(m, "7000", "2210", nic, "Employer NIC Accrual")
@@ -494,34 +329,18 @@ def execute_full_simulation(state, horizon_months=36):
 
         for outright in state.get("outright_capex", []):
             if int(outright.get("month", 1)) <= m:
-                dep = (
-                    float(outright.get("amount", 0.0))
-                    * float(outright.get("depreciation_rate", 0.20))
-                ) / 12.0
-                gl.post_journal(
-                    m, "8000", "0021", dep, f"Depr Direct CapEx: {outright.get('name')}"
-                )
+                dep = (float(outright.get("amount", 0.0)) * float(outright.get("depreciation_rate", 0.20))) / 12.0
+                gl.post_journal(m, "8000", "0021", dep, f"Depr Direct CapEx: {outright.get('name')}")
 
         for fin in state.get("financed_assets", []):
             if int(fin.get("month", 1)) <= m:
-                dep = (
-                    float(fin.get("amount", 0.0))
-                    * float(fin.get("depreciation_rate", 0.15))
-                ) / 12.0
-                gl.post_journal(
-                    m, "8000", "0021", dep, f"Depr Lease Asset: {fin.get('name')}"
-                )
+                dep = (float(fin.get("amount", 0.0)) * float(fin.get("depreciation_rate", 0.15))) / 12.0
+                gl.post_journal(m, "8000", "0021", dep, f"Depr Lease Asset: {fin.get('name')}")
 
         if m in vat_settle_months:
             vat_liability = gl.get_cumulative_balance("2200", m - 1)
             if vat_liability > 0.01:
-                gl.post_journal(
-                    m,
-                    "2200",
-                    "1200",
-                    vat_liability,
-                    "Quarterly VAT Return Payment to HMRC",
-                )
+                gl.post_journal(m, "2200", "1200", vat_liability, "Quarterly VAT Return Payment to HMRC")
 
         m_rev = gl.get_period_movement("4000", m)
         m_cogs = gl.get_period_movement("5000", m)
@@ -537,15 +356,11 @@ def execute_full_simulation(state, horizon_months=36):
         tax_delta = round(req_cum_tax - ytd_tax[yr], 2)
 
         if tax_delta > 0.01:
-            gl.post_journal(
-                m, "9000", "2220", tax_delta, "Monthly Corp Tax Provision Accrual"
-            )
+            gl.post_journal(m, "9000", "2220", tax_delta, "Monthly Corp Tax Provision Accrual")
             ytd_tax[yr] += tax_delta
         elif tax_delta < -0.01:
             release = abs(tax_delta)
-            gl.post_journal(
-                m, "2220", "9000", release, "Loss Month Tax Provision Release Credit"
-            )
+            gl.post_journal(m, "2220", "9000", release, "Loss Month Tax Provision Release Credit")
             ytd_tax[yr] -= release
 
     for yr in range(1, horizon_years + 1):
@@ -554,13 +369,7 @@ def execute_full_simulation(state, horizon_months=36):
     corp_tax_pay_calendar = {1: 21, 2: 33, 3: 45, 4: 57}
     for yr, settle_m in corp_tax_pay_calendar.items():
         if settle_m <= horizon_months and annual_final_tax.get(yr, 0.0) > 0.01:
-            gl.post_journal(
-                settle_m,
-                "2220",
-                "1200",
-                annual_final_tax[yr],
-                f"Year {yr} Corporation Tax Discharge to HMRC",
-            )
+            gl.post_journal(settle_m, "2220", "1200", annual_final_tax[yr], f"Year {yr} Corporation Tax Discharge to HMRC")
 
     return compile_financial_statements(gl, horizon_months)
 
@@ -636,50 +445,18 @@ def compile_financial_statements(gl: AuditedGeneralLedger, horizon_months: int):
         df_pl.at["Corporation Tax Provision (£)", lbl] = tax
         df_pl.at["Profit After Tax (PAT) (£)", lbl] = ebit - tax
 
-        inflows_trading = sum(
-            j["amount"]
-            for j in gl.journal_entries
-            if j["month"] == m
-            and j["debit_code"] == "1200"
-            and j["credit_code"] == "1100"
-        )
-        inflows_equity = sum(
-            j["amount"]
-            for j in gl.journal_entries
-            if j["month"] == m
-            and j["debit_code"] == "1200"
-            and j["credit_code"] == "3000"
-        )
-        outflows_vat = sum(
-            j["amount"]
-            for j in gl.journal_entries
-            if j["month"] == m
-            and j["credit_code"] == "1200"
-            and j["debit_code"] == "2200"
-        )
-        outflows_tax = sum(
-            j["amount"]
-            for j in gl.journal_entries
-            if j["month"] == m
-            and j["credit_code"] == "1200"
-            and j["debit_code"] == "2220"
-        )
-        outflows_other = sum(
-            j["amount"]
-            for j in gl.journal_entries
-            if j["month"] == m
-            and j["credit_code"] == "1200"
-            and j["debit_code"] not in ["2200", "2220"]
-        )
+        inflows_trading = sum(j["amount"] for j in gl.journal_entries if j["month"] == m and j["debit_code"] == "1200" and j["credit_code"] == "1100")
+        inflows_equity = sum(j["amount"] for j in gl.journal_entries if j["month"] == m and j["debit_code"] == "1200" and j["credit_code"] == "3000")
+        outflows_vat = sum(j["amount"] for j in gl.journal_entries if j["month"] == m and j["credit_code"] == "1200" and j["debit_code"] == "2200")
+        outflows_tax = sum(j["amount"] for j in gl.journal_entries if j["month"] == m and j["credit_code"] == "1200" and j["debit_code"] == "2220")
+        outflows_other = sum(j["amount"] for j in gl.journal_entries if j["month"] == m and j["credit_code"] == "1200" and j["debit_code"] not in ["2200", "2220"])
 
         df_cf.at["Trading Cash Collections (£)", lbl] = inflows_trading
         df_cf.at["Equity Capital Funding Injections (£)", lbl] = inflows_equity
         df_cf.at["Operational Cash Outflows (£)", lbl] = outflows_other
         df_cf.at["Corporation Tax Settlement Paid (£)", lbl] = outflows_tax
         df_cf.at["HMRC VAT Settlement Paid (£)", lbl] = outflows_vat
-        df_cf.at["Net Trading Cash Movement (£)", lbl] = (
-            inflows_trading + inflows_equity
-        ) - (outflows_other + outflows_tax + outflows_vat)
+        df_cf.at["Net Trading Cash Movement (£)", lbl] = (inflows_trading + inflows_equity) - (outflows_other + outflows_tax + outflows_vat)
         closing_bank = gl.get_cumulative_balance("1200", m)
         df_cf.at["Closing Bank Cash Reserves (£)", lbl] = closing_bank
 
@@ -711,58 +488,30 @@ def compile_financial_statements(gl: AuditedGeneralLedger, horizon_months: int):
         df_bs.at["Total Current & Long-Term Liabilities (£)", lbl] = total_liabs
 
         equity = gl.get_cumulative_balance("3000", m)
-        cum_retained = sum(
-            df_pl.at["Profit After Tax (PAT) (£)", f"M{str(i).zfill(2)}"]
-            for i in range(1, m + 1)
-        )
+        cum_retained = sum(df_pl.at["Profit After Tax (PAT) (£)", f"M{str(i).zfill(2)}"] for i in range(1, m + 1))
 
         df_bs.at["Shareholder Invested Equity Reserves (£)", lbl] = equity
         df_bs.at["Retained Earnings Accumulation (£)", lbl] = cum_retained
 
         total_liabs_and_equity = total_liabs + equity + cum_retained
-        df_bs.at["Total Liabilities & Equity Reserves (£)", lbl] = (
-            total_liabs_and_equity
-        )
-        df_bs.at["Trial Balance Checksum Balance", lbl] = round(
-            total_assets - total_liabs_and_equity, 2
-        )
+        df_bs.at["Total Liabilities & Equity Reserves (£)", lbl] = total_liabs_and_equity
+        df_bs.at["Trial Balance Checksum Balance", lbl] = round(total_assets - total_liabs_and_equity, 2)
 
     return df_pl, df_cf, df_bs
 
 
-def format_df_for_csv(
-    df: pd.DataFrame, index_title: str = "Financial Line Item (£)"
-) -> bytes:
+def format_df_for_csv(df: pd.DataFrame, index_title: str = "Financial Line Item (£)") -> bytes:
     df_clean = df.copy()
     for col in df_clean.columns:
         df_clean[col] = df_clean[col].apply(
-            lambda x: (
-                f"{float(x):.2f}" if pd.notnull(x) and str(x).strip() != "" else "0.00"
-            )
+            lambda x: f"{float(x):.2f}" if pd.notnull(x) and str(x).strip() != "" else "0.00"
         )
     df_clean.index.name = index_title
     return df_clean.to_csv(index=True).encode("utf-8-sig")
 
 
-def compile_premium_html_report(
-    project_name,
-    peak_cash,
-    lowest_cash,
-    horizon_worth,
-    insight_text,
-    df_pl,
-    df_cf,
-    df_bs,
-    active_data,
-    horizon_years=3,
-) -> bytes:
-    clean_insight = (
-        insight_text.replace("\n", "<br>")
-        .replace("â€™", "'")
-        .replace("â€˜", "'")
-        .replace("â€œ", '"')
-        .replace("â€ ", '"')
-    )
+def compile_premium_html_report(project_name, peak_cash, lowest_cash, horizon_worth, insight_text, df_pl, df_cf, df_bs, active_data, horizon_years=3) -> bytes:
+    clean_insight = insight_text.replace("\n", "<br>").replace("â€™", "'").replace("â€˜", "'").replace("â€œ", '"').replace("â€ ", '"')
     years_labels = [f"Year {i}" for i in range(1, horizon_years + 1)]
 
     annual_pl, annual_cf, annual_bs = {}, {}, {}
@@ -803,18 +552,13 @@ def compile_premium_html_report(
             "Debt": df_bs.at["Long Term Facility Debt Liability (£)", bs_col],
             "Equity": df_bs.at["Shareholder Invested Equity Reserves (£)", bs_col],
             "Retained": df_bs.at["Retained Earnings Accumulation (£)", bs_col],
-            "TotalLiabEquity": df_bs.at[
-                "Total Liabilities & Equity Reserves (£)", bs_col
-            ],
+            "TotalLiabEquity": df_bs.at["Total Liabilities & Equity Reserves (£)", bs_col],
             "Checksum": df_bs.at["Trial Balance Checksum Balance", bs_col],
         }
 
     html_pl = "".join(
         f"<tr style='{'font-weight:bold; background-color:#f1f5f9;' if k in ['Revenue','Gross','EBIT','PAT'] else ''}'><td>{lbl}</td>"
-        + "".join(
-            f"<td align='right'>£{annual_pl[y][k]:,.2f}</td>" for y in years_labels
-        )
-        + "</tr>"
+        + "".join(f"<td align='right'>£{annual_pl[y][k]:,.2f}</td>" for y in years_labels) + "</tr>"
         for lbl, k in [
             ("Total Revenue", "Revenue"),
             ("Cost of Goods Sold (COGS)", "COGS"),
@@ -831,10 +575,7 @@ def compile_premium_html_report(
 
     html_cf = "".join(
         f"<tr style='{'font-weight:bold; background-color:#f1f5f9;' if k=='Closing' else ''}'><td>{lbl}</td>"
-        + "".join(
-            f"<td align='right'>£{annual_cf[y][k]:,.2f}</td>" for y in years_labels
-        )
-        + "</tr>"
+        + "".join(f"<td align='right'>£{annual_cf[y][k]:,.2f}</td>" for y in years_labels) + "</tr>"
         for lbl, k in [
             ("Trading Cash Collections", "Inflow"),
             ("Equity Capital Injections", "Equity"),
@@ -847,11 +588,7 @@ def compile_premium_html_report(
 
     html_bs = "".join(
         f"<tr style='{'font-weight:bold; background-color:#f1f5f9;' if k in ['TotalAssets','TotalLiabEquity','Checksum'] else ''}'><td>{lbl}</td>"
-        + "".join(
-            f"<td align='right'>{'£' if k != 'Checksum' else ''}{annual_bs[y][k]:,.2f}</td>"
-            for y in years_labels
-        )
-        + "</tr>"
+        + "".join(f"<td align='right'>{'£' if k != 'Checksum' else ''}{annual_bs[y][k]:,.2f}</td>" for y in years_labels) + "</tr>"
         for lbl, k in [
             ("Net Book Value Asset Worth", "NBV"),
             ("Trade Debtors Balance", "Debtors"),
@@ -949,9 +686,7 @@ def compile_premium_html_report(
 # =========================================================================
 
 st.title("📊 Performance & Reporting Summary Pack")
-st.caption(
-    f"Active Scenario Context: `{st.session_state.get('active_project_name', 'Unsaved_Draft_Scenario')}`"
-)
+st.caption(f"Active Scenario Context: `{st.session_state.get('active_project_name', 'Unsaved_Draft_Scenario')}`")
 st.page_link("pages/app.py", label="✍️ Return to Data Entry Panel")
 st.markdown("---")
 
@@ -968,16 +703,12 @@ horizon_months = horizon_years * 12
 
 active_data_context = st.session_state.get("active_data", {})
 
-warnings_list, agg_breakdowns = audit_ingestion_completeness(
-    active_data_context, horizon_years
-)
+warnings_list, agg_breakdowns = audit_ingestion_completeness(active_data_context, horizon_years)
 if warnings_list:
     for w in warnings_list:
         st.warning(w)
 
-df_pl, df_cf, df_bs = execute_full_simulation(
-    active_data_context, horizon_months=horizon_months
-)
+df_pl, df_cf, df_bs = execute_full_simulation(active_data_context, horizon_months=horizon_months)
 
 term_month_col = f"M{str(horizon_months).zfill(2)}"
 closing_cash_array = df_cf.loc["Closing Bank Cash Reserves (£)"].astype(float).values
@@ -1016,9 +747,7 @@ df_pl_view.at["Profit After Tax (PAT) (£)", "Horizon Total"] = (
 )
 
 df_cf_view["Horizon Total"] = df_cf[active_months_for_sum].sum(axis=1)
-df_cf_view.at["Closing Bank Cash Reserves (£)", "Horizon Total"] = df_cf.at[
-    "Closing Bank Cash Reserves (£)", targets[-1]
-]
+df_cf_view.at["Closing Bank Cash Reserves (£)", "Horizon Total"] = df_cf.at["Closing Bank Cash Reserves (£)", targets[-1]]
 df_bs_view["Terminal Position"] = df_bs[targets[-1]]
 
 # =========================================================================
@@ -1028,9 +757,7 @@ st.subheader("📥 Executive Report Pack Export Controls")
 exp_col1, exp_col2, exp_col3 = st.columns(3)
 
 with exp_col1:
-    clean_pl_bytes = format_df_for_csv(
-        df_pl_view, index_title="Profit & Loss Account (£)"
-    )
+    clean_pl_bytes = format_df_for_csv(df_pl_view, index_title="Profit & Loss Account (£)")
     st.download_button(
         "📥 Download Profit & Loss CSV",
         data=clean_pl_bytes,
@@ -1050,9 +777,7 @@ with exp_col2:
     )
 
 with exp_col3:
-    clean_bs_bytes = format_df_for_csv(
-        df_bs_view, index_title="Balance Sheet Account (£)"
-    )
+    clean_bs_bytes = format_df_for_csv(df_bs_view, index_title="Balance Sheet Account (£)")
     st.download_button(
         "📥 Download Balance Sheet CSV",
         data=clean_bs_bytes,
@@ -1061,26 +786,15 @@ with exp_col3:
         width="stretch",
     )
 
-with st.expander(
-    "📋 Statutory Notes & Analysis of Aggregated Performance Lines", expanded=True
-):
-    st.caption(
-        "Detailed line-item disclosures showing exact vector compositions of aggregated P&L rows."
-    )
+with st.expander("📋 Statutory Notes & Analysis of Aggregated Performance Lines", expanded=True):
+    st.caption("Detailed line-item disclosures showing exact vector compositions of aggregated P&L rows.")
 
     an_col1, an_col2 = st.columns(2)
     with an_col1:
         st.markdown("##### 1. Total Turnover Revenue Vectors Composition")
         if agg_breakdowns["Sales"]:
-            df_sales_notes = pd.DataFrame(agg_breakdowns["Sales"]).set_index(
-                "Line Item"
-            )
-            st.dataframe(
-                df_sales_notes.style.format(
-                    {"Year 1": "£{:,.2f}", "Year 2": "£{:,.2f}", "Year 3": "£{:,.2f}"}
-                ),
-                width="stretch",
-            )
+            df_sales_notes = pd.DataFrame(agg_breakdowns["Sales"]).set_index("Line Item")
+            st.dataframe(df_sales_notes.style.format({"Year 1": "£{:,.2f}", "Year 2": "£{:,.2f}", "Year 3": "£{:,.2f}"}), width="stretch")
         else:
             st.info("No active sales vectors ingested.")
 
@@ -1088,12 +802,7 @@ with st.expander(
         st.markdown("##### 2. Direct Cost of Goods Sold (COGS) Breakdown")
         if agg_breakdowns["COGS"]:
             df_cogs_notes = pd.DataFrame(agg_breakdowns["COGS"]).set_index("Line Item")
-            st.dataframe(
-                df_cogs_notes.style.format(
-                    {"Year 1": "£{:,.2f}", "Year 2": "£{:,.2f}", "Year 3": "£{:,.2f}"}
-                ),
-                width="stretch",
-            )
+            st.dataframe(df_cogs_notes.style.format({"Year 1": "£{:,.2f}", "Year 2": "£{:,.2f}", "Year 3": "£{:,.2f}"}), width="stretch")
         else:
             st.info("No active direct COGS vectors ingested.")
 
@@ -1102,28 +811,17 @@ with st.expander(
         st.markdown("##### 3. Operational Overheads (OPEX) Composition")
         if agg_breakdowns["OPEX"]:
             df_opex_notes = pd.DataFrame(agg_breakdowns["OPEX"]).set_index("Line Item")
-            st.dataframe(
-                df_opex_notes.style.format(
-                    {"Year 1": "£{:,.2f}", "Year 2": "£{:,.2f}", "Year 3": "£{:,.2f}"}
-                ),
-                width="stretch",
-            )
+            st.dataframe(df_opex_notes.style.format({"Year 1": "£{:,.2f}", "Year 2": "£{:,.2f}", "Year 3": "£{:,.2f}"}), width="stretch")
         else:
             st.info("No overhead expense lines registered.")
 
     with an_col4:
         st.markdown("##### 4. Salaried Personnel & Payroll Obligations")
         if agg_breakdowns["Payroll"]:
-            df_pay_notes = pd.DataFrame(agg_breakdowns["Payroll"]).set_index(
-                "Line Item"
-            )
-            st.dataframe(
-                df_pay_notes.style.format({"Annual Cost": "£{:,.2f}"}), width="stretch"
-            )
+            df_pay_notes = pd.DataFrame(agg_breakdowns["Payroll"]).set_index("Line Item")
+            st.dataframe(df_pay_notes.style.format({"Annual Cost": "£{:,.2f}"}), width="stretch")
         else:
-            st.info(
-                "No administrative payroll items registered (direct court/canteen staff are allocated to COGS)."
-            )
+            st.info("No administrative payroll items registered (direct court/canteen staff are allocated to COGS).")
 
 st.markdown("---")
 
@@ -1134,9 +832,7 @@ st.markdown("### 🧠 Gemini AI Executive Management Pack Synthesis")
 if "cached_ai_analysis" not in st.session_state:
     st.session_state["cached_ai_analysis"] = ""
 
-if st.button(
-    "🤖 Generate AI Executive Summary Report & Compile PDF Pack", width="stretch"
-):
+if st.button("🤖 Generate AI Executive Summary Report & Compile PDF Pack", width="stretch"):
     api_key = os.environ.get("GEMINI_API_KEY") or st.secrets.get("GEMINI_API_KEY", None)
     if not api_key:
         st.error("❌ Configuration Error: GEMINI_API_KEY credential missing.")
@@ -1163,9 +859,7 @@ if st.button(
                     model="gemini-2.5-flash",
                     contents=prompt,
                 )
-                st.session_state["cached_ai_analysis"] = str(response.text).replace(
-                    "**", ""
-                )
+                st.session_state["cached_ai_analysis"] = str(response.text).replace("**", "")
                 st.success("✔️ AI Executive Management analysis compiled.")
             except Exception as e:
                 st.error(f"Failed to generate narrative: {str(e)}")
@@ -1176,15 +870,11 @@ if st.session_state["cached_ai_analysis"]:
     st.write(st.session_state["cached_ai_analysis"])
 
     if not PDF_ENGINE_AVAILABLE:
-        st.warning(
-            "⚠️ PDF generation engine not installed. Run `pip install xhtml2pdf`."
-        )
+        st.warning("⚠️ PDF generation engine not installed. Run `pip install xhtml2pdf`.")
     else:
         try:
             pdf_binary = compile_premium_html_report(
-                project_name=st.session_state.get(
-                    "active_project_name", "Unsaved_Draft_Scenario"
-                ),
+                project_name=st.session_state.get("active_project_name", "Unsaved_Draft_Scenario"),
                 peak_cash=peak_cash,
                 lowest_cash=lowest_cash,
                 horizon_worth=terminal_worth,
@@ -1207,13 +897,7 @@ if st.session_state["cached_ai_analysis"]:
 
 st.markdown("---")
 
-t1, t2, t3 = st.tabs(
-    [
-        " Reconciled Financial Statements",
-        " Fixed Infrastructure Asset Ledger",
-        " External Debt Liabilities Registry",
-    ]
-)
+t1, t2, t3 = st.tabs([" Reconciled Financial Statements", " Fixed Infrastructure Asset Ledger", " External Debt Liabilities Registry"])
 
 
 def highlight_totals(row):
@@ -1229,76 +913,39 @@ def highlight_totals(row):
         "Trial Balance Checksum Balance",
     ]
     if row.name in highlight_rows:
-        return ["font-weight: bold; background-color: #f1f5f9; color: #1e3a8a;"] * len(
-            row
-        )
+        return ["font-weight: bold; background-color: #f1f5f9; color: #1e3a8a;"] * len(row)
     return [""] * len(row)
 
 
 with t1:
     st.markdown("#### Profit & Loss Statement (£)")
-    st.dataframe(
-        df_pl_view.style.format("{:,.2f}").apply(highlight_totals, axis=1),
-        width="stretch",
-    )
+    st.dataframe(df_pl_view.style.format("{:,.2f}").apply(highlight_totals, axis=1), width="stretch")
     st.markdown("#### Cash Flow Statement (£)")
-    st.dataframe(
-        df_cf_view.style.format("{:,.2f}").apply(highlight_totals, axis=1),
-        width="stretch",
-    )
+    st.dataframe(df_cf_view.style.format("{:,.2f}").apply(highlight_totals, axis=1), width="stretch")
     st.markdown("#### Balance Sheet Ledger (£)")
-    st.dataframe(
-        df_bs_view.style.format("{:,.2f}").apply(highlight_totals, axis=1),
-        width="stretch",
-    )
+    st.dataframe(df_bs_view.style.format("{:,.2f}").apply(highlight_totals, axis=1), width="stretch")
 
 with t2:
     st.markdown("### 🚜 Dynamic Fixed Asset Depreciation Ledger")
     fa_rows = []
     for outright in active_data_context.get("outright_capex", []):
-        fa_rows.append(
-            {
-                "Asset Item": outright.get("name"),
-                "Type": "Direct Purchase",
-                "value": float(outright.get("amount", 0.0)),
-                "Month": int(outright.get("month", 1)),
-                "Rate": float(outright.get("depreciation_rate", 0.20)),
-            }
-        )
+        fa_rows.append({"Asset Item": outright.get("name"), "Type": "Direct Purchase", "value": float(outright.get("amount", 0.0)), "Month": int(outright.get("month", 1)), "Rate": float(outright.get("depreciation_rate", 0.20))})
     for fin in active_data_context.get("financed_assets", []):
-        fa_rows.append(
-            {
-                "Asset Item": fin.get("name"),
-                "Type": "Financed HP",
-                "value": float(fin.get("amount", 0.0)),
-                "Month": int(fin.get("month", 1)),
-                "Rate": float(fin.get("depreciation_rate", 0.15)),
-            }
-        )
+        fa_rows.append({"Asset Item": fin.get("name"), "Type": "Financed HP", "value": float(fin.get("amount", 0.0)), "Month": int(fin.get("month", 1)), "Rate": float(fin.get("depreciation_rate", 0.15))})
     if fa_rows:
         ledger_rows = []
         for item in fa_rows:
-            v_rec = {
-                "Asset Item": item["Asset Item"],
-                "Metric Category": "Net Book Value (£)",
-            }
+            v_rec = {"Asset Item": item["Asset Item"], "Metric Category": "Net Book Value (£)"}
             running_val = 0.0
             for m in range(0, horizon_months + 1):
                 m_lbl = f"M{str(m).zfill(2)}"
                 if m == item["Month"]:
                     running_val = item["value"]
                 if m >= item["Month"] and running_val > 0:
-                    running_val = max(
-                        0.0, running_val - ((item["value"] * item["Rate"]) / 12.0)
-                    )
+                    running_val = max(0.0, running_val - ((item["value"] * item["Rate"]) / 12.0))
                 v_rec[m_lbl] = running_val
             ledger_rows.append(v_rec)
-        st.dataframe(
-            pd.DataFrame(ledger_rows)
-            .set_index(["Asset Item", "Metric Category"])[targets]
-            .style.format("{:,.2f}"),
-            width="stretch",
-        )
+        st.dataframe(pd.DataFrame(ledger_rows).set_index(["Asset Item", "Metric Category"])[targets].style.format("{:,.2f}"), width="stretch")
     else:
         st.info("No fixed capital assets registered in active scenario.")
 
@@ -1308,20 +955,12 @@ with t3:
         loan_rows = []
         for fin in active_data_context["financed_assets"]:
             m_start = int(fin.get("month", 1))
-            fin_bal = float(fin.get("amount", 0.0)) * (
-                1.0 - (float(fin.get("deposit_pct", 10.0)) / 100.0)
-            )
+            fin_bal = float(fin.get("amount", 0.0)) * (1.0 - (float(fin.get("deposit_pct", 10.0)) / 100.0))
             term = max(1, int(fin.get("term_months", 36)))
             monthly_principal = fin_bal / term
             bal_rec = {"Facility": fin.get("name"), "Metric": "Total Outstanding (£)"}
-            st_rec = {
-                "Facility": fin.get("name"),
-                "Metric": "Current Liabilities (<12m) (£)",
-            }
-            lt_rec = {
-                "Facility": fin.get("name"),
-                "Metric": "Non-Current Debt (>1yr) (£)",
-            }
+            st_rec = {"Facility": fin.get("name"), "Metric": "Current Liabilities (<12m) (£)"}
+            lt_rec = {"Facility": fin.get("name"), "Metric": "Non-Current Debt (>1yr) (£)"}
 
             running_debt = 0.0
             for m in range(0, horizon_months + 1):
@@ -1339,12 +978,7 @@ with t3:
                     st_rec[m_lbl] = 0.0
                     lt_rec[m_lbl] = 0.0
             loan_rows.extend([bal_rec, st_rec, lt_rec])
-        st.dataframe(
-            pd.DataFrame(loan_rows)
-            .set_index(["Facility", "Metric"])[targets]
-            .style.format("{:,.2f}"),
-            width="stretch",
-        )
+        st.dataframe(pd.DataFrame(loan_rows).set_index(["Facility", "Metric"])[targets].style.format("{:,.2f}"), width="stretch")
     else:
         st.info("No long-term debt facilities registered in active scenario.")
 
@@ -1353,9 +987,7 @@ with t3:
 # =========================================================================
 st.sidebar.markdown("### Compass Options")
 st.sidebar.page_link("home.py", label="🏠 Home Portal")
-st.sidebar.page_link(
-    "pages/1_Data_Ingestion_Gateway.py", label="📥 Data Ingestion Gateway"
-)
+st.sidebar.page_link("pages/1_Data_Ingestion_Gateway.py", label="📥 Data Ingestion Gateway")
 st.sidebar.page_link("pages/onboarding.py", label="🕸️ Data Input Parameters")
 st.sidebar.page_link("pages/app.py", label="✍️ Data Entry Panel")
 st.sidebar.page_link("pages/reports.py", label="📊 Performance Tab")

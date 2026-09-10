@@ -1,3 +1,4 @@
+﻿# pyright: reportMissingImports=false
 # pages/app.py
 # STRATA SUITE PRODUCTION ENGINE // DATA ENTRY & SCENARIO MANAGER v9.8.0-ENTERPRISE
 # FULL UNABRIDGED SPECIFICATION: DISK PERSISTENCE, VECTOR COUPLINGS, MATRIX OVERRIDES, CUSTOM CURVES
@@ -14,7 +15,7 @@ if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
 # Centralized Scenario Persistence Engine
-from from utils.scenario_manager import (  # type: ignore[import-untyped]
+from utils.scenario_manager import (
     load_scenario_from_disk,
     save_scenario_to_disk,
     render_global_scenario_sidebar,
@@ -524,9 +525,7 @@ with st.expander("👥 4. THE PERSONNEL HORIZON DESK", expanded=False):
             }
         )
         st.rerun()
-    if payroll_list and col_btn2.button(
-        "🗑️ Remove Last Personnel Position", width="stretch"
-    ):
+    if payroll_list and col_btn2.button("🗑️ Remove Last Personnel Position", width="stretch"):
         payroll_list.pop()
         st.rerun()
 
@@ -629,9 +628,7 @@ with st.expander("📑 6. FINANCED ASSETS & FACILITY LIABILITIES", expanded=Fals
             }
         )
         st.rerun()
-    if fin_list and col_btn2.button(
-        "🗑️ Remove Last Financed Facility", width="stretch"
-    ):
+    if fin_list and col_btn2.button("🗑️ Remove Last Financed Facility", width="stretch"):
         fin_list.pop()
         st.rerun()
 
@@ -678,8 +675,6 @@ with st.expander("🏛️ 7. SHAREHOLDER EQUITY & SEED FUNDING", expanded=False)
     if eq_list and col_btn2.button("🗑️ Remove Last Equity Tranche", width="stretch"):
         eq_list.pop()
         st.rerun()
-
-st.markdown("---")
 
 # =========================================================================
 # 🚀 ACTION FOOTER & PERMANENT COMMIT BAR
