@@ -1,12 +1,15 @@
 # pages/reports.py
 # STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v9.8.0-STATUTORY
-# WINFORECAST GROUND TRUTH // MODERN GOOGLE-GENAI SDK // STREAMLIT 'STRETCH' COMPLIANT
+# WINFORECAST GROUND TRUTH // MODERN GOOGLE-GENAI SDK // UNIFIED SCENARIO CONTROL DESK
 
 import os
 import re
 from io import BytesIO
 import pandas as pd
 import streamlit as st
+
+# Centralized Scenario Persistence Engine
+from utils.scenario_manager import render_global_scenario_sidebar
 
 # Modern Google GenAI SDK
 try:
@@ -1136,7 +1139,6 @@ if st.button(
     else:
         with st.spinner("🤖 Analytical Engine scanning active matrices..."):
             try:
-                # Modern Client-based initialization
                 client = genai.Client(api_key=api_key)
                 financial_summary_context = (
                     f"Project: {st.session_state.get('active_project_name')}\n"
@@ -1341,7 +1343,7 @@ with t3:
         st.info("No long-term debt facilities registered in active scenario.")
 
 # =========================================================================
-# 🧭 FIXED SIDEBAR COMPASS OPTIONS
+# 🧭 FIXED SIDEBAR COMPASS & UNIFIED SCENARIO CONTROLS
 # =========================================================================
 st.sidebar.markdown("### Compass Options")
 st.sidebar.page_link("home.py", label="🏠 Home Portal")
@@ -1351,3 +1353,6 @@ st.sidebar.page_link(
 st.sidebar.page_link("pages/onboarding.py", label="🕸️ Data Input Parameters")
 st.sidebar.page_link("pages/app.py", label="✍️ Data Entry Panel")
 st.sidebar.page_link("pages/reports.py", label="📊 Performance Tab")
+
+# Unified Global Scenario Manager
+render_global_scenario_sidebar()

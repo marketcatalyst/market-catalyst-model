@@ -32,62 +32,13 @@ if not st.session_state.get("authenticated"):
     st.stop()
 
 # =========================================================================
-# 💾 DISK-BASED SCENARIO PERSISTENCE ENGINE (ABSOLUTE PATH ANCHOR)
+# 💾 DISK-BASED SCENARIO PERSISTENCE ENGINE (CENTRALIZED)
 # =========================================================================
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SCENARIOS_DIR = os.path.join(PROJECT_ROOT, "saved_scenarios")
-os.makedirs(SCENARIOS_DIR, exist_ok=True)
-
-
-def sanitize_filename(name: str) -> str:
-    return "".join(c for c in name if c.isalnum() or c in ("-", "_")).strip()
-
-
-def list_saved_scenarios():
-    if not os.path.exists(SCENARIOS_DIR):
-        return []
-    return sorted(
-        [
-            f.replace(".json", "")
-            for f in os.listdir(SCENARIOS_DIR)
-            if f.endswith(".json")
-        ]
-    )
-
-
-def save_scenario_to_disk(scenario_name: str) -> bool:
-    if not scenario_name:
-        return False
-    clean_name = sanitize_filename(scenario_name)
-    file_path = os.path.join(SCENARIOS_DIR, f"{clean_name}.json")
-    payload = {
-        "project_name": scenario_name,
-        "sic_profile": st.session_state.get("sic_profile", {}),
-        "custom_curves": st.session_state.get("custom_curves", {}),
-        "vector_couplings": st.session_state.get("vector_couplings", []),
-        "active_data": st.session_state.get("active_data", {}),
-    }
-    with open(file_path, "w", encoding="utf-8") as f:
-        json.dump(payload, f, indent=2)
-    return True
-
-
-def load_scenario_from_disk(scenario_name: str) -> bool:
-    clean_name = sanitize_filename(scenario_name)
-    file_path = os.path.join(SCENARIOS_DIR, f"{clean_name}.json")
-    if os.path.exists(file_path):
-        with open(file_path, "r", encoding="utf-8") as f:
-            payload = json.load(f)
-        st.session_state["active_project_name"] = payload.get(
-            "project_name", scenario_name
-        )
-        st.session_state["sic_profile"] = payload.get("sic_profile", {})
-        st.session_state["custom_curves"] = payload.get("custom_curves", {})
-        st.session_state["vector_couplings"] = payload.get("vector_couplings", [])
-        st.session_state["active_data"] = payload.get("active_data", {})
-        return True
-    return False
-
+from utils.scenario_manager import (
+    load_scenario_from_disk,
+    save_scenario_to_disk,
+    render_global_scenario_sidebar,
+)
 
 # Initialize Session State structures if absent
 if "active_data" not in st.session_state:
@@ -136,51 +87,6 @@ with c_nav1:
     )
 with c_nav2:
     st.page_link("home.py", label="🏠 Return to Home Portal", icon="🏛️")
-
-st.markdown("---")
-
-# =========================================================================
-# 💾 SCENARIO PERSISTENCE & CONTROL TOOLBAR
-# =========================================================================
-with st.container():
-    st.subheader("💾 Scenario Repository & Disk Persistence Control")
-    scen_col1, scen_col2 = st.columns(2)
-
-    with scen_col1:
-        saved_list = list_saved_scenarios()
-        options = ["-- Select Scenario from Disk --"] + saved_list
-        default_index = 0
-        if st.session_state.get("active_project_name") in saved_list:
-            default_index = options.index(st.session_state["active_project_name"])
-
-        selected_file = st.selectbox(
-            "📂 Load Existing Scenario:", options=options, index=default_index
-        )
-        if st.button("📥 Load Scenario into Active Memory", width="stretch"):
-            if selected_file != "-- Select Scenario from Disk --":
-                if load_scenario_from_disk(selected_file):
-                    st.success(f"✔️ Loaded scenario `{selected_file}` from disk.")
-                    st.rerun()
-                else:
-                    st.error(f"Failed to load scenario file from {SCENARIOS_DIR}.")
-            else:
-                st.warning("Please select a scenario from the dropdown.")
-
-    with scen_col2:
-        save_as_name = st.text_input(
-            "💾 Save Current Parameters to Disk as:",
-            value=st.session_state.get("active_project_name", "Padel_Centre_Baseline"),
-        )
-        if st.button("💾 Save Scenario to Disk", width="stretch"):
-            if save_as_name.strip():
-                if save_scenario_to_disk(save_as_name.strip()):
-                    st.session_state["active_project_name"] = save_as_name.strip()
-                    st.success(
-                        f"✔️ Saved scenario `{save_as_name.strip()}` to local disk."
-                    )
-                    st.rerun()
-            else:
-                st.warning("Please provide a valid scenario identifier.")
 
 st.markdown("---")
 
@@ -779,14 +685,14 @@ with b_save:
     if st.button("💾 Persist Current Working State to Disk", width="stretch"):
         cur_scen = st.session_state.get("active_project_name", "Padel_Centre_Baseline")
         if save_scenario_to_disk(cur_scen):
-            st.success(
-                f"✔️ Active data successfully written to `{SCENARIOS_DIR}/{sanitize_filename(cur_scen)}.json`."
-            )
+            st.success(f"✔️ Active data successfully written to disk as `{cur_scen}`.")
 with b_rep:
     if st.button("🚀 Calculate & View Reconciled Reports", width="stretch"):
         st.switch_page("pages/reports.py")
 
-# Fixed Sidebar Compass
+# =========================================================================
+# 🧭 FIXED SIDEBAR COMPASS & UNIFIED SCENARIO CONTROLS
+# =========================================================================
 st.sidebar.markdown("### Compass Options")
 st.sidebar.page_link("home.py", label="🏠 Home Portal")
 st.sidebar.page_link(
@@ -795,3 +701,6 @@ st.sidebar.page_link(
 st.sidebar.page_link("pages/onboarding.py", label="🕸️ Data Input Parameters")
 st.sidebar.page_link("pages/app.py", label="✍️ Data Entry Panel")
 st.sidebar.page_link("pages/reports.py", label="📊 Performance Tab")
+
+# Unified Global Scenario Manager
+render_global_scenario_sidebar()
