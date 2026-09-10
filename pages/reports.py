@@ -1,6 +1,6 @@
 ﻿# pyright: reportMissingImports=false
 # pages/reports.py
-# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v9.8.0-STATUTORY
+# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v9.8.1-STATUTORY
 # WINFORECAST GROUND TRUTH // MODERN GOOGLE-GENAI SDK // UNIFIED SCENARIO CONTROL DESK
 
 import os
@@ -64,8 +64,13 @@ st.sidebar.page_link("pages/onboarding.py", label="🕸️ Data Input Parameters
 st.sidebar.page_link("pages/app.py", label="✍️ Data Entry Panel")
 st.sidebar.page_link("pages/reports.py", label="📊 Performance Tab")
 
-# Unified Global Scenario Manager loaded before simulation calculations
+# Track active scenario and reset AI analysis cache if scenario context switches
+prev_project = st.session_state.get("_last_synced_project")
 render_global_scenario_sidebar()
+current_project = st.session_state.get("active_project_name", "Unsaved_Draft_Scenario")
+if prev_project is not None and prev_project != current_project:
+    st.session_state["cached_ai_analysis"] = ""
+st.session_state["_last_synced_project"] = current_project
 
 # =========================================================================
 # 🏛️ AUDITED GENERAL LEDGER DOUBLE-ENTRY ENGINE
@@ -121,13 +126,14 @@ class AuditedGeneralLedger:
         dr = sum(j["amount"] for j in self.journal_entries if j["month"] == month and j["debit_code"] == nominal_code)
         cr = sum(j["amount"] for j in self.journal_entries if j["month"] == month and j["credit_code"] == nominal_code)
         sign = CHART_OF_ACCOUNTS[nominal_code]["sign"]
-        return (dr - cr) * sign
+        return round((dr - cr) * sign, 2)
 
     def get_cumulative_balance(self, nominal_code: str, month_limit: int) -> float:
         dr = sum(j["amount"] for j in self.journal_entries if j["month"] <= month_limit and j["debit_code"] == nominal_code)
         cr = sum(j["amount"] for j in self.journal_entries if j["month"] <= month_limit and j["credit_code"] == nominal_code)
         sign = CHART_OF_ACCOUNTS[nominal_code]["sign"]
-        return (dr - cr) * sign
+        val = (dr - cr) * sign
+        return 0.0 if abs(val) < 0.005 else round(val, 2)
 
 
 def get_exact_period_value(item_dict: dict, month_idx: int, yr_idx: int, seasonality_profiles: dict) -> float:
@@ -510,6 +516,12 @@ def compile_financial_statements(gl: AuditedGeneralLedger, horizon_months: int):
         df_bs.at["Total Liabilities & Equity Reserves (£)", lbl] = total_liabs_and_equity
         df_bs.at["Trial Balance Checksum Balance", lbl] = round(total_assets - total_liabs_and_equity, 2)
 
+    # Clean micro-cent floating point residuals on balance sheet display
+    for col in df_bs.columns:
+        for idx in df_bs.index:
+            if abs(df_bs.at[idx, col]) < 0.005:
+                df_bs.at[idx, col] = 0.00
+
     return df_pl, df_cf, df_bs
 
 
@@ -619,7 +631,7 @@ def compile_premium_html_report(project_name, peak_cash, lowest_cash, horizon_wo
         ]
     )
 
-    # Right-align the period headers to align with numeric values
+    # Right-aligned period headers
     th_headers = "".join(f"<th align='right' style='text-align: right;'>{y}</th>" for y in years_labels)
     total_months = horizon_years * 12
 
@@ -641,10 +653,10 @@ def compile_premium_html_report(project_name, peak_cash, lowest_cash, horizon_wo
                 }}
             }}
             body {{ font-family: Helvetica, Arial, sans-serif; color: #0f172a; font-size: 8pt; }}
-            .banner {{ background-color: #1e3a8a; color: #ffffff; padding: 12px; margin-bottom: 12px; }}
+            .banner {{ background-color: #1e3a8a; color: #ffffff; padding: 14px; margin-bottom: 16px; }}
             .banner h1 {{ margin: 0; font-size: 14pt; }}
             .banner p {{ margin: 3px 0 0 0; font-size: 7.5pt; color: #93c5fd; }}
-            .ctx {{ margin-bottom: 12px; font-size: 8.5pt; font-weight: bold; color: #334155; }}
+            .ctx {{ margin-top: 4px; margin-bottom: 14px; font-size: 8.5pt; font-weight: bold; color: #334155; clear: both; }}
             h2 {{ color: #1e3a8a; font-size: 10pt; margin-top: 14px; margin-bottom: 6px; border-bottom: 1px solid #3b82f6; padding-bottom: 2px; }}
             table {{ width: 100%; border-collapse: collapse; margin-bottom: 12px; }}
             th {{ background-color: #f8fafc; color: #475569; padding: 4px 6px; font-size: 7.5pt; border-bottom: 1px solid #cbd5e1; }}
@@ -725,9 +737,13 @@ if warnings_list:
 df_pl, df_cf, df_bs = execute_full_simulation(active_data_context, horizon_months=horizon_months)
 
 term_month_col = f"M{str(horizon_months).zfill(2)}"
-closing_cash_array = df_cf.loc["Closing Bank Cash Reserves (£)"].astype(float).values
-peak_cash = float(closing_cash_array.max())
-lowest_cash = float(closing_cash_array.min())
+
+# Evaluate active trading periods M01 to M36/M60 (excludes uncommenced M00)
+active_trading_cols = [f"M{str(i).zfill(2)}" for i in range(1, horizon_months + 1)]
+trading_cash_array = df_cf[active_trading_cols].loc["Closing Bank Cash Reserves (£)"].astype(float).values
+
+peak_cash = float(trading_cash_array.max())
+lowest_cash = float(trading_cash_array.min())
 terminal_worth = float(df_bs.loc["Retained Earnings Accumulation (£)", term_month_col])
 
 kpi1, kpi2, kpi3 = st.columns(3)
