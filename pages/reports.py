@@ -1,20 +1,21 @@
 # pages/reports.py
-# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v9.5.0-STATUTORY
-# WINFORECAST INGESTED GROUND TRUTH // STRICT DOUBLE-ENTRY GENERAL LEDGER ARCHITECTURE
+# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v9.6.0-STATUTORY
+# WINFORECAST INGESTED GROUND TRUTH // PURE PYTHON xhtml2pdf // EXCEL-CLEAN BOM CSV
 
 import os
 import re
+from io import BytesIO
 import google.generativeai as genai
 import pandas as pd
 import streamlit as st
 
 try:
-    from weasyprint import HTML
+    from xhtml2pdf import pisa
 
-    WEASYPRINT_AVAILABLE = True
-except (ImportError, OSError):
-    HTML = None
-    WEASYPRINT_AVAILABLE = False
+    PDF_ENGINE_AVAILABLE = True
+except ImportError:
+    pisa = None
+    PDF_ENGINE_AVAILABLE = False
 
 st.markdown(
     """
@@ -146,11 +147,11 @@ def get_exact_period_value(
 ) -> float:
     """
     Primary Ground Truth: Uses exact monthly figures ingested from the WinForecast PDF pack.
-    Only falls back to annual curve flex if explicit monthly data is absent.
+    Only falls back to annual flex division if explicit monthly data is absent.
     """
     m_lbl = f"M{str(month_idx).zfill(2)}"
 
-    # 1. Check exact monthly overrides from ingested WinForecast matrix
+    # 1. Exact monthly overrides from ingested WinForecast matrix
     if "overrides" in item_dict and isinstance(item_dict["overrides"], dict):
         if m_lbl in item_dict["overrides"]:
             val = item_dict["overrides"][m_lbl]
@@ -160,7 +161,7 @@ def get_exact_period_value(
                 except (ValueError, TypeError):
                     pass
 
-    # 2. Check ingested matrix_data (Year/Month 12-slot array)
+    # 2. Ingested matrix_data (Year/Month 12-slot array)
     if "matrix_data" in item_dict and isinstance(item_dict["matrix_data"], dict):
         y_key = f"Y{yr_idx}"
         if y_key in item_dict["matrix_data"]:
@@ -674,7 +675,7 @@ def format_df_for_csv(
 
 
 # =========================================================================
-# 🏛️ EXECUTIVE REPORT PACK HTML / PDF COMPILER
+# 🏛️ EXECUTIVE REPORT PACK PDF COMPILER (PURE PYTHON xhtml2pdf ENGINE)
 # =========================================================================
 
 
@@ -689,7 +690,11 @@ def compile_premium_html_report(
     df_bs,
     active_data,
     horizon_years=3,
-):
+) -> bytes:
+    """
+    Compiles executive reporting pack into a PDF using pure Python xhtml2pdf.
+    Eliminates all external Windows C runtime dependencies.
+    """
     clean_insight = (
         insight_text.replace("\n", "<br>")
         .replace("â€™", "'")
@@ -744,9 +749,9 @@ def compile_premium_html_report(
         }
 
     html_pl = "".join(
-        f"<tr style='{'font-weight:bold; background:#f8fafc;' if k in ['Revenue','Gross','EBIT','PAT'] else ''}'><td>{lbl}</td>"
+        f"<tr style='{'font-weight:bold; background-color:#f1f5f9;' if k in ['Revenue','Gross','EBIT','PAT'] else ''}'><td>{lbl}</td>"
         + "".join(
-            f"<td class='text-right'>£{annual_pl[y][k]:,.2f}</td>" for y in years_labels
+            f"<td align='right'>£{annual_pl[y][k]:,.2f}</td>" for y in years_labels
         )
         + "</tr>"
         for lbl, k in [
@@ -764,9 +769,9 @@ def compile_premium_html_report(
     )
 
     html_cf = "".join(
-        f"<tr style='{'font-weight:bold; background:#f8fafc;' if k=='Closing' else ''}'><td>{lbl}</td>"
+        f"<tr style='{'font-weight:bold; background-color:#f1f5f9;' if k=='Closing' else ''}'><td>{lbl}</td>"
         + "".join(
-            f"<td class='text-right'>£{annual_cf[y][k]:,.2f}</td>" for y in years_labels
+            f"<td align='right'>£{annual_cf[y][k]:,.2f}</td>" for y in years_labels
         )
         + "</tr>"
         for lbl, k in [
@@ -780,9 +785,9 @@ def compile_premium_html_report(
     )
 
     html_bs = "".join(
-        f"<tr style='{'font-weight:bold; background:#f8fafc;' if k in ['TotalAssets','TotalLiabEquity','Checksum'] else ''}'><td>{lbl}</td>"
+        f"<tr style='{'font-weight:bold; background-color:#f1f5f9;' if k in ['TotalAssets','TotalLiabEquity','Checksum'] else ''}'><td>{lbl}</td>"
         + "".join(
-            f"<td class='text-right'>{'£' if k != 'Checksum' else ''}{annual_bs[y][k]:,.2f}</td>"
+            f"<td align='right'>{'£' if k != 'Checksum' else ''}{annual_bs[y][k]:,.2f}</td>"
             for y in years_labels
         )
         + "</tr>"
@@ -813,62 +818,69 @@ def compile_premium_html_report(
         <meta charset="utf-8">
         <style>
             @page {{
-                size: A4 portrait; margin: 18mm 15mm;
-                @bottom-right {{ content: "Page " counter(page); font-family: sans-serif; font-size: 8pt; color: #94a3b8; }}
-                @bottom-left {{ content: "STRATA Suite // Statutory General Ledger Engine"; font-family: sans-serif; font-size: 8pt; color: #94a3b8; }}
+                size: a4 portrait;
+                margin: 1.5cm;
+                @frame footer {{
+                    -pdf-frame-content: footerContent;
+                    bottom: 0.5cm;
+                    margin-left: 1.5cm;
+                    margin-right: 1.5cm;
+                    height: 1cm;
+                }}
             }}
-            body {{ font-family: Arial, sans-serif; color: #0f172a; line-height: 1.4; font-size: 8.5pt; }}
-            .banner {{ background-color: #1e3a8a; color: #ffffff; padding: 18px; border-radius: 4px; margin-bottom: 15px; }}
-            .banner h1 {{ margin: 0; font-size: 15pt; font-weight: 700; }}
-            .banner p {{ margin: 4px 0 0 0; font-size: 8pt; color: #93c5fd; text-transform: uppercase; letter-spacing: 0.8px; }}
-            .ctx {{ margin-bottom: 15px; font-size: 9.5pt; font-weight: bold; color: #334155; }}
-            h2 {{ color: #1e3a8a; font-size: 10.5pt; font-weight: 700; margin-top: 18px; border-left: 4px solid #3b82f6; padding-left: 6px; page-break-after: avoid; }}
-            table {{ width: 100%; border-collapse: collapse; margin-bottom: 16px; page-break-inside: avoid; }}
-            th {{ background-color: #f8fafc; color: #475569; padding: 5px 8px; font-size: 8pt; border-bottom: 2px solid #cbd5e1; text-transform: uppercase; }}
-            td {{ padding: 5px 8px; border-bottom: 1px solid #e2e8f0; font-size: 8pt; }}
-            .text-right {{ text-align: right; }}
-            .page-break {{ page-break-before: always; }}
+            body {{ font-family: Helvetica, Arial, sans-serif; color: #0f172a; font-size: 8pt; }}
+            .banner {{ background-color: #1e3a8a; color: #ffffff; padding: 12px; margin-bottom: 12px; }}
+            .banner h1 {{ margin: 0; font-size: 14pt; }}
+            .banner p {{ margin: 3px 0 0 0; font-size: 7.5pt; color: #93c5fd; }}
+            .ctx {{ margin-bottom: 12px; font-size: 8.5pt; font-weight: bold; color: #334155; }}
+            h2 {{ color: #1e3a8a; font-size: 10pt; margin-top: 14px; margin-bottom: 6px; border-bottom: 1px solid #3b82f6; padding-bottom: 2px; }}
+            table {{ width: 100%; border-collapse: collapse; margin-bottom: 12px; }}
+            th {{ background-color: #f8fafc; color: #475569; padding: 4px 6px; font-size: 7.5pt; border-bottom: 1px solid #cbd5e1; text-align: left; }}
+            td {{ padding: 4px 6px; border-bottom: 1px solid #e2e8f0; font-size: 7.5pt; }}
         </style>
     </head>
     <body>
+        <div id="footerContent" align="right" style="font-size: 7pt; color: #94a3b8;">
+            STRATA Suite // Statutory General Ledger Engine &nbsp;|&nbsp; Page <pdf:pagenumber> of <pdf:pagecount>
+        </div>
+
         <div class="banner">
             <h1>STRATA EXECUTIVE FINANCIAL REPORT PACK</h1>
             <p>Statutory {horizon_years}-Year Integrated Financial Projections (Trial Balance Audited)</p>
         </div>
         <div class="ctx">Project: {project_name} | Accounting Horizon: {horizon_years} Operating Years ({total_months} Months)</div>
+        
         <table>
-            <thead><tr><th>Target Core Metric</th><th class="text-right">Projected Value Position</th></tr></thead>
+            <thead><tr><th>Target Core Metric</th><th align="right">Projected Value Position</th></tr></thead>
             <tbody>
-                <tr><td>Peak Cumulative Cash Reserves</td><td class="text-right">£{peak_cash:,.2f}</td></tr>
-                <tr><td>Maximum Working Capital Trough</td><td class="text-right">£{lowest_cash:,.2f}</td></tr>
-                <tr><td>Year {horizon_years} Terminal Retained Equity Worth</td><td class="text-right">£{horizon_worth:,.2f}</td></tr>
+                <tr><td>Peak Cumulative Cash Reserves</td><td align="right">£{peak_cash:,.2f}</td></tr>
+                <tr><td>Maximum Working Capital Trough</td><td align="right">£{lowest_cash:,.2f}</td></tr>
+                <tr><td>Year {horizon_years} Terminal Retained Equity Worth</td><td align="right">£{horizon_worth:,.2f}</td></tr>
             </tbody>
         </table>
+
         <h2>Executive CFO Narrative Synthesis</h2>
-        <div>{clean_insight}</div>
-        <div class="page-break">
-            <h2>Profit & Loss Forecast Statement (Years 1 to {horizon_years})</h2>
-            <table><thead><tr><th>Performance Component</th>{th_headers}</tr></thead><tbody>{html_pl}</tbody></table>
-            <h2>Cash Flow Forecast Statement (Years 1 to {horizon_years})</h2>
-            <table><thead><tr><th>Liquidity Flow Component</th>{th_headers}</tr></thead><tbody>{html_cf}</tbody></table>
-            <h2>Balance Sheet Capital Statement (Years 1 to {horizon_years})</h2>
-            <table><thead><tr><th>Ledger Balance Structure</th>{th_headers}</tr></thead><tbody>{html_bs}</tbody></table>
-        </div>
+        <div style="margin-bottom: 15px;">{clean_insight}</div>
+
+        <pdf:nextpage />
+
+        <h2>Profit & Loss Forecast Statement (Years 1 to {horizon_years})</h2>
+        <table><thead><tr><th>Performance Component</th>{th_headers}</tr></thead><tbody>{html_pl}</tbody></table>
+
+        <h2>Cash Flow Forecast Statement (Years 1 to {horizon_years})</h2>
+        <table><thead><tr><th>Liquidity Flow Component</th>{th_headers}</tr></thead><tbody>{html_cf}</tbody></table>
+
+        <h2>Balance Sheet Capital Statement (Years 1 to {horizon_years})</h2>
+        <table><thead><tr><th>Ledger Balance Structure</th>{th_headers}</tr></thead><tbody>{html_bs}</tbody></table>
     </body>
     </html>
     """
 
-    tmp_html, tmp_pdf = "tmp_report.html", "tmp_report.pdf"
-    with open(tmp_html, "w", encoding="utf-8") as f:
-        f.write(html_template)
-    HTML(tmp_html).write_pdf(tmp_pdf)
-    with open(tmp_pdf, "rb") as f:
-        pdf_bytes = f.read()
-    if os.path.exists(tmp_html):
-        os.remove(tmp_html)
-    if os.path.exists(tmp_pdf):
-        os.remove(tmp_pdf)
-    return pdf_bytes
+    pdf_buffer = BytesIO()
+    pisa_status = pisa.CreatePDF(html_template, dest=pdf_buffer)
+    if pisa_status.err:
+        raise Exception(f"xhtml2pdf encountered an error code: {pisa_status.err}")
+    return pdf_buffer.getvalue()
 
 
 # =========================================================================
@@ -1023,9 +1035,10 @@ if st.session_state["cached_ai_analysis"]:
     st.markdown("---")
     st.markdown("## 🏛 Executive Strategy Summary Pack Preview")
     st.write(st.session_state["cached_ai_analysis"])
-    if not WEASYPRINT_AVAILABLE:
+
+    if not PDF_ENGINE_AVAILABLE:
         st.warning(
-            "⚠️ WeasyPrint binary libraries are not detected in the local Windows environment. PDF compilation executes cleanly in Linux cloud deployments."
+            "⚠️ PDF generation engine not installed. Please run `pip install xhtml2pdf`."
         )
     else:
         try:
