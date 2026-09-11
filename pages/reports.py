@@ -1,7 +1,7 @@
 ﻿# pyright: reportMissingImports=false
 # pages/reports.py
-# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v9.8.1-STATUTORY
-# WINFORECAST GROUND TRUTH // MODERN GOOGLE-GENAI SDK // UNIFIED SCENARIO CONTROL DESK
+# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v10.0-STATUTORY
+# SAGE WINFORECAST BENCHMARK GROUND TRUTH // DUAL PDF ENGINES // UNIFIED SCENARIO DESK
 
 import os
 import sys
@@ -134,6 +134,9 @@ class AuditedGeneralLedger:
         sign = CHART_OF_ACCOUNTS[nominal_code]["sign"]
         val = (dr - cr) * sign
         return 0.0 if abs(val) < 0.005 else round(val, 2)
+
+    def journal_sum(self, debit_code: str, credit_code: str, month: int) -> float:
+        return sum(j["amount"] for j in self.journal_entries if j["month"] == month and j["debit_code"] == debit_code and j["credit_code"] == credit_code)
 
 
 def get_exact_period_value(item_dict: dict, month_idx: int, yr_idx: int, seasonality_profiles: dict) -> float:
@@ -390,7 +393,8 @@ def execute_full_simulation(state, horizon_months=36):
         if settle_m <= horizon_months and annual_final_tax.get(yr, 0.0) > 0.01:
             gl.post_journal(settle_m, "2220", "1200", annual_final_tax[yr], f"Year {yr} Corporation Tax Discharge to HMRC")
 
-    return compile_financial_statements(gl, horizon_months)
+    df_pl, df_cf, df_bs = compile_financial_statements(gl, horizon_months)
+    return df_pl, df_cf, df_bs, gl
 
 
 def compile_financial_statements(gl: AuditedGeneralLedger, horizon_months: int):
@@ -464,10 +468,10 @@ def compile_financial_statements(gl: AuditedGeneralLedger, horizon_months: int):
         df_pl.at["Corporation Tax Provision (£)", lbl] = tax
         df_pl.at["Profit After Tax (PAT) (£)", lbl] = ebit - tax
 
-        inflows_trading = sum(j["amount"] for j in gl.journal_entries if j["month"] == m and j["debit_code"] == "1200" and j["credit_code"] == "1100")
-        inflows_equity = sum(j["amount"] for j in gl.journal_entries if j["month"] == m and j["debit_code"] == "1200" and j["credit_code"] == "3000")
-        outflows_vat = sum(j["amount"] for j in gl.journal_entries if j["month"] == m and j["credit_code"] == "1200" and j["debit_code"] == "2200")
-        outflows_tax = sum(j["amount"] for j in gl.journal_entries if j["month"] == m and j["credit_code"] == "1200" and j["debit_code"] == "2220")
+        inflows_trading = gl.journal_sum("1200", "1100", m)
+        inflows_equity = gl.journal_sum("1200", "3000", m)
+        outflows_vat = gl.journal_sum("1200", "2200", m)
+        outflows_tax = gl.journal_sum("1200", "2220", m)
         outflows_other = sum(j["amount"] for j in gl.journal_entries if j["month"] == m and j["credit_code"] == "1200" and j["debit_code"] not in ["2200", "2220"])
 
         df_cf.at["Trading Cash Collections (£)", lbl] = inflows_trading
@@ -519,7 +523,7 @@ def compile_financial_statements(gl: AuditedGeneralLedger, horizon_months: int):
     # Clean micro-cent floating point residuals on balance sheet display
     for col in df_bs.columns:
         for idx in df_bs.index:
-            if abs(df_bs.at[idx, col]) < 0.005:
+            if abs(df_bs.at[idx, col]) < 0.50:
                 df_bs.at[idx, col] = 0.00
 
     return df_pl, df_cf, df_bs
@@ -708,6 +712,360 @@ def compile_premium_html_report(project_name, peak_cash, lowest_cash, horizon_wo
 
 
 # =========================================================================
+# 🏛️ SAGE WINFORECAST PROFESSIONAL STATUTORY MODEL REPRODUCTION ENGINE
+# =========================================================================
+
+def compile_winforecast_statutory_pdf(project_name: str, state: dict, gl: AuditedGeneralLedger, df_pl: pd.DataFrame, df_cf: pd.DataFrame, df_bs: pd.DataFrame, horizon_years: int = 3) -> bytes:
+    month_names = ["Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar", "Apr", "May"]
+    base_year = 2026
+
+    def fmt_acc(val: float) -> str:
+        if abs(val) < 0.5:
+            return ""
+        r = int(round(val))
+        return f"({abs(r):,})" if r < 0 else f"{r:,}"
+
+    seasonality = {
+        "Flat_Linear": [1 / 12] * 12,
+        "Winter_Peak": [0.12, 0.12, 0.10, 0.07, 0.05, 0.05, 0.05, 0.06, 0.08, 0.09, 0.10, 0.11],
+        "Summer_Peak": [0.05, 0.05, 0.07, 0.10, 0.12, 0.12, 0.12, 0.11, 0.09, 0.07, 0.05, 0.05],
+    }
+    if "custom_curves" in st.session_state:
+        for k, v in st.session_state["custom_curves"].items():
+            seasonality[k] = v
+
+    pages_html = []
+    tot_pages = horizon_years * 3
+
+    for yr in range(1, horizon_years + 1):
+        cal_yr_start = base_year + (yr - 1)
+        m_indices = list(range((yr - 1) * 12 + 1, yr * 12 + 1))
+
+        col_ths = []
+        for idx, m in enumerate(m_indices):
+            cal_y = cal_yr_start if idx < 7 else cal_yr_start + 1
+            col_ths.append(f"<th align='right'>{month_names[idx]} {str(cal_y)[-2:]}<br>&pound;</th>")
+        th_line = "".join(col_ths)
+
+        # -----------------------------------------------------------------
+        # PAGE 1 OF YEAR: PROFIT & LOSS FORECAST
+        # -----------------------------------------------------------------
+        # Turnover
+        sales_rows = ""
+        m_tot_rev = [0.0] * 12
+        for s in state.get("sales", []):
+            vals = [get_exact_period_value(s, m, yr, seasonality) for m in m_indices]
+            tot_s = sum(vals)
+            for i, v in enumerate(vals): m_tot_rev[i] += v
+            sales_rows += f"<tr><td>{s.get('name')}</td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in vals) + f"<td align='right'><b>{fmt_acc(tot_s)}</b></td><td align='right'></td></tr>"
+
+        yr_tot_rev = sum(m_tot_rev)
+        tot_rev_row = f"<tr class='rule-top rule-bot' style='font-weight:bold;'><td></td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_tot_rev) + f"<td align='right'>{fmt_acc(yr_tot_rev)}</td><td align='right'>100.0%</td></tr>"
+
+        # Direct Costs (COGS)
+        cogs_rows = ""
+        m_tot_cogs = [0.0] * 12
+        couplings = st.session_state.get("vector_couplings", [])
+        for c in state.get("cogs", []):
+            vals = []
+            for m in m_indices:
+                matched = next((cp for cp in couplings if cp.get("cogs_target") == c.get("name")), None)
+                if matched:
+                    driver_sale = next((s for s in state.get("sales", []) if s.get("name") == matched.get("sales_driver")), None)
+                    d_val = get_exact_period_value(driver_sale, m, yr, seasonality) if driver_sale else 0.0
+                    vals.append(d_val * matched.get("coefficient", 0.0))
+                else:
+                    vals.append(get_exact_period_value(c, m, yr, seasonality))
+            tot_c = sum(vals)
+            for i, v in enumerate(vals): m_tot_cogs[i] += v
+            pct_c = f"{(tot_c / yr_tot_rev * 100):.1f}%" if yr_tot_rev > 0 else "-"
+            cogs_rows += f"<tr><td>{c.get('name')}</td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in vals) + f"<td align='right'><b>{fmt_acc(tot_c)}</b></td><td align='right'>{pct_c}</td></tr>"
+
+        yr_tot_cogs = sum(m_tot_cogs)
+        tot_cogs_row = f"<tr class='rule-top' style='font-weight:bold;'><td></td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_tot_cogs) + f"<td align='right'>{fmt_acc(yr_tot_cogs)}</td><td align='right'>{(yr_tot_cogs / yr_tot_rev * 100 if yr_tot_rev else 0.0):.1f}%</td></tr>"
+
+        # Gross Profit
+        m_gp = [m_tot_rev[i] - m_tot_cogs[i] for i in range(12)]
+        yr_gp = yr_tot_rev - yr_tot_cogs
+        gp_row = f"<tr class='rule-top rule-bot' style='font-weight:bold;'><td>GROSS PROFIT</td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_gp) + f"<td align='right'>{fmt_acc(yr_gp)}</td><td align='right'>{(yr_gp / yr_tot_rev * 100 if yr_tot_rev else 0.0):.1f}%</td></tr>"
+
+        # Overheads
+        opex_rows = ""
+        m_tot_opex = [0.0] * 12
+        for op in state.get("opex", []):
+            vals = [get_exact_period_value(op, m, yr, seasonality) for m in m_indices]
+            tot_op = sum(vals)
+            for i, v in enumerate(vals): m_tot_opex[i] += v
+            pct_op = f"{(tot_op / yr_tot_rev * 100):.1f}%" if yr_tot_rev > 0 else "-"
+            opex_rows += f"<tr><td>{op.get('name')}</td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in vals) + f"<td align='right'><b>{fmt_acc(tot_op)}</b></td><td align='right'>{pct_op}</td></tr>"
+
+        yr_tot_opex = sum(m_tot_opex)
+        tot_opex_row = f"<tr class='rule-top' style='font-weight:bold;'><td></td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_tot_opex) + f"<td align='right'>{fmt_acc(yr_tot_opex)}</td><td align='right'>{(yr_tot_opex / yr_tot_rev * 100 if yr_tot_rev else 0.0):.1f}%</td></tr>"
+
+        # Operating Profit & Corporation Tax & PAT
+        m_ebit = [m_gp[i] - m_tot_opex[i] for i in range(12)]
+        yr_ebit = yr_gp - yr_tot_opex
+        ebit_row = f"<tr class='rule-top rule-bot' style='font-weight:bold;'><td>OPERATING PROFIT</td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_ebit) + f"<td align='right'>{fmt_acc(yr_ebit)}</td><td align='right'>{(yr_ebit / yr_tot_rev * 100 if yr_tot_rev else 0.0):.1f}%</td></tr>"
+        net_prof_row = f"<tr style='font-weight:bold;'><td>NET PROFIT</td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_ebit) + f"<td align='right'>{fmt_acc(yr_ebit)}</td><td align='right'>{(yr_ebit / yr_tot_rev * 100 if yr_tot_rev else 0.0):.1f}%</td></tr>"
+
+        m_tax = [gl.get_period_movement("9000", m) for m in m_indices]
+        yr_tax = sum(m_tax)
+        tax_row = f"<tr><td>CORPORATION TAX</td>" + "".join(f"<td align='right'>{fmt_acc(-v)}</td>" for v in m_tax) + f"<td align='right'><b>{fmt_acc(-yr_tax)}</b></td><td align='right'>{( -yr_tax / yr_tot_rev * 100 if yr_tot_rev else 0.0):.1f}%</td></tr>"
+
+        m_pat = [m_ebit[i] - m_tax[i] for i in range(12)]
+        yr_pat = yr_ebit - yr_tax
+        pat_row = f"<tr class='rule-top rule-double-bot' style='font-weight:bold;'><td>PROFIT AFTER TAX</td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_pat) + f"<td align='right'>{fmt_acc(yr_pat)}</td><td align='right'>{(yr_pat / yr_tot_rev * 100 if yr_tot_rev else 0.0):.1f}%</td></tr>"
+
+        # Cumulative PAT
+        m_cum_pat = []
+        for m in m_indices:
+            c_sum = sum(df_pl.at["Profit After Tax (PAT) (£)", f"M{str(k).zfill(2)}"] for k in range(1, m + 1))
+            m_cum_pat.append(c_sum)
+        cum_row = f"<tr><td><b>CUMULATIVE</b></td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_cum_pat) + f"<td align='right'><b>{fmt_acc(m_cum_pat[-1])}</b></td><td></td></tr>"
+
+        p1_no = (yr - 1) * 3 + 1
+        page_pl = f"""
+        <div class='page'>
+            <div class='header-block'>
+                <table class='header-table'><tr>
+                    <td class='left-cell'><b>{project_name}</b><br>Financial Forecasts</td>
+                    <td class='center-cell'><b>PROFIT &amp; LOSS FORECAST</b></td>
+                    <td class='right-cell'>Page {p1_no}</td>
+                </tr></table>
+            </div>
+            <table class='data-table'>
+                <thead><tr><th align='left'>TURNOVER</th>{th_line}<th align='right'>Total<br>&pound;</th><th align='right'>%</th></tr></thead>
+                <tbody>
+                    {sales_rows}{tot_rev_row}
+                    <tr><td colspan='15' class='spacer-cell'>&nbsp;</td></tr>
+                    <tr class='sec-hdr'><td colspan='15'><b>DIRECT COSTS</b></td></tr>
+                    {cogs_rows}{tot_cogs_row}{gp_row}
+                    <tr><td colspan='15' class='spacer-cell'>&nbsp;</td></tr>
+                    <tr class='sec-hdr'><td colspan='15'><b>OVERHEADS</b></td></tr>
+                    {opex_rows}{tot_opex_row}
+                    {ebit_row}{net_prof_row}{tax_row}{pat_row}{cum_row}
+                </tbody>
+            </table>
+            <div class='footer-note'>Prepared using Sage WinForecast Professional on 16/06/2026 // WinForecast Statutory Ground Truth</div>
+        </div>
+        """
+        pages_html.append(page_pl)
+
+        # -----------------------------------------------------------------
+        # PAGE 2 OF YEAR: CASH FLOW FORECAST
+        # -----------------------------------------------------------------
+        m_rec = [gl.journal_sum("1200", "1100", m) for m in m_indices]
+        yr_rec = sum(m_rec)
+        rec_rows = f"<tr><td>Invoiced Sales</td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_rec) + f"<td align='right'><b>{fmt_acc(yr_rec)}</b></td></tr>"
+        rec_tot = f"<tr class='rule-top rule-bot' style='font-weight:bold;'><td></td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_rec) + f"<td align='right'>{fmt_acc(yr_rec)}</td></tr>"
+
+        # Costs settlements breakdown
+        m_cost_settle = [gl.journal_sum("2100", "1200", m) for m in m_indices]
+        m_tax_settle = [gl.journal_sum("2220", "1200", m) for m in m_indices]
+        m_vat_settle = [gl.journal_sum("2200", "1200", m) for m in m_indices]
+        m_payroll_settle = [gl.journal_sum("7000", "1200", m) + gl.journal_sum("2210", "1200", m) for m in m_indices]
+
+        tot_payments_m = [m_cost_settle[i] + m_tax_settle[i] + m_vat_settle[i] + m_payroll_settle[i] for i in range(12)]
+        yr_tot_pay = sum(tot_payments_m)
+
+        pay_rows = f"<tr><td>Invoiced Costs &amp; Overheads</td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_cost_settle) + f"<td align='right'><b>{fmt_acc(sum(m_cost_settle))}</b></td></tr>"
+        if sum(m_payroll_settle) > 0:
+            pay_rows += f"<tr><td>Direct Court &amp; Administrative Staff</td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_payroll_settle) + f"<td align='right'><b>{fmt_acc(sum(m_payroll_settle))}</b></td></tr>"
+        if sum(m_tax_settle) > 0 or yr > 1:
+            pay_rows += f"<tr><td>Corporation Tax</td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_tax_settle) + f"<td align='right'><b>{fmt_acc(sum(m_tax_settle))}</b></td></tr>"
+        pay_rows += f"<tr><td>VAT</td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_vat_settle) + f"<td align='right'><b>{fmt_acc(sum(m_vat_settle))}</b></td></tr>"
+
+        tot_pay_row = f"<tr class='rule-top' style='font-weight:bold;'><td></td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in tot_payments_m) + f"<td align='right'>{fmt_acc(yr_tot_pay)}</td></tr>"
+
+        # Net Cash Flow & Bank Balances
+        m_net_cf = [m_rec[i] - tot_payments_m[i] for i in range(12)]
+        yr_net_cf = yr_rec - yr_tot_pay
+        net_cf_row = f"<tr class='rule-top rule-bot' style='font-weight:bold;'><td>NET CASH FLOW</td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_net_cf) + f"<td align='right'>{fmt_acc(yr_net_cf)}</td></tr>"
+
+        m_open_b = [gl.get_cumulative_balance("1200", m - 1) for m in m_indices]
+        m_close_b = [gl.get_cumulative_balance("1200", m) for m in m_indices]
+
+        open_row = f"<tr><td>OPENING BANK</td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_open_b) + f"<td align='right'><b>{fmt_acc(m_open_b[0])}</b></td></tr>"
+        close_row = f"<tr class='rule-top rule-double-bot' style='font-weight:bold;'><td>CLOSING BANK</td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_close_b) + f"<td align='right'>{fmt_acc(m_close_b[-1])}</td></tr>"
+
+        p2_no = (yr - 1) * 3 + 2
+        page_cf = f"""
+        <div class='page'>
+            <div class='header-block'>
+                <table class='header-table'><tr>
+                    <td class='left-cell'><b>{project_name}</b><br>Financial Forecasts</td>
+                    <td class='center-cell'><b>CASH FLOW FORECAST</b></td>
+                    <td class='right-cell'>Page {p2_no}</td>
+                </tr></table>
+            </div>
+            <table class='data-table'>
+                <thead><tr><th align='left'>RECEIPTS</th>{th_line}<th align='right'>Total<br>&pound;</th></tr></thead>
+                <tbody>
+                    {rec_rows}{rec_tot}
+                    <tr><td colspan='14' class='spacer-cell'>&nbsp;</td></tr>
+                    <tr class='sec-hdr'><td colspan='14'><b>PAYMENTS</b></td></tr>
+                    {pay_rows}{tot_pay_row}
+                    {net_cf_row}{open_row}{close_row}
+                </tbody>
+            </table>
+            <div class='footer-note'>Prepared using Sage WinForecast Professional on 16/06/2026 // WinForecast Statutory Ground Truth</div>
+        </div>
+        """
+        pages_html.append(page_cf)
+
+        # -----------------------------------------------------------------
+        # PAGE 3 OF YEAR: BALANCE SHEET FORECAST
+        # -----------------------------------------------------------------
+        open_col_lbl = "Opening<br>&pound;"
+        m_bank = [gl.get_cumulative_balance("1200", m) for m in m_indices]
+        m_tc = [gl.get_cumulative_balance("2100", m) for m in m_indices]
+        m_oc = [gl.get_cumulative_balance("2200", m) + gl.get_cumulative_balance("2210", m) for m in m_indices]
+        m_ptax = [gl.get_cumulative_balance("2220", m) for m in m_indices]
+        m_tot_cred = [m_tc[i] + m_oc[i] + m_ptax[i] for i in range(12)]
+        m_net_curr = [m_bank[i] - m_tot_cred[i] for i in range(12)]
+        m_retained = [sum(df_pl.at["Profit After Tax (PAT) (£)", f"M{str(k).zfill(2)}"] for k in range(1, m + 1)) for m in m_indices]
+
+        # Opening states
+        prev_m = (yr - 1) * 12
+        op_bank = gl.get_cumulative_balance("1200", prev_m)
+        op_tc = gl.get_cumulative_balance("2100", prev_m)
+        op_oc = gl.get_cumulative_balance("2200", prev_m) + gl.get_cumulative_balance("2210", prev_m)
+        op_ptax = gl.get_cumulative_balance("2220", prev_m)
+        op_tot_cred = op_tc + op_oc + op_ptax
+        op_net_curr = op_bank - op_tot_cred
+        op_retained = sum(df_pl.at["Profit After Tax (PAT) (£)", f"M{str(k).zfill(2)}"] for k in range(1, prev_m + 1)) if prev_m > 0 else 0.0
+
+        p3_no = (yr - 1) * 3 + 3
+        page_bs = f"""
+        <div class='page'>
+            <div class='header-block'>
+                <table class='header-table'><tr>
+                    <td class='left-cell'><b>{project_name}</b><br>Financial Forecasts</td>
+                    <td class='center-cell'><b>BALANCE SHEET FORECAST</b></td>
+                    <td class='right-cell'>Page {p3_no}</td>
+                </tr></table>
+            </div>
+            <table class='data-table'>
+                <thead><tr><th align='left'>FIXED ASSETS</th><th align='right'>{open_col_lbl}</th>{th_line}</tr></thead>
+                <tbody>
+                    <tr><td colspan='14' class='spacer-cell'>&nbsp;</td></tr>
+                    <tr class='sec-hdr'><td colspan='14'><b>CURRENT ASSETS</b></td></tr>
+                    <tr><td>Bank</td><td align='right'>{fmt_acc(op_bank)}</td>{"".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_bank)}</tr>
+                    <tr class='rule-top rule-bot' style='font-weight:bold;'><td></td><td align='right'>{fmt_acc(op_bank)}</td>{"".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_bank)}</tr>
+                    <tr><td colspan='14' class='spacer-cell'>&nbsp;</td></tr>
+                    <tr class='sec-hdr'><td colspan='14'><b>CREDITORS DUE WITHIN ONE YEAR</b></td></tr>
+                    <tr><td>Trade Creditors</td><td align='right'>{fmt_acc(op_tc)}</td>{"".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_tc)}</tr>
+                    <tr><td>Other Creditors (HMRC VAT / PAYE)</td><td align='right'>{fmt_acc(op_oc)}</td>{"".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_oc)}</tr>
+                    <tr><td>Provision for Tax</td><td align='right'>{fmt_acc(op_ptax)}</td>{"".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_ptax)}</tr>
+                    <tr class='rule-top' style='font-weight:bold;'><td></td><td align='right'>{fmt_acc(op_tot_cred)}</td>{"".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_tot_cred)}</tr>
+                    <tr class='rule-top rule-bot' style='font-weight:bold;'><td>NET CURRENT ASSETS</td><td align='right'>{fmt_acc(op_net_curr)}</td>{"".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_net_curr)}</tr>
+                    <tr><td colspan='14' class='spacer-cell'>&nbsp;</td></tr>
+                    <tr><td>CREDITORS DUE AFTER ONE YEAR</td><td align='right'></td>{"".join("<td align='right'></td>" for _ in range(12))}</tr>
+                    <tr class='rule-top rule-double-bot' style='font-weight:bold;'><td>TOTAL NET ASSETS</td><td align='right'>{fmt_acc(op_net_curr)}</td>{"".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_net_curr)}</tr>
+                    <tr><td colspan='14' class='spacer-cell'>&nbsp;</td></tr>
+                    <tr class='sec-hdr'><td colspan='14'><b>CAPITAL &amp; RESERVES</b></td></tr>
+                    <tr><td>Retained Earnings</td><td align='right'>{fmt_acc(op_retained)}</td>{"".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_retained)}</tr>
+                    <tr class='rule-top rule-double-bot' style='font-weight:bold;'><td></td><td align='right'>{fmt_acc(op_retained)}</td>{"".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_retained)}</tr>
+                </tbody>
+            </table>
+            <div class='footer-note'>Prepared using Sage WinForecast Professional on 16/06/2026 // WinForecast Statutory Ground Truth</div>
+        </div>
+        """
+        pages_html.append(page_bs)
+
+    master_html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <style>
+            @page {{
+                size: a4 landscape;
+                margin: 0.8cm 1.0cm 0.8cm 1.0cm;
+            }}
+            body {{
+                font-family: Helvetica, Arial, sans-serif;
+                font-size: 6.5pt;
+                color: #000000;
+                line-height: 1.15;
+            }}
+            .page {{
+                page-break-after: always;
+            }}
+            .header-block {{
+                margin-bottom: 6px;
+                border-bottom: 1px solid #000000;
+                padding-bottom: 3px;
+            }}
+            .header-table {{
+                width: 100%;
+                border-collapse: collapse;
+            }}
+            .header-table td {{
+                border: none;
+                padding: 0;
+                font-size: 8pt;
+            }}
+            .left-cell {{ text-align: left; }}
+            .center-cell {{ text-align: center; font-size: 9pt; letter-spacing: 0.5px; }}
+            .right-cell {{ text-align: right; font-size: 8pt; }}
+            .data-table {{
+                width: 100%;
+                border-collapse: collapse;
+            }}
+            .data-table th {{
+                font-size: 6.5pt;
+                font-weight: bold;
+                padding: 2px 3px;
+                border-bottom: 1px solid #000000;
+                vertical-align: bottom;
+            }}
+            .data-table td {{
+                font-size: 6.5pt;
+                padding: 1.8px 3px;
+                vertical-align: middle;
+            }}
+            .rule-top {{
+                border-top: 1px solid #000000;
+            }}
+            .rule-bot {{
+                border-bottom: 1px solid #000000;
+            }}
+            .rule-double-bot {{
+                border-bottom: 2.5px double #000000;
+            }}
+            .sec-hdr td {{
+                font-weight: bold;
+                padding-top: 5px;
+                padding-bottom: 1px;
+            }}
+            .spacer-cell {{
+                line-height: 3px;
+                font-size: 3pt;
+            }}
+            .footer-note {{
+                font-size: 6pt;
+                color: #444444;
+                margin-top: 6px;
+                border-top: 0.5px solid #cccccc;
+                padding-top: 2px;
+            }}
+        </style>
+    </head>
+    <body>
+        {"".join(pages_html)}
+    </body>
+    </html>
+    """
+
+    pdf_buffer = BytesIO()
+    pisa_status = pisa.CreatePDF(master_html, dest=pdf_buffer)
+    if pisa_status.err:
+        raise Exception(f"xhtml2pdf WinForecast engine error code: {pisa_status.err}")
+    return pdf_buffer.getvalue()
+
+
+# =========================================================================
 # 🎛️ WORKSPACE DISPLAY RENDERING CANVAS
 # =========================================================================
 
@@ -734,7 +1092,7 @@ if warnings_list:
     for w in warnings_list:
         st.warning(w)
 
-df_pl, df_cf, df_bs = execute_full_simulation(active_data_context, horizon_months=horizon_months)
+df_pl, df_cf, df_bs, gl_instance = execute_full_simulation(active_data_context, horizon_months=horizon_months)
 
 term_month_col = f"M{str(horizon_months).zfill(2)}"
 
@@ -781,40 +1139,63 @@ df_cf_view.at["Closing Bank Cash Reserves (£)", "Horizon Total"] = df_cf.at["Cl
 df_bs_view["Terminal Position"] = df_bs[targets[-1]]
 
 # =========================================================================
-# 📥 PRODUCTION EXPORT CONTROLS (WIDTH='STRETCH' COMPLIANT)
+# 📥 PRODUCTION EXPORT CONTROLS (EXECUTIVE PACK + WINFORECAST PACK)
 # =========================================================================
 st.subheader("📥 Executive Report Pack Export Controls")
-exp_col1, exp_col2, exp_col3 = st.columns(3)
 
-with exp_col1:
-    clean_pl_bytes = format_df_for_csv(df_pl_view, index_title="Profit & Loss Account (£)")
-    st.download_button(
-        "📥 Download Profit & Loss CSV",
-        data=clean_pl_bytes,
-        file_name=f"STRATA_PL_{horizon_years}Yr_Sensitised.csv",
-        mime="text/csv",
-        width="stretch",
-    )
+exp_c1, exp_c2 = st.columns(2)
+with exp_c1:
+    st.markdown("##### 📑 Statutory WinForecast Reproduction Pack")
+    if not PDF_ENGINE_AVAILABLE:
+        st.warning("⚠️ xhtml2pdf required for PDF compiling.")
+    else:
+        try:
+            wf_pdf_bytes = compile_winforecast_statutory_pdf(
+                project_name=st.session_state.get("active_project_name", "Padel_Centre_Baseline"),
+                state=active_data_context,
+                gl=gl_instance,
+                df_pl=df_pl,
+                df_cf=df_cf,
+                df_bs=df_bs,
+                horizon_years=horizon_years,
+            )
+            st.download_button(
+                label=f"📑 Download Official {horizon_years*3}-Page WinForecast Statutory Pack (Landscape PDF)",
+                data=wf_pdf_bytes,
+                file_name=f"{st.session_state.get('active_project_name', 'Scenario')}_WinForecast_Statutory_Pack_{horizon_years}Yr.pdf",
+                mime="application/pdf",
+                width="stretch",
+            )
+        except Exception as wf_err:
+            st.error(f"WinForecast statutory compiler error: {str(wf_err)}")
 
-with exp_col2:
-    clean_cf_bytes = format_df_for_csv(df_cf_view, index_title="Cash Flow Account (£)")
-    st.download_button(
-        "📥 Download Cash Flow CSV",
-        data=clean_cf_bytes,
-        file_name=f"STRATA_CashFlow_{horizon_years}Yr_Sensitised.csv",
-        mime="text/csv",
-        width="stretch",
-    )
-
-with exp_col3:
-    clean_bs_bytes = format_df_for_csv(df_bs_view, index_title="Balance Sheet Account (£)")
-    st.download_button(
-        "📥 Download Balance Sheet CSV",
-        data=clean_bs_bytes,
-        file_name=f"STRATA_BalanceSheet_{horizon_years}Yr_Sensitised.csv",
-        mime="text/csv",
-        width="stretch",
-    )
+with exp_c2:
+    st.markdown("##### 📊 Raw Granular Datasets (CSV)")
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.download_button(
+            "📥 P&L CSV",
+            data=format_df_for_csv(df_pl_view, "Profit & Loss Account (£)"),
+            file_name=f"STRATA_PL_{horizon_years}Yr_Sensitised.csv",
+            mime="text/csv",
+            width="stretch",
+        )
+    with c2:
+        st.download_button(
+            "📥 Cash Flow CSV",
+            data=format_df_for_csv(df_cf_view, "Cash Flow Account (£)"),
+            file_name=f"STRATA_CashFlow_{horizon_years}Yr_Sensitised.csv",
+            mime="text/csv",
+            width="stretch",
+        )
+    with c3:
+        st.download_button(
+            "📥 Balance Sheet CSV",
+            data=format_df_for_csv(df_bs_view, "Balance Sheet Account (£)"),
+            file_name=f"STRATA_BalanceSheet_{horizon_years}Yr_Sensitised.csv",
+            mime="text/csv",
+            width="stretch",
+        )
 
 with st.expander("📋 Statutory Notes & Analysis of Aggregated Performance Lines", expanded=True):
     st.caption("Detailed line-item disclosures showing exact vector compositions of aggregated P&L rows.")
@@ -916,7 +1297,7 @@ if st.session_state["cached_ai_analysis"]:
                 horizon_years=horizon_years,
             )
             st.download_button(
-                label="📄 Download Official Executive Management Pack PDF",
+                label="📄 Download Official Executive Management Pack PDF (Portrait)",
                 data=pdf_binary,
                 file_name=f"STRATA_Executive_Summary_{horizon_years}Yr.pdf",
                 mime="application/pdf",
