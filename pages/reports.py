@@ -1,6 +1,6 @@
 ﻿# pyright: reportMissingImports=false
 # pages/reports.py
-# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v10.3-STATUTORY
+# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v10.4-STATUTORY
 # INTEGRATED DOUBLE-ENTRY GENERAL LEDGER // HARDENED LANDSCAPE STATUTORY PACK
 
 import os
@@ -140,42 +140,51 @@ def sanitize_label(name: str) -> str:
 def get_exact_period_value(item_dict: dict, month_idx: int, yr_idx: int, seasonality_profiles: dict) -> float:
     m_lbl = f"M{str(month_idx).zfill(2)}"
 
-    # 1. Direct explicit monthly overrides (preserves exact values including 0.0 during construction)
-    if "overrides" in item_dict and isinstance(item_dict["overrides"], dict):
-        if m_lbl in item_dict["overrides"]:
-            val = item_dict["overrides"][m_lbl]
-            if val is not None and str(val).strip() != "":
-                try:
-                    return float(val)
-                except (ValueError, TypeError):
-                    pass
+    # 1. Check if the vector has a genuine non-empty override dictionary with actual non-zero values
+    overrides = item_dict.get("overrides")
+    if isinstance(overrides, dict) and m_lbl in overrides:
+        raw_val = overrides[m_lbl]
+        if raw_val is not None and str(raw_val).strip() != "":
+            try:
+                f_val = float(raw_val)
+                # Only use override mapping if it contains at least one genuine non-zero entry across all months
+                if any(float(v) > 0.001 for v in overrides.values() if v is not None and str(v).strip() != ""):
+                    return f_val
+            except (ValueError, TypeError):
+                pass
 
-    # 2. Ingested 12-month array per year (Y1, Y2, Y3...)
-    if "matrix_data" in item_dict and isinstance(item_dict["matrix_data"], dict):
+    # 2. Check ingested matrix data (e.g. Y1, Y2, Y3 lists of 12 monthly figures)
+    matrix = item_dict.get("matrix_data")
+    if isinstance(matrix, dict):
         y_key = f"Y{yr_idx}"
-        if y_key in item_dict["matrix_data"]:
+        if y_key in matrix and isinstance(matrix[y_key], list):
+            arr = matrix[y_key]
             month_offset = (month_idx - 1) % 12
-            arr = item_dict["matrix_data"][y_key]
-            if isinstance(arr, list) and len(arr) > month_offset:
-                val = arr[month_offset]
-                if val is not None and str(val).strip() != "":
+            if len(arr) > month_offset:
+                raw_val = arr[month_offset]
+                if raw_val is not None and str(raw_val).strip() != "":
                     try:
-                        return float(val)
+                        f_val = float(raw_val)
+                        if any(float(v) > 0.001 for v in arr if v is not None and str(v).strip() != ""):
+                            return f_val
                     except (ValueError, TypeError):
                         pass
 
-    # 3. Monthly profile vector list from Data Ingestion Gateway
-    if "monthly_profile" in item_dict and isinstance(item_dict["monthly_profile"], list):
+    # 3. Check monthly profile vector
+    profile = item_dict.get("monthly_profile")
+    if isinstance(profile, list):
         month_offset = (month_idx - 1) % 12
-        if len(item_dict["monthly_profile"]) > month_offset:
-            val = item_dict["monthly_profile"][month_offset]
-            if val is not None and str(val).strip() != "":
+        if len(profile) > month_offset:
+            raw_val = profile[month_offset]
+            if raw_val is not None and str(raw_val).strip() != "":
                 try:
-                    return float(val)
+                    f_val = float(raw_val)
+                    if any(float(v) > 0.001 for v in profile if v is not None and str(v).strip() != ""):
+                        return f_val
                 except (ValueError, TypeError):
                     pass
 
-    # 4. Fallback only if no monthly schedule exists
+    # 4. Standard baseline spread across annual totals
     y_base = float(item_dict.get(f"y{yr_idx}_baseline", item_dict.get("y1_baseline", 0.0)))
     flex = (1.0 + (float(item_dict.get("flex_pct", 0.0)) / 100.0)) if yr_idx > 1 else 1.0
     season_name = item_dict.get("seasonality", "Flat_Linear")
