@@ -1,6 +1,6 @@
 ﻿# pyright: reportMissingImports=false
 # pages/reports.py
-# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v10.4-STATUTORY
+# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v10.5-STATUTORY
 # INTEGRATED DOUBLE-ENTRY GENERAL LEDGER // HARDENED LANDSCAPE STATUTORY PACK
 
 import os
@@ -138,58 +138,75 @@ def sanitize_label(name: str) -> str:
 
 
 def get_exact_period_value(item_dict: dict, month_idx: int, yr_idx: int, seasonality_profiles: dict) -> float:
-    m_lbl = f"M{str(month_idx).zfill(2)}"
+    m_offset = (month_idx - 1) % 12
+    global_idx = month_idx - 1
 
-    # 1. Check if the vector has a genuine non-empty override dictionary with actual non-zero values
-    overrides = item_dict.get("overrides")
-    if isinstance(overrides, dict) and m_lbl in overrides:
-        raw_val = overrides[m_lbl]
-        if raw_val is not None and str(raw_val).strip() != "":
-            try:
-                f_val = float(raw_val)
-                # Only use override mapping if it contains at least one genuine non-zero entry across all months
-                if any(float(v) > 0.001 for v in overrides.values() if v is not None and str(v).strip() != ""):
-                    return f_val
-            except (ValueError, TypeError):
-                pass
-
-    # 2. Check ingested matrix data (e.g. Y1, Y2, Y3 lists of 12 monthly figures)
-    matrix = item_dict.get("matrix_data")
-    if isinstance(matrix, dict):
-        y_key = f"Y{yr_idx}"
-        if y_key in matrix and isinstance(matrix[y_key], list):
-            arr = matrix[y_key]
-            month_offset = (month_idx - 1) % 12
-            if len(arr) > month_offset:
-                raw_val = arr[month_offset]
+    # 1. Check chronological multi-year flat arrays (36/60-month lists)
+    for list_key in ["curve_values", "monthly_values", "series", "full_horizon_values"]:
+        if list_key in item_dict and isinstance(item_dict[list_key], list):
+            arr = item_dict[list_key]
+            if len(arr) > global_idx:
+                raw_val = arr[global_idx]
                 if raw_val is not None and str(raw_val).strip() != "":
                     try:
-                        f_val = float(raw_val)
-                        if any(float(v) > 0.001 for v in arr if v is not None and str(v).strip() != ""):
-                            return f_val
+                        return float(raw_val)
                     except (ValueError, TypeError):
                         pass
 
-    # 3. Check monthly profile vector
-    profile = item_dict.get("monthly_profile")
-    if isinstance(profile, list):
-        month_offset = (month_idx - 1) % 12
-        if len(profile) > month_offset:
-            raw_val = profile[month_offset]
-            if raw_val is not None and str(raw_val).strip() != "":
-                try:
-                    f_val = float(raw_val)
-                    if any(float(v) > 0.001 for v in profile if v is not None and str(v).strip() != ""):
-                        return f_val
-                except (ValueError, TypeError):
-                    pass
+    # 2. Check matrix structures (Y1/Y2/Y3, Year 1/Year 2/Year 3, 1/2/3)
+    for mat_key in ["matrix_data", "matrix", "yearly_matrices", "annual_matrices"]:
+        if mat_key in item_dict and isinstance(item_dict[mat_key], dict):
+            m_dict = item_dict[mat_key]
+            for y_candidate in [f"Y{yr_idx}", f"Year {yr_idx}", f"Year_{yr_idx}", str(yr_idx), yr_idx]:
+                if y_candidate in m_dict and isinstance(m_dict[y_candidate], list):
+                    arr = m_dict[y_candidate]
+                    if len(arr) > m_offset:
+                        raw_val = arr[m_offset]
+                        if raw_val is not None and str(raw_val).strip() != "":
+                            try:
+                                return float(raw_val)
+                            except (ValueError, TypeError):
+                                pass
 
-    # 4. Standard baseline spread across annual totals
+    # 3. Check 12-month profile arrays (monthly_profile, months, monthly_distribution)
+    for prof_key in ["monthly_profile", "months", "monthly_breakdown", "monthly_distribution"]:
+        if prof_key in item_dict and isinstance(item_dict[prof_key], list):
+            arr = item_dict[prof_key]
+            if len(arr) > m_offset:
+                raw_val = arr[m_offset]
+                if raw_val is not None and str(raw_val).strip() != "":
+                    try:
+                        val = float(raw_val)
+                        if sum(float(x) for x in arr if x is not None) <= 1.5:
+                            y_base = float(item_dict.get(f"y{yr_idx}_baseline", item_dict.get("y1_baseline", 0.0)))
+                            return y_base * val
+                        return val
+                    except (ValueError, TypeError):
+                        pass
+
+    # 4. Check overrides dictionary (case-insensitive and format-agnostic)
+    overrides = item_dict.get("overrides")
+    if isinstance(overrides, dict):
+        candidates = [
+            f"M{str(month_idx).zfill(2)}", f"m{str(month_idx).zfill(2)}",
+            f"M{month_idx}", f"m{month_idx}",
+            str(month_idx), month_idx
+        ]
+        for c in candidates:
+            if c in overrides:
+                raw_val = overrides[c]
+                if raw_val is not None and str(raw_val).strip() != "":
+                    try:
+                        return float(raw_val)
+                    except (ValueError, TypeError):
+                        pass
+
+    # 5. Fallback: Apply seasonal curve profile to annual baseline
     y_base = float(item_dict.get(f"y{yr_idx}_baseline", item_dict.get("y1_baseline", 0.0)))
     flex = (1.0 + (float(item_dict.get("flex_pct", 0.0)) / 100.0)) if yr_idx > 1 else 1.0
     season_name = item_dict.get("seasonality", "Flat_Linear")
     crv = seasonality_profiles.get(season_name, seasonality_profiles.get("Flat_Linear", [1 / 12] * 12))
-    return y_base * flex * crv[(month_idx - 1) % 12]
+    return y_base * flex * crv[m_offset]
 
 
 def get_active_seasonality():
@@ -751,7 +768,6 @@ def compile_statutory_landscape_pdf(project_name: str, state: dict, gl: AuditedG
     pages_html = []
     tot_pages = horizon_years * 3
 
-    # Table layout colgroups to prevent cell collapse in landscape A4
     pl_colgroup = """
     <colgroup>
         <col style="width: 24%;" />
