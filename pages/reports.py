@@ -1,7 +1,7 @@
 ﻿# pyright: reportMissingImports=false
 # pages/reports.py
-# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v10.0-STATUTORY
-# SAGE WINFORECAST BENCHMARK GROUND TRUTH // DUAL PDF ENGINES // UNIFIED SCENARIO DESK
+# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v10.1-STATUTORY
+# INTEGRATED DOUBLE-ENTRY GENERAL LEDGER SYSTEM // DUAL STATUTORY PDF REPRODUCTION
 
 import os
 import sys
@@ -139,6 +139,14 @@ class AuditedGeneralLedger:
         return sum(j["amount"] for j in self.journal_entries if j["month"] == month and j["debit_code"] == debit_code and j["credit_code"] == credit_code)
 
 
+def sanitize_label(name: str) -> str:
+    """Removes any internal ingest tags like [AI Scan] or [OCR] from user-facing reports."""
+    cleaned = re.sub(r"\[.*?\]|\(.*?\)", "", str(name))
+    cleaned = re.sub(r"^(AI Scan|OCR|Ingested)\s*[:-]?\s*", "", cleaned, flags=re.IGNORECASE)
+    cleaned = " ".join(cleaned.split())
+    return cleaned if cleaned else name
+
+
 def get_exact_period_value(item_dict: dict, month_idx: int, yr_idx: int, seasonality_profiles: dict) -> float:
     m_lbl = f"M{str(month_idx).zfill(2)}"
 
@@ -147,7 +155,7 @@ def get_exact_period_value(item_dict: dict, month_idx: int, yr_idx: int, seasona
             val = item_dict["overrides"][m_lbl]
             try:
                 f_val = float(val)
-                if f_val > 0.0:
+                if f_val >= 0.0:
                     return f_val
             except (ValueError, TypeError):
                 pass
@@ -160,7 +168,7 @@ def get_exact_period_value(item_dict: dict, month_idx: int, yr_idx: int, seasona
             if isinstance(arr, list) and len(arr) > month_offset:
                 try:
                     f_val = float(arr[month_offset])
-                    if f_val > 0.0:
+                    if f_val >= 0.0:
                         return f_val
                 except (ValueError, TypeError):
                     pass
@@ -180,7 +188,7 @@ def audit_ingestion_completeness(state: dict, horizon_years: int = 3):
     if not sales:
         warnings.append("⚠️ CRITICAL: No Sales Revenue vectors found in active scenario.")
     for s in sales:
-        name = s.get("name", "Unnamed Sales Vector")
+        name = sanitize_label(s.get("name", "Unnamed Sales Vector"))
         y1 = float(s.get("y1_baseline", 0.0))
         y2 = float(s.get("y2_baseline", 0.0))
         y3 = float(s.get("y3_baseline", 0.0))
@@ -198,7 +206,7 @@ def audit_ingestion_completeness(state: dict, horizon_years: int = 3):
 
     cogs = state.get("cogs", [])
     for c in cogs:
-        name = c.get("name", "Unnamed COGS Vector")
+        name = sanitize_label(c.get("name", "Unnamed COGS Vector"))
         y1 = float(c.get("y1_baseline", 0.0))
         y2 = float(c.get("y2_baseline", 0.0))
         y3 = float(c.get("y3_baseline", 0.0))
@@ -213,7 +221,7 @@ def audit_ingestion_completeness(state: dict, horizon_years: int = 3):
 
     opex = state.get("opex", [])
     for op in opex:
-        name = op.get("name", "Unnamed Overhead")
+        name = sanitize_label(op.get("name", "Unnamed Overhead"))
         y1 = float(op.get("y1_baseline", 0.0))
         y2 = float(op.get("y2_baseline", 0.0))
         y3 = float(op.get("y3_baseline", 0.0))
@@ -227,7 +235,7 @@ def audit_ingestion_completeness(state: dict, horizon_years: int = 3):
 
     payroll = state.get("payroll", [])
     for p in payroll:
-        name = p.get("name", "Unnamed Role")
+        name = sanitize_label(p.get("name", "Unnamed Role"))
         hc = int(p.get("headcount", 1))
         mw = float(p.get("monthly_wage", 0.0))
         ann = hc * mw * 12
@@ -240,14 +248,7 @@ def audit_ingestion_completeness(state: dict, horizon_years: int = 3):
     return warnings, aggregation_notes
 
 
-def execute_full_simulation(state, horizon_months=36):
-    gl = AuditedGeneralLedger(horizon_months=horizon_months)
-    horizon_years = horizon_months // 12
-    sic = st.session_state.get("sic_profile", {})
-    nic_rate = float(sic.get("base_er_nic_rate", 0.138))
-    corp_tax_rate = float(sic.get("corp_tax_rate", 0.19))
-    supplier_credit_days = int(sic.get("supplier_credit_days", 30))
-
+def get_active_seasonality():
     seasonality = {
         "Flat_Linear": [1 / 12] * 12,
         "Winter_Peak": [0.12, 0.12, 0.10, 0.07, 0.05, 0.05, 0.05, 0.06, 0.08, 0.09, 0.10, 0.11],
@@ -256,7 +257,18 @@ def execute_full_simulation(state, horizon_months=36):
     if "custom_curves" in st.session_state:
         for k, v in st.session_state["custom_curves"].items():
             seasonality[k] = v
+    return seasonality
 
+
+def execute_full_simulation(state, horizon_months=36):
+    gl = AuditedGeneralLedger(horizon_months=horizon_months)
+    horizon_years = horizon_months // 12
+    sic = st.session_state.get("sic_profile", {})
+    nic_rate = float(sic.get("base_er_nic_rate", 0.138))
+    corp_tax_rate = float(sic.get("corp_tax_rate", 0.19))
+    supplier_credit_days = int(sic.get("supplier_credit_days", 30))
+
+    seasonality = get_active_seasonality()
     couplings = st.session_state.get("vector_couplings", [])
 
     for eq in state.get("equity_funding", []):
@@ -669,12 +681,12 @@ def compile_premium_html_report(project_name, peak_cash, lowest_cash, horizon_wo
     </head>
     <body>
         <div id="footerContent" align="right" style="font-size: 7pt; color: #94a3b8;">
-            STRATA Suite // Statutory General Ledger Engine &nbsp;|&nbsp; Page <pdf:pagenumber> of <pdf:pagecount>
+            STRATA Financial Operating Engine // Integrated Double-Entry General Ledger &nbsp;|&nbsp; Page <pdf:pagenumber> of <pdf:pagecount>
         </div>
 
         <div class="banner">
             <h1>STRATA EXECUTIVE FINANCIAL REPORT PACK</h1>
-            <p>Statutory {horizon_years}-Year Integrated Financial Projections (Trial Balance Audited)</p>
+            <p>Statutory {horizon_years}-Year Integrated Financial Projections (Double-Entry Audited)</p>
         </div>
         <div class="ctx">Project: {project_name} | Accounting Horizon: {horizon_years} Operating Years ({total_months} Months)</div>
         
@@ -712,10 +724,10 @@ def compile_premium_html_report(project_name, peak_cash, lowest_cash, horizon_wo
 
 
 # =========================================================================
-# 🏛️ SAGE WINFORECAST PROFESSIONAL STATUTORY MODEL REPRODUCTION ENGINE
+# 🏛️ STRATA STATUTORY 9-PAGE LANDSCAPE REPORT PACK ENGINE
 # =========================================================================
 
-def compile_winforecast_statutory_pdf(project_name: str, state: dict, gl: AuditedGeneralLedger, df_pl: pd.DataFrame, df_cf: pd.DataFrame, df_bs: pd.DataFrame, horizon_years: int = 3) -> bytes:
+def compile_statutory_landscape_pdf(project_name: str, state: dict, gl: AuditedGeneralLedger, df_pl: pd.DataFrame, df_cf: pd.DataFrame, df_bs: pd.DataFrame, horizon_years: int = 3) -> bytes:
     month_names = ["Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar", "Apr", "May"]
     base_year = 2026
 
@@ -725,15 +737,7 @@ def compile_winforecast_statutory_pdf(project_name: str, state: dict, gl: Audite
         r = int(round(val))
         return f"({abs(r):,})" if r < 0 else f"{r:,}"
 
-    seasonality = {
-        "Flat_Linear": [1 / 12] * 12,
-        "Winter_Peak": [0.12, 0.12, 0.10, 0.07, 0.05, 0.05, 0.05, 0.06, 0.08, 0.09, 0.10, 0.11],
-        "Summer_Peak": [0.05, 0.05, 0.07, 0.10, 0.12, 0.12, 0.12, 0.11, 0.09, 0.07, 0.05, 0.05],
-    }
-    if "custom_curves" in st.session_state:
-        for k, v in st.session_state["custom_curves"].items():
-            seasonality[k] = v
-
+    seasonality = get_active_seasonality()
     pages_html = []
     tot_pages = horizon_years * 3
 
@@ -757,7 +761,8 @@ def compile_winforecast_statutory_pdf(project_name: str, state: dict, gl: Audite
             vals = [get_exact_period_value(s, m, yr, seasonality) for m in m_indices]
             tot_s = sum(vals)
             for i, v in enumerate(vals): m_tot_rev[i] += v
-            sales_rows += f"<tr><td>{s.get('name')}</td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in vals) + f"<td align='right'><b>{fmt_acc(tot_s)}</b></td><td align='right'></td></tr>"
+            clean_name = sanitize_label(s.get("name", "Sales Vector"))
+            sales_rows += f"<tr><td>{clean_name}</td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in vals) + f"<td align='right'><b>{fmt_acc(tot_s)}</b></td><td align='right'></td></tr>"
 
         yr_tot_rev = sum(m_tot_rev)
         tot_rev_row = f"<tr class='rule-top rule-bot' style='font-weight:bold;'><td></td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_tot_rev) + f"<td align='right'>{fmt_acc(yr_tot_rev)}</td><td align='right'>100.0%</td></tr>"
@@ -779,7 +784,8 @@ def compile_winforecast_statutory_pdf(project_name: str, state: dict, gl: Audite
             tot_c = sum(vals)
             for i, v in enumerate(vals): m_tot_cogs[i] += v
             pct_c = f"{(tot_c / yr_tot_rev * 100):.1f}%" if yr_tot_rev > 0 else "-"
-            cogs_rows += f"<tr><td>{c.get('name')}</td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in vals) + f"<td align='right'><b>{fmt_acc(tot_c)}</b></td><td align='right'>{pct_c}</td></tr>"
+            clean_name = sanitize_label(c.get("name", "Direct Cost"))
+            cogs_rows += f"<tr><td>{clean_name}</td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in vals) + f"<td align='right'><b>{fmt_acc(tot_c)}</b></td><td align='right'>{pct_c}</td></tr>"
 
         yr_tot_cogs = sum(m_tot_cogs)
         tot_cogs_row = f"<tr class='rule-top' style='font-weight:bold;'><td></td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_tot_cogs) + f"<td align='right'>{fmt_acc(yr_tot_cogs)}</td><td align='right'>{(yr_tot_cogs / yr_tot_rev * 100 if yr_tot_rev else 0.0):.1f}%</td></tr>"
@@ -797,7 +803,8 @@ def compile_winforecast_statutory_pdf(project_name: str, state: dict, gl: Audite
             tot_op = sum(vals)
             for i, v in enumerate(vals): m_tot_opex[i] += v
             pct_op = f"{(tot_op / yr_tot_rev * 100):.1f}%" if yr_tot_rev > 0 else "-"
-            opex_rows += f"<tr><td>{op.get('name')}</td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in vals) + f"<td align='right'><b>{fmt_acc(tot_op)}</b></td><td align='right'>{pct_op}</td></tr>"
+            clean_name = sanitize_label(op.get("name", "Overhead"))
+            opex_rows += f"<tr><td>{clean_name}</td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in vals) + f"<td align='right'><b>{fmt_acc(tot_op)}</b></td><td align='right'>{pct_op}</td></tr>"
 
         yr_tot_opex = sum(m_tot_opex)
         tot_opex_row = f"<tr class='rule-top' style='font-weight:bold;'><td></td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_tot_opex) + f"<td align='right'>{fmt_acc(yr_tot_opex)}</td><td align='right'>{(yr_tot_opex / yr_tot_rev * 100 if yr_tot_rev else 0.0):.1f}%</td></tr>"
@@ -846,7 +853,7 @@ def compile_winforecast_statutory_pdf(project_name: str, state: dict, gl: Audite
                     {ebit_row}{net_prof_row}{tax_row}{pat_row}{cum_row}
                 </tbody>
             </table>
-            <div class='footer-note'>Prepared using Sage WinForecast Professional on 16/06/2026 // WinForecast Statutory Ground Truth</div>
+            <div class='footer-note'>STRATA Financial Operating Engine // Integrated Double-Entry General Ledger System &nbsp;|&nbsp; Page {p1_no} of {tot_pages}</div>
         </div>
         """
         pages_html.append(page_pl)
@@ -870,7 +877,7 @@ def compile_winforecast_statutory_pdf(project_name: str, state: dict, gl: Audite
 
         pay_rows = f"<tr><td>Invoiced Costs &amp; Overheads</td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_cost_settle) + f"<td align='right'><b>{fmt_acc(sum(m_cost_settle))}</b></td></tr>"
         if sum(m_payroll_settle) > 0:
-            pay_rows += f"<tr><td>Direct Court &amp; Administrative Staff</td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_payroll_settle) + f"<td align='right'><b>{fmt_acc(sum(m_payroll_settle))}</b></td></tr>"
+            pay_rows += f"<tr><td>Direct Operating &amp; Administrative Personnel</td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_payroll_settle) + f"<td align='right'><b>{fmt_acc(sum(m_payroll_settle))}</b></td></tr>"
         if sum(m_tax_settle) > 0 or yr > 1:
             pay_rows += f"<tr><td>Corporation Tax</td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_tax_settle) + f"<td align='right'><b>{fmt_acc(sum(m_tax_settle))}</b></td></tr>"
         pay_rows += f"<tr><td>VAT</td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_vat_settle) + f"<td align='right'><b>{fmt_acc(sum(m_vat_settle))}</b></td></tr>"
@@ -908,7 +915,7 @@ def compile_winforecast_statutory_pdf(project_name: str, state: dict, gl: Audite
                     {net_cf_row}{open_row}{close_row}
                 </tbody>
             </table>
-            <div class='footer-note'>Prepared using Sage WinForecast Professional on 16/06/2026 // WinForecast Statutory Ground Truth</div>
+            <div class='footer-note'>STRATA Financial Operating Engine // Integrated Double-Entry General Ledger System &nbsp;|&nbsp; Page {p2_no} of {tot_pages}</div>
         </div>
         """
         pages_html.append(page_cf)
@@ -968,7 +975,7 @@ def compile_winforecast_statutory_pdf(project_name: str, state: dict, gl: Audite
                     <tr class='rule-top rule-double-bot' style='font-weight:bold;'><td></td><td align='right'>{fmt_acc(op_retained)}</td>{"".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_retained)}</tr>
                 </tbody>
             </table>
-            <div class='footer-note'>Prepared using Sage WinForecast Professional on 16/06/2026 // WinForecast Statutory Ground Truth</div>
+            <div class='footer-note'>STRATA Financial Operating Engine // Integrated Double-Entry General Ledger System &nbsp;|&nbsp; Page {p3_no} of {tot_pages}</div>
         </div>
         """
         pages_html.append(page_bs)
@@ -1061,7 +1068,7 @@ def compile_winforecast_statutory_pdf(project_name: str, state: dict, gl: Audite
     pdf_buffer = BytesIO()
     pisa_status = pisa.CreatePDF(master_html, dest=pdf_buffer)
     if pisa_status.err:
-        raise Exception(f"xhtml2pdf WinForecast engine error code: {pisa_status.err}")
+        raise Exception(f"xhtml2pdf statutory compiler error code: {pisa_status.err}")
     return pdf_buffer.getvalue()
 
 
@@ -1077,8 +1084,8 @@ st.markdown("---")
 horizon_choice = st.radio(
     "Select Master Forecasting Horizon Window:",
     [
-        "3-Year Horizon (M00 - M36) [WinForecast Statutory Benchmark]",
-        "5-Year Horizon (M00 - M60) [STRATA Standard Framework]",
+        "3-Year Horizon (M00 - M36) [STRATA Statutory Benchmark]",
+        "5-Year Horizon (M00 - M60) [STRATA Strategic Horizon]",
     ],
     horizontal=True,
 )
@@ -1139,18 +1146,18 @@ df_cf_view.at["Closing Bank Cash Reserves (£)", "Horizon Total"] = df_cf.at["Cl
 df_bs_view["Terminal Position"] = df_bs[targets[-1]]
 
 # =========================================================================
-# 📥 PRODUCTION EXPORT CONTROLS (EXECUTIVE PACK + WINFORECAST PACK)
+# 📥 PRODUCTION EXPORT CONTROLS (EXECUTIVE PACK + DETAILED STATUTORY PACK)
 # =========================================================================
 st.subheader("📥 Executive Report Pack Export Controls")
 
 exp_c1, exp_c2 = st.columns(2)
 with exp_c1:
-    st.markdown("##### 📑 Statutory WinForecast Reproduction Pack")
+    st.markdown(f"##### 📑 Statutory {horizon_years}-Year Detailed Ledger Pack")
     if not PDF_ENGINE_AVAILABLE:
         st.warning("⚠️ xhtml2pdf required for PDF compiling.")
     else:
         try:
-            wf_pdf_bytes = compile_winforecast_statutory_pdf(
+            statutory_pdf_bytes = compile_statutory_landscape_pdf(
                 project_name=st.session_state.get("active_project_name", "Padel_Centre_Baseline"),
                 state=active_data_context,
                 gl=gl_instance,
@@ -1160,14 +1167,14 @@ with exp_c1:
                 horizon_years=horizon_years,
             )
             st.download_button(
-                label=f"📑 Download Official {horizon_years*3}-Page WinForecast Statutory Pack (Landscape PDF)",
-                data=wf_pdf_bytes,
-                file_name=f"{st.session_state.get('active_project_name', 'Scenario')}_WinForecast_Statutory_Pack_{horizon_years}Yr.pdf",
+                label=f"📑 Download Official {horizon_years*3}-Page Statutory Financial Model Pack (Landscape PDF)",
+                data=statutory_pdf_bytes,
+                file_name=f"{st.session_state.get('active_project_name', 'Scenario')}_Statutory_Report_Pack_{horizon_years}Yr.pdf",
                 mime="application/pdf",
                 width="stretch",
             )
-        except Exception as wf_err:
-            st.error(f"WinForecast statutory compiler error: {str(wf_err)}")
+        except Exception as st_err:
+            st.error(f"Statutory compiler error: {str(st_err)}")
 
 with exp_c2:
     st.markdown("##### 📊 Raw Granular Datasets (CSV)")
@@ -1237,13 +1244,13 @@ with st.expander("📋 Statutory Notes & Analysis of Aggregated Performance Line
 st.markdown("---")
 
 # =========================================================================
-# 🧠 MODERN GEMINI AI SYNTHESIS (google-genai SDK)
+# 🧠 EXECUTIVE NARRATIVE SYNTHESIS (google-genai SDK)
 # =========================================================================
-st.markdown("### 🧠 Gemini AI Executive Management Pack Synthesis")
+st.markdown("### 🧠 Executive Management Commentary Synthesis")
 if "cached_ai_analysis" not in st.session_state:
     st.session_state["cached_ai_analysis"] = ""
 
-if st.button("🤖 Generate AI Executive Summary Report & Compile PDF Pack", width="stretch"):
+if st.button("🤖 Generate Executive Summary Report & Compile PDF Pack", width="stretch"):
     api_key = os.environ.get("GEMINI_API_KEY") or st.secrets.get("GEMINI_API_KEY", None)
     if not api_key:
         st.error("❌ Configuration Error: GEMINI_API_KEY credential missing.")
@@ -1271,7 +1278,7 @@ if st.button("🤖 Generate AI Executive Summary Report & Compile PDF Pack", wid
                     contents=prompt,
                 )
                 st.session_state["cached_ai_analysis"] = str(response.text).replace("**", "")
-                st.success("✔️ AI Executive Management analysis compiled.")
+                st.success("✔️ Executive Management analysis compiled.")
             except Exception as e:
                 st.error(f"Failed to generate narrative: {str(e)}")
 
@@ -1340,9 +1347,9 @@ with t2:
     st.markdown("### 🚜 Dynamic Fixed Asset Depreciation Ledger")
     fa_rows = []
     for outright in active_data_context.get("outright_capex", []):
-        fa_rows.append({"Asset Item": outright.get("name"), "Type": "Direct Purchase", "value": float(outright.get("amount", 0.0)), "Month": int(outright.get("month", 1)), "Rate": float(outright.get("depreciation_rate", 0.20))})
+        fa_rows.append({"Asset Item": sanitize_label(outright.get("name")), "Type": "Direct Purchase", "value": float(outright.get("amount", 0.0)), "Month": int(outright.get("month", 1)), "Rate": float(outright.get("depreciation_rate", 0.20))})
     for fin in active_data_context.get("financed_assets", []):
-        fa_rows.append({"Asset Item": fin.get("name"), "Type": "Financed HP", "value": float(fin.get("amount", 0.0)), "Month": int(fin.get("month", 1)), "Rate": float(fin.get("depreciation_rate", 0.15))})
+        fa_rows.append({"Asset Item": sanitize_label(fin.get("name")), "Type": "Financed HP", "value": float(fin.get("amount", 0.0)), "Month": int(fin.get("month", 1)), "Rate": float(fin.get("depreciation_rate", 0.15))})
     if fa_rows:
         ledger_rows = []
         for item in fa_rows:
@@ -1369,9 +1376,9 @@ with t3:
             fin_bal = float(fin.get("amount", 0.0)) * (1.0 - (float(fin.get("deposit_pct", 10.0)) / 100.0))
             term = max(1, int(fin.get("term_months", 36)))
             monthly_principal = fin_bal / term
-            bal_rec = {"Facility": fin.get("name"), "Metric": "Total Outstanding (£)"}
-            st_rec = {"Facility": fin.get("name"), "Metric": "Current Liabilities (<12m) (£)"}
-            lt_rec = {"Facility": fin.get("name"), "Metric": "Non-Current Debt (>1yr) (£)"}
+            bal_rec = {"Facility": sanitize_label(fin.get("name")), "Metric": "Total Outstanding (£)"}
+            st_rec = {"Facility": sanitize_label(fin.get("name")), "Metric": "Current Liabilities (<12m) (£)"}
+            lt_rec = {"Facility": sanitize_label(fin.get("name")), "Metric": "Non-Current Debt (>1yr) (£)"}
 
             running_debt = 0.0
             for m in range(0, horizon_months + 1):
