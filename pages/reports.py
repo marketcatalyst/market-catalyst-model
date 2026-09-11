@@ -1,6 +1,6 @@
 ﻿# pyright: reportMissingImports=false
 # pages/reports.py
-# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v10.8-STATUTORY
+# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v10.9-STATUTORY
 # INTEGRATED DOUBLE-ENTRY GENERAL LEDGER // HARDENED LANDSCAPE STATUTORY PACK
 
 import os
@@ -159,7 +159,6 @@ def get_exact_period_value(item_dict: dict, month_idx: int, yr_idx: int, seasona
     m_offset = (month_idx - 1) % 12
     m_lbl = f"M{str(month_idx).zfill(2)}"
 
-    # 1. Prioritize matrix_data (Y1, Y2, Y3)
     matrix = item_dict.get("matrix_data")
     if isinstance(matrix, dict):
         y_key = f"Y{yr_idx}"
@@ -173,7 +172,6 @@ def get_exact_period_value(item_dict: dict, month_idx: int, yr_idx: int, seasona
                     except (ValueError, TypeError):
                         pass
 
-    # 2. Check explicit monthly overrides if non-empty
     overrides = item_dict.get("overrides")
     if isinstance(overrides, dict) and m_lbl in overrides:
         has_positive = any(float(v) > 0.001 for v in overrides.values() if v is not None and str(v).strip() != "")
@@ -185,7 +183,6 @@ def get_exact_period_value(item_dict: dict, month_idx: int, yr_idx: int, seasona
                 except (ValueError, TypeError):
                     pass
 
-    # 3. Apply baseline flexed by custom curve
     y_base = float(item_dict.get(f"y{yr_idx}_baseline", item_dict.get("y1_baseline", 0.0)))
     flex = (1.0 + (float(item_dict.get("flex_pct", 0.0)) / 100.0)) if yr_idx > 1 else 1.0
     season_name = item_dict.get("seasonality", "Flat_Linear")
@@ -1010,7 +1007,7 @@ def compile_statutory_landscape_pdf(project_name: str, state: dict, gl: AuditedG
                     <tr class='rule-top rule-double-bot' style='font-weight:bold;'><td class='left-txt'>TOTAL NET ASSETS</td><td align='right'>{fmt_acc(op_net_curr)}</td>{"".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_net_curr)}</tr>
                     <tr><td colspan='14' class='spacer-cell'>&nbsp;</td></tr>
                     <tr class='sec-hdr'><td colspan='14'><b>CAPITAL &amp; RESERVES</b></td></tr>
-                    <tr><td class='left-txt'>Retained Earnings Accumulation</td><td align='right'>{fmt_acc(op_retained)}</td>{"".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_retained)}</tr>
+                    <tr><td class='left-txt'>Retained Earnings<br>Accumulation</td><td align='right'>{fmt_acc(op_retained)}</td>{"".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_retained)}</tr>
                     <tr class='rule-top rule-double-bot' style='font-weight:bold;'><td class='left-txt'></td><td align='right'>{fmt_acc(op_retained)}</td>{"".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_retained)}</tr>
                 </tbody>
             </table>
