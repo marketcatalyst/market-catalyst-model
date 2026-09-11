@@ -1,6 +1,6 @@
 ﻿# pyright: reportMissingImports=false
 # pages/reports.py
-# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v10.2-STATUTORY
+# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v10.3-STATUTORY
 # INTEGRATED DOUBLE-ENTRY GENERAL LEDGER // HARDENED LANDSCAPE STATUTORY PACK
 
 import os
@@ -140,30 +140,42 @@ def sanitize_label(name: str) -> str:
 def get_exact_period_value(item_dict: dict, month_idx: int, yr_idx: int, seasonality_profiles: dict) -> float:
     m_lbl = f"M{str(month_idx).zfill(2)}"
 
-    # ONLY return override if it is a genuine non-zero value
+    # 1. Direct explicit monthly overrides (preserves exact values including 0.0 during construction)
     if "overrides" in item_dict and isinstance(item_dict["overrides"], dict):
         if m_lbl in item_dict["overrides"]:
             val = item_dict["overrides"][m_lbl]
-            try:
-                f_val = float(val)
-                if f_val > 0.001:
-                    return f_val
-            except (ValueError, TypeError):
-                pass
+            if val is not None and str(val).strip() != "":
+                try:
+                    return float(val)
+                except (ValueError, TypeError):
+                    pass
 
+    # 2. Ingested 12-month array per year (Y1, Y2, Y3...)
     if "matrix_data" in item_dict and isinstance(item_dict["matrix_data"], dict):
         y_key = f"Y{yr_idx}"
         if y_key in item_dict["matrix_data"]:
             month_offset = (month_idx - 1) % 12
             arr = item_dict["matrix_data"][y_key]
             if isinstance(arr, list) and len(arr) > month_offset:
+                val = arr[month_offset]
+                if val is not None and str(val).strip() != "":
+                    try:
+                        return float(val)
+                    except (ValueError, TypeError):
+                        pass
+
+    # 3. Monthly profile vector list from Data Ingestion Gateway
+    if "monthly_profile" in item_dict and isinstance(item_dict["monthly_profile"], list):
+        month_offset = (month_idx - 1) % 12
+        if len(item_dict["monthly_profile"]) > month_offset:
+            val = item_dict["monthly_profile"][month_offset]
+            if val is not None and str(val).strip() != "":
                 try:
-                    f_val = float(arr[month_offset])
-                    if f_val > 0.001:
-                        return f_val
+                    return float(val)
                 except (ValueError, TypeError):
                     pass
 
+    # 4. Fallback only if no monthly schedule exists
     y_base = float(item_dict.get(f"y{yr_idx}_baseline", item_dict.get("y1_baseline", 0.0)))
     flex = (1.0 + (float(item_dict.get("flex_pct", 0.0)) / 100.0)) if yr_idx > 1 else 1.0
     season_name = item_dict.get("seasonality", "Flat_Linear")
@@ -720,7 +732,6 @@ def compile_statutory_landscape_pdf(project_name: str, state: dict, gl: AuditedG
     month_names = ["Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar", "Apr", "May"]
     base_year = 2026
 
-    # Formatting with non-breaking spaces and minus signs to prevent character flipping
     def fmt_acc(val: float) -> str:
         if abs(val) < 0.5:
             return ""
@@ -731,8 +742,7 @@ def compile_statutory_landscape_pdf(project_name: str, state: dict, gl: AuditedG
     pages_html = []
     tot_pages = horizon_years * 3
 
-    # Hardcoded, explicit table column layout (Prevents Pisa autolayout collapse)
-    # Total width = 24% (name) + 12 * 5.5% (months = 66%) + 6% (total) + 4% (%) = 100%
+    # Table layout colgroups to prevent cell collapse in landscape A4
     pl_colgroup = """
     <colgroup>
         <col style="width: 24%;" />
@@ -745,7 +755,6 @@ def compile_statutory_landscape_pdf(project_name: str, state: dict, gl: AuditedG
     </colgroup>
     """
 
-    # CF: 24% + 12 * 5.8% + 6.4% = 100%
     cf_colgroup = """
     <colgroup>
         <col style="width: 24%;" />
@@ -757,7 +766,6 @@ def compile_statutory_landscape_pdf(project_name: str, state: dict, gl: AuditedG
     </colgroup>
     """
 
-    # BS: 22% (name) + 6% (Opening) + 12 * 6.0% (months = 72%) = 100%
     bs_colgroup = """
     <colgroup>
         <col style="width: 22%;" />
