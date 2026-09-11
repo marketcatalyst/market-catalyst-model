@@ -1,11 +1,12 @@
 ﻿# pyright: reportMissingImports=false
 # pages/reports.py
-# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v10.5-STATUTORY
+# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v10.6-STATUTORY
 # INTEGRATED DOUBLE-ENTRY GENERAL LEDGER // HARDENED LANDSCAPE STATUTORY PACK
 
 import os
 import sys
 import re
+import json
 from io import BytesIO
 import pandas as pd
 import streamlit as st
@@ -67,6 +68,24 @@ current_project = st.session_state.get("active_project_name", "Unsaved_Draft_Sce
 if prev_project is not None and prev_project != current_project:
     st.session_state["cached_ai_analysis"] = ""
 st.session_state["_last_synced_project"] = current_project
+
+# =========================================================================
+# 🔄 FORCE DIRECT SYNC FROM SCENARIO DISK IF STALE IN MEMORY
+# =========================================================================
+scenario_path = os.path.join(PROJECT_ROOT, "saved_scenarios", f"{current_project}.json")
+if os.path.exists(scenario_path):
+    try:
+        with open(scenario_path, "r", encoding="utf-8-sig") as sf:
+            disk_scenario = json.load(sf)
+            if "active_data" in disk_scenario:
+                # Force session state to adopt the exact disk data if overrides/matrices are present on disk
+                disk_sales = disk_scenario["active_data"].get("sales", [])
+                if disk_sales and "matrix_data" in disk_sales[0]:
+                    st.session_state["active_data"] = disk_scenario["active_data"]
+            if "custom_curves" in disk_scenario:
+                st.session_state["custom_curves"] = disk_scenario["custom_curves"]
+    except Exception:
+        pass
 
 # =========================================================================
 # 🏛️ AUDITED GENERAL LEDGER ENGINE
@@ -139,69 +158,35 @@ def sanitize_label(name: str) -> str:
 
 def get_exact_period_value(item_dict: dict, month_idx: int, yr_idx: int, seasonality_profiles: dict) -> float:
     m_offset = (month_idx - 1) % 12
-    global_idx = month_idx - 1
+    m_lbl = f"M{str(month_idx).zfill(2)}"
 
-    # 1. Check chronological multi-year flat arrays (36/60-month lists)
-    for list_key in ["curve_values", "monthly_values", "series", "full_horizon_values"]:
-        if list_key in item_dict and isinstance(item_dict[list_key], list):
-            arr = item_dict[list_key]
-            if len(arr) > global_idx:
-                raw_val = arr[global_idx]
-                if raw_val is not None and str(raw_val).strip() != "":
-                    try:
-                        return float(raw_val)
-                    except (ValueError, TypeError):
-                        pass
-
-    # 2. Check matrix structures (Y1/Y2/Y3, Year 1/Year 2/Year 3, 1/2/3)
-    for mat_key in ["matrix_data", "matrix", "yearly_matrices", "annual_matrices"]:
-        if mat_key in item_dict and isinstance(item_dict[mat_key], dict):
-            m_dict = item_dict[mat_key]
-            for y_candidate in [f"Y{yr_idx}", f"Year {yr_idx}", f"Year_{yr_idx}", str(yr_idx), yr_idx]:
-                if y_candidate in m_dict and isinstance(m_dict[y_candidate], list):
-                    arr = m_dict[y_candidate]
-                    if len(arr) > m_offset:
-                        raw_val = arr[m_offset]
-                        if raw_val is not None and str(raw_val).strip() != "":
-                            try:
-                                return float(raw_val)
-                            except (ValueError, TypeError):
-                                pass
-
-    # 3. Check 12-month profile arrays (monthly_profile, months, monthly_distribution)
-    for prof_key in ["monthly_profile", "months", "monthly_breakdown", "monthly_distribution"]:
-        if prof_key in item_dict and isinstance(item_dict[prof_key], list):
-            arr = item_dict[prof_key]
+    # 1. Prioritize matrix_data (Y1, Y2, Y3)
+    matrix = item_dict.get("matrix_data")
+    if isinstance(matrix, dict):
+        y_key = f"Y{yr_idx}"
+        if y_key in matrix and isinstance(matrix[y_key], list):
+            arr = matrix[y_key]
             if len(arr) > m_offset:
                 raw_val = arr[m_offset]
                 if raw_val is not None and str(raw_val).strip() != "":
                     try:
-                        val = float(raw_val)
-                        if sum(float(x) for x in arr if x is not None) <= 1.5:
-                            y_base = float(item_dict.get(f"y{yr_idx}_baseline", item_dict.get("y1_baseline", 0.0)))
-                            return y_base * val
-                        return val
-                    except (ValueError, TypeError):
-                        pass
-
-    # 4. Check overrides dictionary (case-insensitive and format-agnostic)
-    overrides = item_dict.get("overrides")
-    if isinstance(overrides, dict):
-        candidates = [
-            f"M{str(month_idx).zfill(2)}", f"m{str(month_idx).zfill(2)}",
-            f"M{month_idx}", f"m{month_idx}",
-            str(month_idx), month_idx
-        ]
-        for c in candidates:
-            if c in overrides:
-                raw_val = overrides[c]
-                if raw_val is not None and str(raw_val).strip() != "":
-                    try:
                         return float(raw_val)
                     except (ValueError, TypeError):
                         pass
 
-    # 5. Fallback: Apply seasonal curve profile to annual baseline
+    # 2. Check explicit monthly overrides if non-empty
+    overrides = item_dict.get("overrides")
+    if isinstance(overrides, dict) and m_lbl in overrides:
+        has_positive = any(float(v) > 0.001 for v in overrides.values() if v is not None and str(v).strip() != "")
+        if has_positive:
+            raw_val = overrides[m_lbl]
+            if raw_val is not None and str(raw_val).strip() != "":
+                try:
+                    return float(raw_val)
+                except (ValueError, TypeError):
+                    pass
+
+    # 3. Apply baseline flexed by custom curve
     y_base = float(item_dict.get(f"y{yr_idx}_baseline", item_dict.get("y1_baseline", 0.0)))
     flex = (1.0 + (float(item_dict.get("flex_pct", 0.0)) / 100.0)) if yr_idx > 1 else 1.0
     season_name = item_dict.get("seasonality", "Flat_Linear")
