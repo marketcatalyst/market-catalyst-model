@@ -1,6 +1,6 @@
 ﻿# pyright: reportMissingImports=false
 # pages/reports.py
-# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v10.7-STATUTORY
+# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v10.8-STATUTORY
 # INTEGRATED DOUBLE-ENTRY GENERAL LEDGER // HARDENED LANDSCAPE STATUTORY PACK
 
 import os
@@ -315,7 +315,6 @@ def execute_full_simulation(state, horizon_months=36):
     ytd_tax = {yr: 0.0 for yr in range(1, horizon_years + 1)}
     annual_final_tax = {yr: 0.0 for yr in range(1, horizon_years + 1)}
 
-    # Statutory VAT Return Settlement Calendar: Months 5, 8, 11, 14, 17, 20, 23, 26, 29, 32, 35
     vat_settle_months = [m for m in range(1, horizon_months + 1) if (m >= 5 and (m - 2) % 3 == 0)]
 
     for m in range(1, horizon_months + 1):
@@ -385,7 +384,6 @@ def execute_full_simulation(state, horizon_months=36):
                 dep = (float(fin.get("amount", 0.0)) * float(fin.get("depreciation_rate", 0.15))) / 12.0
                 gl.post_journal(m, "8000", "0021", dep, f"Depr Lease Asset: {fin.get('name')}")
 
-        # Settle full accumulated VAT liability on quarterly return due months
         if m in vat_settle_months:
             vat_liability = gl.get_cumulative_balance("2200", m - 1)
             if vat_liability > 0.01:
@@ -779,12 +777,12 @@ def compile_statutory_landscape_pdf(project_name: str, state: dict, gl: AuditedG
 
     bs_colgroup = """
     <colgroup>
-        <col style="width: 22%;" />
-        <col style="width: 6.0%;" />
-        <col style="width: 6.0%;" /><col style="width: 6.0%;" /><col style="width: 6.0%;" />
-        <col style="width: 6.0%;" /><col style="width: 6.0%;" /><col style="width: 6.0%;" />
-        <col style="width: 6.0%;" /><col style="width: 6.0%;" /><col style="width: 6.0%;" />
-        <col style="width: 6.0%;" /><col style="width: 6.0%;" /><col style="width: 6.0%;" />
+        <col style="width: 26%;" />
+        <col style="width: 5.6%;" />
+        <col style="width: 5.6%;" /><col style="width: 5.6%;" /><col style="width: 5.6%;" />
+        <col style="width: 5.6%;" /><col style="width: 5.6%;" /><col style="width: 5.6%;" />
+        <col style="width: 5.6%;" /><col style="width: 5.6%;" /><col style="width: 5.6%;" />
+        <col style="width: 5.6%;" /><col style="width: 5.6%;" /><col style="width: 5.8%;" />
     </colgroup>
     """
 
