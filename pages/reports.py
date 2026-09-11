@@ -1,7 +1,7 @@
 ﻿# pyright: reportMissingImports=false
 # pages/reports.py
-# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v10.1-STATUTORY
-# INTEGRATED DOUBLE-ENTRY GENERAL LEDGER SYSTEM // DUAL STATUTORY PDF REPRODUCTION
+# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v10.2-STATUTORY
+# INTEGRATED DOUBLE-ENTRY GENERAL LEDGER // HARDENED LANDSCAPE STATUTORY PACK
 
 import os
 import sys
@@ -10,15 +10,12 @@ from io import BytesIO
 import pandas as pd
 import streamlit as st
 
-# Inject project root into Python system path for pages/ directory imports
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-# Centralized Scenario Persistence Engine
 from utils.scenario_manager import render_global_scenario_sidebar
 
-# Modern Google GenAI SDK
 try:
     from google import genai
     GENAI_AVAILABLE = True
@@ -55,7 +52,7 @@ if not st.session_state.get("authenticated"):
     st.stop()
 
 # =========================================================================
-# 🧭 FIXED SIDEBAR COMPASS & UNIFIED SCENARIO CONTROLS (EXECUTE FIRST)
+# 🧭 SIDEBAR COMPASS & SCENARIO CONTROL DESK
 # =========================================================================
 st.sidebar.markdown("### Compass Options")
 st.sidebar.page_link("home.py", label="🏠 Home Portal")
@@ -64,7 +61,6 @@ st.sidebar.page_link("pages/onboarding.py", label="🕸️ Data Input Parameters
 st.sidebar.page_link("pages/app.py", label="✍️ Data Entry Panel")
 st.sidebar.page_link("pages/reports.py", label="📊 Performance Tab")
 
-# Track active scenario and reset AI analysis cache if scenario context switches
 prev_project = st.session_state.get("_last_synced_project")
 render_global_scenario_sidebar()
 current_project = st.session_state.get("active_project_name", "Unsaved_Draft_Scenario")
@@ -73,27 +69,22 @@ if prev_project is not None and prev_project != current_project:
 st.session_state["_last_synced_project"] = current_project
 
 # =========================================================================
-# 🏛️ AUDITED GENERAL LEDGER DOUBLE-ENTRY ENGINE
+# 🏛️ AUDITED GENERAL LEDGER ENGINE
 # =========================================================================
 
 CHART_OF_ACCOUNTS = {
-    # Assets (Normal balance: DEBIT)
     "1200": {"name": "Bank Current Account", "type": "Asset", "sign": 1},
     "1100": {"name": "Trade Debtors Control", "type": "Asset", "sign": 1},
     "0020": {"name": "Fixed Infrastructure Assets", "type": "Asset", "sign": 1},
     "0021": {"name": "Accumulated Depreciation Reserve", "type": "Contra-Asset", "sign": -1},
-    # Liabilities (Normal balance: CREDIT)
     "2100": {"name": "Trade Creditors Control", "type": "Liability", "sign": -1},
     "2200": {"name": "HMRC VAT Control Account", "type": "Liability", "sign": -1},
     "2210": {"name": "HMRC PAYE/NIC Obligations", "type": "Liability", "sign": -1},
     "2220": {"name": "Corporation Tax Liability Provision", "type": "Liability", "sign": -1},
     "2300": {"name": "Long-Term Facility Debt Liability", "type": "Liability", "sign": -1},
-    # Capital & Reserves (Normal balance: CREDIT)
     "3000": {"name": "Shareholder Invested Equity", "type": "Equity", "sign": -1},
     "3200": {"name": "Retained Earnings Accumulation", "type": "Equity", "sign": -1},
-    # P&L Income (Normal balance: CREDIT)
     "4000": {"name": "Gross Turnover Revenue", "type": "Income", "sign": -1},
-    # P&L Expenses (Normal balance: DEBIT)
     "5000": {"name": "Cost of Goods Sold (COGS)", "type": "Expense", "sign": 1},
     "6000": {"name": "Operational Overheads", "type": "Expense", "sign": 1},
     "7000": {"name": "Staff Payroll Overhead", "type": "Expense", "sign": 1},
@@ -140,7 +131,6 @@ class AuditedGeneralLedger:
 
 
 def sanitize_label(name: str) -> str:
-    """Removes any internal ingest tags like [AI Scan] or [OCR] from user-facing reports."""
     cleaned = re.sub(r"\[.*?\]|\(.*?\)", "", str(name))
     cleaned = re.sub(r"^(AI Scan|OCR|Ingested)\s*[:-]?\s*", "", cleaned, flags=re.IGNORECASE)
     cleaned = " ".join(cleaned.split())
@@ -150,12 +140,13 @@ def sanitize_label(name: str) -> str:
 def get_exact_period_value(item_dict: dict, month_idx: int, yr_idx: int, seasonality_profiles: dict) -> float:
     m_lbl = f"M{str(month_idx).zfill(2)}"
 
+    # ONLY return override if it is a genuine non-zero value
     if "overrides" in item_dict and isinstance(item_dict["overrides"], dict):
         if m_lbl in item_dict["overrides"]:
             val = item_dict["overrides"][m_lbl]
             try:
                 f_val = float(val)
-                if f_val >= 0.0:
+                if f_val > 0.001:
                     return f_val
             except (ValueError, TypeError):
                 pass
@@ -168,7 +159,7 @@ def get_exact_period_value(item_dict: dict, month_idx: int, yr_idx: int, seasona
             if isinstance(arr, list) and len(arr) > month_offset:
                 try:
                     f_val = float(arr[month_offset])
-                    if f_val >= 0.0:
+                    if f_val > 0.001:
                         return f_val
                 except (ValueError, TypeError):
                     pass
@@ -178,6 +169,18 @@ def get_exact_period_value(item_dict: dict, month_idx: int, yr_idx: int, seasona
     season_name = item_dict.get("seasonality", "Flat_Linear")
     crv = seasonality_profiles.get(season_name, seasonality_profiles.get("Flat_Linear", [1 / 12] * 12))
     return y_base * flex * crv[(month_idx - 1) % 12]
+
+
+def get_active_seasonality():
+    seasonality = {
+        "Flat_Linear": [1 / 12] * 12,
+        "Winter_Peak": [0.12, 0.12, 0.10, 0.07, 0.05, 0.05, 0.05, 0.06, 0.08, 0.09, 0.10, 0.11],
+        "Summer_Peak": [0.05, 0.05, 0.07, 0.10, 0.12, 0.12, 0.12, 0.11, 0.09, 0.07, 0.05, 0.05],
+    }
+    if "custom_curves" in st.session_state:
+        for k, v in st.session_state["custom_curves"].items():
+            seasonality[k] = v
+    return seasonality
 
 
 def audit_ingestion_completeness(state: dict, horizon_years: int = 3):
@@ -246,18 +249,6 @@ def audit_ingestion_completeness(state: dict, horizon_years: int = 3):
         })
 
     return warnings, aggregation_notes
-
-
-def get_active_seasonality():
-    seasonality = {
-        "Flat_Linear": [1 / 12] * 12,
-        "Winter_Peak": [0.12, 0.12, 0.10, 0.07, 0.05, 0.05, 0.05, 0.06, 0.08, 0.09, 0.10, 0.11],
-        "Summer_Peak": [0.05, 0.05, 0.07, 0.10, 0.12, 0.12, 0.12, 0.11, 0.09, 0.07, 0.05, 0.05],
-    }
-    if "custom_curves" in st.session_state:
-        for k, v in st.session_state["custom_curves"].items():
-            seasonality[k] = v
-    return seasonality
 
 
 def execute_full_simulation(state, horizon_months=36):
@@ -532,7 +523,6 @@ def compile_financial_statements(gl: AuditedGeneralLedger, horizon_months: int):
         df_bs.at["Total Liabilities & Equity Reserves (£)", lbl] = total_liabs_and_equity
         df_bs.at["Trial Balance Checksum Balance", lbl] = round(total_assets - total_liabs_and_equity, 2)
 
-    # Clean micro-cent floating point residuals on balance sheet display
     for col in df_bs.columns:
         for idx in df_bs.index:
             if abs(df_bs.at[idx, col]) < 0.50:
@@ -647,7 +637,6 @@ def compile_premium_html_report(project_name, peak_cash, lowest_cash, horizon_wo
         ]
     )
 
-    # Right-aligned period headers
     th_headers = "".join(f"<th align='right' style='text-align: right;'>{y}</th>" for y in years_labels)
     total_months = horizon_years * 12
 
@@ -724,22 +713,61 @@ def compile_premium_html_report(project_name, peak_cash, lowest_cash, horizon_wo
 
 
 # =========================================================================
-# 🏛️ STRATA STATUTORY 9-PAGE LANDSCAPE REPORT PACK ENGINE
+# 🏛️ STRATA STATUTORY 9-PAGE LANDSCAPE ENGINE (HARDENED GEOMETRY)
 # =========================================================================
 
 def compile_statutory_landscape_pdf(project_name: str, state: dict, gl: AuditedGeneralLedger, df_pl: pd.DataFrame, df_cf: pd.DataFrame, df_bs: pd.DataFrame, horizon_years: int = 3) -> bytes:
     month_names = ["Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar", "Apr", "May"]
     base_year = 2026
 
+    # Formatting with non-breaking spaces and minus signs to prevent character flipping
     def fmt_acc(val: float) -> str:
         if abs(val) < 0.5:
             return ""
         r = int(round(val))
-        return f"({abs(r):,})" if r < 0 else f"{r:,}"
+        return f"&minus;{abs(r):,}" if r < 0 else f"{r:,}"
 
     seasonality = get_active_seasonality()
     pages_html = []
     tot_pages = horizon_years * 3
+
+    # Hardcoded, explicit table column layout (Prevents Pisa autolayout collapse)
+    # Total width = 24% (name) + 12 * 5.5% (months = 66%) + 6% (total) + 4% (%) = 100%
+    pl_colgroup = """
+    <colgroup>
+        <col style="width: 24%;" />
+        <col style="width: 5.5%;" /><col style="width: 5.5%;" /><col style="width: 5.5%;" />
+        <col style="width: 5.5%;" /><col style="width: 5.5%;" /><col style="width: 5.5%;" />
+        <col style="width: 5.5%;" /><col style="width: 5.5%;" /><col style="width: 5.5%;" />
+        <col style="width: 5.5%;" /><col style="width: 5.5%;" /><col style="width: 5.5%;" />
+        <col style="width: 6.0%;" />
+        <col style="width: 4.0%;" />
+    </colgroup>
+    """
+
+    # CF: 24% + 12 * 5.8% + 6.4% = 100%
+    cf_colgroup = """
+    <colgroup>
+        <col style="width: 24%;" />
+        <col style="width: 5.8%;" /><col style="width: 5.8%;" /><col style="width: 5.8%;" />
+        <col style="width: 5.8%;" /><col style="width: 5.8%;" /><col style="width: 5.8%;" />
+        <col style="width: 5.8%;" /><col style="width: 5.8%;" /><col style="width: 5.8%;" />
+        <col style="width: 5.8%;" /><col style="width: 5.8%;" /><col style="width: 5.8%;" />
+        <col style="width: 6.4%;" />
+    </colgroup>
+    """
+
+    # BS: 22% (name) + 6% (Opening) + 12 * 6.0% (months = 72%) = 100%
+    bs_colgroup = """
+    <colgroup>
+        <col style="width: 22%;" />
+        <col style="width: 6.0%;" />
+        <col style="width: 6.0%;" /><col style="width: 6.0%;" /><col style="width: 6.0%;" />
+        <col style="width: 6.0%;" /><col style="width: 6.0%;" /><col style="width: 6.0%;" />
+        <col style="width: 6.0%;" /><col style="width: 6.0%;" /><col style="width: 6.0%;" />
+        <col style="width: 6.0%;" /><col style="width: 6.0%;" /><col style="width: 6.0%;" />
+    </colgroup>
+    """
 
     for yr in range(1, horizon_years + 1):
         cal_yr_start = base_year + (yr - 1)
@@ -754,7 +782,6 @@ def compile_statutory_landscape_pdf(project_name: str, state: dict, gl: AuditedG
         # -----------------------------------------------------------------
         # PAGE 1 OF YEAR: PROFIT & LOSS FORECAST
         # -----------------------------------------------------------------
-        # Turnover
         sales_rows = ""
         m_tot_rev = [0.0] * 12
         for s in state.get("sales", []):
@@ -762,12 +789,11 @@ def compile_statutory_landscape_pdf(project_name: str, state: dict, gl: AuditedG
             tot_s = sum(vals)
             for i, v in enumerate(vals): m_tot_rev[i] += v
             clean_name = sanitize_label(s.get("name", "Sales Vector"))
-            sales_rows += f"<tr><td>{clean_name}</td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in vals) + f"<td align='right'><b>{fmt_acc(tot_s)}</b></td><td align='right'></td></tr>"
+            sales_rows += f"<tr><td class='left-txt'>{clean_name}</td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in vals) + f"<td align='right'><b>{fmt_acc(tot_s)}</b></td><td align='right'></td></tr>"
 
         yr_tot_rev = sum(m_tot_rev)
-        tot_rev_row = f"<tr class='rule-top rule-bot' style='font-weight:bold;'><td></td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_tot_rev) + f"<td align='right'>{fmt_acc(yr_tot_rev)}</td><td align='right'>100.0%</td></tr>"
+        tot_rev_row = f"<tr class='rule-top rule-bot' style='font-weight:bold;'><td class='left-txt'></td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_tot_rev) + f"<td align='right'>{fmt_acc(yr_tot_rev)}</td><td align='right'>100.0%</td></tr>"
 
-        # Direct Costs (COGS)
         cogs_rows = ""
         m_tot_cogs = [0.0] * 12
         couplings = st.session_state.get("vector_couplings", [])
@@ -785,17 +811,15 @@ def compile_statutory_landscape_pdf(project_name: str, state: dict, gl: AuditedG
             for i, v in enumerate(vals): m_tot_cogs[i] += v
             pct_c = f"{(tot_c / yr_tot_rev * 100):.1f}%" if yr_tot_rev > 0 else "-"
             clean_name = sanitize_label(c.get("name", "Direct Cost"))
-            cogs_rows += f"<tr><td>{clean_name}</td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in vals) + f"<td align='right'><b>{fmt_acc(tot_c)}</b></td><td align='right'>{pct_c}</td></tr>"
+            cogs_rows += f"<tr><td class='left-txt'>{clean_name}</td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in vals) + f"<td align='right'><b>{fmt_acc(tot_c)}</b></td><td align='right'>{pct_c}</td></tr>"
 
         yr_tot_cogs = sum(m_tot_cogs)
-        tot_cogs_row = f"<tr class='rule-top' style='font-weight:bold;'><td></td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_tot_cogs) + f"<td align='right'>{fmt_acc(yr_tot_cogs)}</td><td align='right'>{(yr_tot_cogs / yr_tot_rev * 100 if yr_tot_rev else 0.0):.1f}%</td></tr>"
+        tot_cogs_row = f"<tr class='rule-top' style='font-weight:bold;'><td class='left-txt'></td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_tot_cogs) + f"<td align='right'>{fmt_acc(yr_tot_cogs)}</td><td align='right'>{(yr_tot_cogs / yr_tot_rev * 100 if yr_tot_rev else 0.0):.1f}%</td></tr>"
 
-        # Gross Profit
         m_gp = [m_tot_rev[i] - m_tot_cogs[i] for i in range(12)]
         yr_gp = yr_tot_rev - yr_tot_cogs
-        gp_row = f"<tr class='rule-top rule-bot' style='font-weight:bold;'><td>GROSS PROFIT</td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_gp) + f"<td align='right'>{fmt_acc(yr_gp)}</td><td align='right'>{(yr_gp / yr_tot_rev * 100 if yr_tot_rev else 0.0):.1f}%</td></tr>"
+        gp_row = f"<tr class='rule-top rule-bot' style='font-weight:bold;'><td class='left-txt'>GROSS PROFIT</td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_gp) + f"<td align='right'>{fmt_acc(yr_gp)}</td><td align='right'>{(yr_gp / yr_tot_rev * 100 if yr_tot_rev else 0.0):.1f}%</td></tr>"
 
-        # Overheads
         opex_rows = ""
         m_tot_opex = [0.0] * 12
         for op in state.get("opex", []):
@@ -804,31 +828,29 @@ def compile_statutory_landscape_pdf(project_name: str, state: dict, gl: AuditedG
             for i, v in enumerate(vals): m_tot_opex[i] += v
             pct_op = f"{(tot_op / yr_tot_rev * 100):.1f}%" if yr_tot_rev > 0 else "-"
             clean_name = sanitize_label(op.get("name", "Overhead"))
-            opex_rows += f"<tr><td>{clean_name}</td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in vals) + f"<td align='right'><b>{fmt_acc(tot_op)}</b></td><td align='right'>{pct_op}</td></tr>"
+            opex_rows += f"<tr><td class='left-txt'>{clean_name}</td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in vals) + f"<td align='right'><b>{fmt_acc(tot_op)}</b></td><td align='right'>{pct_op}</td></tr>"
 
         yr_tot_opex = sum(m_tot_opex)
-        tot_opex_row = f"<tr class='rule-top' style='font-weight:bold;'><td></td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_tot_opex) + f"<td align='right'>{fmt_acc(yr_tot_opex)}</td><td align='right'>{(yr_tot_opex / yr_tot_rev * 100 if yr_tot_rev else 0.0):.1f}%</td></tr>"
+        tot_opex_row = f"<tr class='rule-top' style='font-weight:bold;'><td class='left-txt'></td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_tot_opex) + f"<td align='right'>{fmt_acc(yr_tot_opex)}</td><td align='right'>{(yr_tot_opex / yr_tot_rev * 100 if yr_tot_rev else 0.0):.1f}%</td></tr>"
 
-        # Operating Profit & Corporation Tax & PAT
         m_ebit = [m_gp[i] - m_tot_opex[i] for i in range(12)]
         yr_ebit = yr_gp - yr_tot_opex
-        ebit_row = f"<tr class='rule-top rule-bot' style='font-weight:bold;'><td>OPERATING PROFIT</td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_ebit) + f"<td align='right'>{fmt_acc(yr_ebit)}</td><td align='right'>{(yr_ebit / yr_tot_rev * 100 if yr_tot_rev else 0.0):.1f}%</td></tr>"
-        net_prof_row = f"<tr style='font-weight:bold;'><td>NET PROFIT</td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_ebit) + f"<td align='right'>{fmt_acc(yr_ebit)}</td><td align='right'>{(yr_ebit / yr_tot_rev * 100 if yr_tot_rev else 0.0):.1f}%</td></tr>"
+        ebit_row = f"<tr class='rule-top rule-bot' style='font-weight:bold;'><td class='left-txt'>OPERATING PROFIT</td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_ebit) + f"<td align='right'>{fmt_acc(yr_ebit)}</td><td align='right'>{(yr_ebit / yr_tot_rev * 100 if yr_tot_rev else 0.0):.1f}%</td></tr>"
+        net_prof_row = f"<tr style='font-weight:bold;'><td class='left-txt'>NET PROFIT</td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_ebit) + f"<td align='right'>{fmt_acc(yr_ebit)}</td><td align='right'>{(yr_ebit / yr_tot_rev * 100 if yr_tot_rev else 0.0):.1f}%</td></tr>"
 
         m_tax = [gl.get_period_movement("9000", m) for m in m_indices]
         yr_tax = sum(m_tax)
-        tax_row = f"<tr><td>CORPORATION TAX</td>" + "".join(f"<td align='right'>{fmt_acc(-v)}</td>" for v in m_tax) + f"<td align='right'><b>{fmt_acc(-yr_tax)}</b></td><td align='right'>{( -yr_tax / yr_tot_rev * 100 if yr_tot_rev else 0.0):.1f}%</td></tr>"
+        tax_row = f"<tr><td class='left-txt'>CORPORATION TAX</td>" + "".join(f"<td align='right'>{fmt_acc(-v)}</td>" for v in m_tax) + f"<td align='right'><b>{fmt_acc(-yr_tax)}</b></td><td align='right'>{( -yr_tax / yr_tot_rev * 100 if yr_tot_rev else 0.0):.1f}%</td></tr>"
 
         m_pat = [m_ebit[i] - m_tax[i] for i in range(12)]
         yr_pat = yr_ebit - yr_tax
-        pat_row = f"<tr class='rule-top rule-double-bot' style='font-weight:bold;'><td>PROFIT AFTER TAX</td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_pat) + f"<td align='right'>{fmt_acc(yr_pat)}</td><td align='right'>{(yr_pat / yr_tot_rev * 100 if yr_tot_rev else 0.0):.1f}%</td></tr>"
+        pat_row = f"<tr class='rule-top rule-double-bot' style='font-weight:bold;'><td class='left-txt'>PROFIT AFTER TAX</td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_pat) + f"<td align='right'>{fmt_acc(yr_pat)}</td><td align='right'>{(yr_pat / yr_tot_rev * 100 if yr_tot_rev else 0.0):.1f}%</td></tr>"
 
-        # Cumulative PAT
         m_cum_pat = []
         for m in m_indices:
             c_sum = sum(df_pl.at["Profit After Tax (PAT) (£)", f"M{str(k).zfill(2)}"] for k in range(1, m + 1))
             m_cum_pat.append(c_sum)
-        cum_row = f"<tr><td><b>CUMULATIVE</b></td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_cum_pat) + f"<td align='right'><b>{fmt_acc(m_cum_pat[-1])}</b></td><td></td></tr>"
+        cum_row = f"<tr><td class='left-txt'><b>CUMULATIVE</b></td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_cum_pat) + f"<td align='right'><b>{fmt_acc(m_cum_pat[-1])}</b></td><td></td></tr>"
 
         p1_no = (yr - 1) * 3 + 1
         page_pl = f"""
@@ -841,6 +863,7 @@ def compile_statutory_landscape_pdf(project_name: str, state: dict, gl: AuditedG
                 </tr></table>
             </div>
             <table class='data-table'>
+                {pl_colgroup}
                 <thead><tr><th align='left'>TURNOVER</th>{th_line}<th align='right'>Total<br>&pound;</th><th align='right'>%</th></tr></thead>
                 <tbody>
                     {sales_rows}{tot_rev_row}
@@ -863,10 +886,9 @@ def compile_statutory_landscape_pdf(project_name: str, state: dict, gl: AuditedG
         # -----------------------------------------------------------------
         m_rec = [gl.journal_sum("1200", "1100", m) for m in m_indices]
         yr_rec = sum(m_rec)
-        rec_rows = f"<tr><td>Invoiced Sales</td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_rec) + f"<td align='right'><b>{fmt_acc(yr_rec)}</b></td></tr>"
-        rec_tot = f"<tr class='rule-top rule-bot' style='font-weight:bold;'><td></td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_rec) + f"<td align='right'>{fmt_acc(yr_rec)}</td></tr>"
+        rec_rows = f"<tr><td class='left-txt'>Invoiced Sales</td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_rec) + f"<td align='right'><b>{fmt_acc(yr_rec)}</b></td></tr>"
+        rec_tot = f"<tr class='rule-top rule-bot' style='font-weight:bold;'><td class='left-txt'></td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_rec) + f"<td align='right'>{fmt_acc(yr_rec)}</td></tr>"
 
-        # Costs settlements breakdown
         m_cost_settle = [gl.journal_sum("2100", "1200", m) for m in m_indices]
         m_tax_settle = [gl.journal_sum("2220", "1200", m) for m in m_indices]
         m_vat_settle = [gl.journal_sum("2200", "1200", m) for m in m_indices]
@@ -875,25 +897,24 @@ def compile_statutory_landscape_pdf(project_name: str, state: dict, gl: AuditedG
         tot_payments_m = [m_cost_settle[i] + m_tax_settle[i] + m_vat_settle[i] + m_payroll_settle[i] for i in range(12)]
         yr_tot_pay = sum(tot_payments_m)
 
-        pay_rows = f"<tr><td>Invoiced Costs &amp; Overheads</td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_cost_settle) + f"<td align='right'><b>{fmt_acc(sum(m_cost_settle))}</b></td></tr>"
+        pay_rows = f"<tr><td class='left-txt'>Invoiced Costs &amp; Overheads</td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_cost_settle) + f"<td align='right'><b>{fmt_acc(sum(m_cost_settle))}</b></td></tr>"
         if sum(m_payroll_settle) > 0:
-            pay_rows += f"<tr><td>Direct Operating &amp; Administrative Personnel</td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_payroll_settle) + f"<td align='right'><b>{fmt_acc(sum(m_payroll_settle))}</b></td></tr>"
+            pay_rows += f"<tr><td class='left-txt'>Direct Operating &amp; Staff Wages</td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_payroll_settle) + f"<td align='right'><b>{fmt_acc(sum(m_payroll_settle))}</b></td></tr>"
         if sum(m_tax_settle) > 0 or yr > 1:
-            pay_rows += f"<tr><td>Corporation Tax</td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_tax_settle) + f"<td align='right'><b>{fmt_acc(sum(m_tax_settle))}</b></td></tr>"
-        pay_rows += f"<tr><td>VAT</td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_vat_settle) + f"<td align='right'><b>{fmt_acc(sum(m_vat_settle))}</b></td></tr>"
+            pay_rows += f"<tr><td class='left-txt'>Corporation Tax Settlement</td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_tax_settle) + f"<td align='right'><b>{fmt_acc(sum(m_tax_settle))}</b></td></tr>"
+        pay_rows += f"<tr><td class='left-txt'>HMRC VAT Settlement</td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_vat_settle) + f"<td align='right'><b>{fmt_acc(sum(m_vat_settle))}</b></td></tr>"
 
-        tot_pay_row = f"<tr class='rule-top' style='font-weight:bold;'><td></td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in tot_payments_m) + f"<td align='right'>{fmt_acc(yr_tot_pay)}</td></tr>"
+        tot_pay_row = f"<tr class='rule-top' style='font-weight:bold;'><td class='left-txt'></td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in tot_payments_m) + f"<td align='right'>{fmt_acc(yr_tot_pay)}</td></tr>"
 
-        # Net Cash Flow & Bank Balances
         m_net_cf = [m_rec[i] - tot_payments_m[i] for i in range(12)]
         yr_net_cf = yr_rec - yr_tot_pay
-        net_cf_row = f"<tr class='rule-top rule-bot' style='font-weight:bold;'><td>NET CASH FLOW</td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_net_cf) + f"<td align='right'>{fmt_acc(yr_net_cf)}</td></tr>"
+        net_cf_row = f"<tr class='rule-top rule-bot' style='font-weight:bold;'><td class='left-txt'>NET CASH FLOW</td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_net_cf) + f"<td align='right'>{fmt_acc(yr_net_cf)}</td></tr>"
 
         m_open_b = [gl.get_cumulative_balance("1200", m - 1) for m in m_indices]
         m_close_b = [gl.get_cumulative_balance("1200", m) for m in m_indices]
 
-        open_row = f"<tr><td>OPENING BANK</td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_open_b) + f"<td align='right'><b>{fmt_acc(m_open_b[0])}</b></td></tr>"
-        close_row = f"<tr class='rule-top rule-double-bot' style='font-weight:bold;'><td>CLOSING BANK</td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_close_b) + f"<td align='right'>{fmt_acc(m_close_b[-1])}</td></tr>"
+        open_row = f"<tr><td class='left-txt'>OPENING BANK</td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_open_b) + f"<td align='right'><b>{fmt_acc(m_open_b[0])}</b></td></tr>"
+        close_row = f"<tr class='rule-top rule-double-bot' style='font-weight:bold;'><td class='left-txt'>CLOSING BANK</td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_close_b) + f"<td align='right'>{fmt_acc(m_close_b[-1])}</td></tr>"
 
         p2_no = (yr - 1) * 3 + 2
         page_cf = f"""
@@ -906,6 +927,7 @@ def compile_statutory_landscape_pdf(project_name: str, state: dict, gl: AuditedG
                 </tr></table>
             </div>
             <table class='data-table'>
+                {cf_colgroup}
                 <thead><tr><th align='left'>RECEIPTS</th>{th_line}<th align='right'>Total<br>&pound;</th></tr></thead>
                 <tbody>
                     {rec_rows}{rec_tot}
@@ -932,7 +954,6 @@ def compile_statutory_landscape_pdf(project_name: str, state: dict, gl: AuditedG
         m_net_curr = [m_bank[i] - m_tot_cred[i] for i in range(12)]
         m_retained = [sum(df_pl.at["Profit After Tax (PAT) (£)", f"M{str(k).zfill(2)}"] for k in range(1, m + 1)) for m in m_indices]
 
-        # Opening states
         prev_m = (yr - 1) * 12
         op_bank = gl.get_cumulative_balance("1200", prev_m)
         op_tc = gl.get_cumulative_balance("2100", prev_m)
@@ -953,26 +974,27 @@ def compile_statutory_landscape_pdf(project_name: str, state: dict, gl: AuditedG
                 </tr></table>
             </div>
             <table class='data-table'>
+                {bs_colgroup}
                 <thead><tr><th align='left'>FIXED ASSETS</th><th align='right'>{open_col_lbl}</th>{th_line}</tr></thead>
                 <tbody>
                     <tr><td colspan='14' class='spacer-cell'>&nbsp;</td></tr>
                     <tr class='sec-hdr'><td colspan='14'><b>CURRENT ASSETS</b></td></tr>
-                    <tr><td>Bank</td><td align='right'>{fmt_acc(op_bank)}</td>{"".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_bank)}</tr>
-                    <tr class='rule-top rule-bot' style='font-weight:bold;'><td></td><td align='right'>{fmt_acc(op_bank)}</td>{"".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_bank)}</tr>
+                    <tr><td class='left-txt'>Bank Account</td><td align='right'>{fmt_acc(op_bank)}</td>{"".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_bank)}</tr>
+                    <tr class='rule-top rule-bot' style='font-weight:bold;'><td class='left-txt'></td><td align='right'>{fmt_acc(op_bank)}</td>{"".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_bank)}</tr>
                     <tr><td colspan='14' class='spacer-cell'>&nbsp;</td></tr>
                     <tr class='sec-hdr'><td colspan='14'><b>CREDITORS DUE WITHIN ONE YEAR</b></td></tr>
-                    <tr><td>Trade Creditors</td><td align='right'>{fmt_acc(op_tc)}</td>{"".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_tc)}</tr>
-                    <tr><td>Other Creditors (HMRC VAT / PAYE)</td><td align='right'>{fmt_acc(op_oc)}</td>{"".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_oc)}</tr>
-                    <tr><td>Provision for Tax</td><td align='right'>{fmt_acc(op_ptax)}</td>{"".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_ptax)}</tr>
-                    <tr class='rule-top' style='font-weight:bold;'><td></td><td align='right'>{fmt_acc(op_tot_cred)}</td>{"".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_tot_cred)}</tr>
-                    <tr class='rule-top rule-bot' style='font-weight:bold;'><td>NET CURRENT ASSETS</td><td align='right'>{fmt_acc(op_net_curr)}</td>{"".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_net_curr)}</tr>
+                    <tr><td class='left-txt'>Trade Creditors</td><td align='right'>{fmt_acc(op_tc)}</td>{"".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_tc)}</tr>
+                    <tr><td class='left-txt'>Other Creditors (VAT &amp; PAYE)</td><td align='right'>{fmt_acc(op_oc)}</td>{"".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_oc)}</tr>
+                    <tr><td class='left-txt'>Provision for Corporation Tax</td><td align='right'>{fmt_acc(op_ptax)}</td>{"".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_ptax)}</tr>
+                    <tr class='rule-top' style='font-weight:bold;'><td class='left-txt'></td><td align='right'>{fmt_acc(op_tot_cred)}</td>{"".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_tot_cred)}</tr>
+                    <tr class='rule-top rule-bot' style='font-weight:bold;'><td class='left-txt'>NET CURRENT ASSETS</td><td align='right'>{fmt_acc(op_net_curr)}</td>{"".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_net_curr)}</tr>
                     <tr><td colspan='14' class='spacer-cell'>&nbsp;</td></tr>
-                    <tr><td>CREDITORS DUE AFTER ONE YEAR</td><td align='right'></td>{"".join("<td align='right'></td>" for _ in range(12))}</tr>
-                    <tr class='rule-top rule-double-bot' style='font-weight:bold;'><td>TOTAL NET ASSETS</td><td align='right'>{fmt_acc(op_net_curr)}</td>{"".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_net_curr)}</tr>
+                    <tr><td class='left-txt'>CREDITORS DUE AFTER ONE YEAR</td><td align='right'></td>{"".join("<td align='right'></td>" for _ in range(12))}</tr>
+                    <tr class='rule-top rule-double-bot' style='font-weight:bold;'><td class='left-txt'>TOTAL NET ASSETS</td><td align='right'>{fmt_acc(op_net_curr)}</td>{"".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_net_curr)}</tr>
                     <tr><td colspan='14' class='spacer-cell'>&nbsp;</td></tr>
                     <tr class='sec-hdr'><td colspan='14'><b>CAPITAL &amp; RESERVES</b></td></tr>
-                    <tr><td>Retained Earnings</td><td align='right'>{fmt_acc(op_retained)}</td>{"".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_retained)}</tr>
-                    <tr class='rule-top rule-double-bot' style='font-weight:bold;'><td></td><td align='right'>{fmt_acc(op_retained)}</td>{"".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_retained)}</tr>
+                    <tr><td class='left-txt'>Retained Earnings Accumulation</td><td align='right'>{fmt_acc(op_retained)}</td>{"".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_retained)}</tr>
+                    <tr class='rule-top rule-double-bot' style='font-weight:bold;'><td class='left-txt'></td><td align='right'>{fmt_acc(op_retained)}</td>{"".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_retained)}</tr>
                 </tbody>
             </table>
             <div class='footer-note'>STRATA Financial Operating Engine // Integrated Double-Entry General Ledger System &nbsp;|&nbsp; Page {p3_no} of {tot_pages}</div>
@@ -1019,18 +1041,25 @@ def compile_statutory_landscape_pdf(project_name: str, state: dict, gl: AuditedG
             .data-table {{
                 width: 100%;
                 border-collapse: collapse;
+                table-layout: fixed;
             }}
             .data-table th {{
                 font-size: 6.5pt;
                 font-weight: bold;
-                padding: 2px 3px;
+                padding: 2px 2px;
                 border-bottom: 1px solid #000000;
                 vertical-align: bottom;
+                overflow: hidden;
             }}
             .data-table td {{
                 font-size: 6.5pt;
-                padding: 1.8px 3px;
+                padding: 1.8px 2px;
                 vertical-align: middle;
+                overflow: hidden;
+            }}
+            .left-txt {{
+                text-align: left;
+                white-space: nowrap;
             }}
             .rule-top {{
                 border-top: 1px solid #000000;
@@ -1103,7 +1132,6 @@ df_pl, df_cf, df_bs, gl_instance = execute_full_simulation(active_data_context, 
 
 term_month_col = f"M{str(horizon_months).zfill(2)}"
 
-# Evaluate active trading periods M01 to M36/M60 (excludes uncommenced M00)
 active_trading_cols = [f"M{str(i).zfill(2)}" for i in range(1, horizon_months + 1)]
 trading_cash_array = df_cf[active_trading_cols].loc["Closing Bank Cash Reserves (£)"].astype(float).values
 
@@ -1146,7 +1174,7 @@ df_cf_view.at["Closing Bank Cash Reserves (£)", "Horizon Total"] = df_cf.at["Cl
 df_bs_view["Terminal Position"] = df_bs[targets[-1]]
 
 # =========================================================================
-# 📥 PRODUCTION EXPORT CONTROLS (EXECUTIVE PACK + DETAILED STATUTORY PACK)
+# 📥 PRODUCTION EXPORT CONTROLS
 # =========================================================================
 st.subheader("📥 Executive Report Pack Export Controls")
 
@@ -1244,7 +1272,7 @@ with st.expander("📋 Statutory Notes & Analysis of Aggregated Performance Line
 st.markdown("---")
 
 # =========================================================================
-# 🧠 EXECUTIVE NARRATIVE SYNTHESIS (google-genai SDK)
+# 🧠 EXECUTIVE NARRATIVE SYNTHESIS
 # =========================================================================
 st.markdown("### 🧠 Executive Management Commentary Synthesis")
 if "cached_ai_analysis" not in st.session_state:
