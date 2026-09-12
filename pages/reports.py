@@ -1,7 +1,7 @@
 ﻿# pyright: reportMissingImports=false
 # pages/reports.py
-# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v11.0-AUDIT-READY
-# INTEGRATED DOUBLE-ENTRY GENERAL LEDGER // EXPERT RECONCILIATION SCHEDULES
+# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v11.1-AUDIT-READY-EXPERT
+# INTEGRATED DOUBLE-ENTRY GENERAL LEDGER // COMPLIANCE RECONCILIATION SCHEDULES & PDF/CSV EXPORTS
 
 import os
 import sys
@@ -560,9 +560,10 @@ def format_df_for_csv(df: pd.DataFrame, index_title: str = "Financial Line Item 
     return df_clean.to_csv(index=True).encode("utf-8-sig")
 
 
-def compile_premium_html_report(project_name, peak_cash, lowest_cash, horizon_worth, insight_text, df_pl, df_cf, df_bs, active_data, horizon_years=3) -> bytes:
+def compile_premium_html_report(project_name, peak_cash, lowest_cash, horizon_worth, insight_text, df_pl, df_cf, df_bs, active_data, gl_instance, horizon_years=3) -> bytes:
     clean_insight = insight_text.replace("\n", "<br>").replace("â€™", "'").replace("â€˜", "'").replace("â€œ", '"').replace("â€ ", '"')
     years_labels = [f"Year {i}" for i in range(1, horizon_years + 1)]
+    horizon_months = horizon_years * 12
 
     annual_pl, annual_cf, annual_bs = {}, {}, {}
     for idx, yr in enumerate(years_labels):
@@ -656,6 +657,40 @@ def compile_premium_html_report(project_name, peak_cash, lowest_cash, horizon_wo
         ]
     )
 
+    # Build HTML Rows for Expert Schedules Appendix
+    all_assets = []
+    for cap in active_data.get("outright_capex", []):
+        all_assets.append({"Name": sanitize_label(cap.get("name")), "Cost": float(cap.get("amount", 0.0)), "Month": int(cap.get("month", 1)), "Rate": float(cap.get("depreciation_rate", 0.20))})
+    for fin in active_data.get("financed_assets", []):
+        all_assets.append({"Name": sanitize_label(fin.get("name")), "Cost": float(fin.get("amount", 0.0)), "Month": int(fin.get("month", 1)), "Rate": float(fin.get("depreciation_rate", 0.15))})
+
+    html_fa = ""
+    if all_assets:
+        for ast in all_assets:
+            cost = ast["Cost"]
+            m_pur = ast["Month"]
+            rate = ast["Rate"]
+            total_dep = sum((cost * rate / 12.0) for m in range(m_pur, horizon_months + 1)) if m_pur <= horizon_months else 0.0
+            nbv = max(0.0, cost - total_dep)
+            html_fa += f"<tr><td>{ast['Name']}</td><td align='right'>£{cost:,.2f}</td><td align='right'>£{total_dep:,.2f}</td><td align='right'><b>£{nbv:,.2f}</b></td></tr>"
+    else:
+        html_fa = "<tr><td colspan='4'>No fixed assets registered.</td></tr>"
+
+    html_hp = ""
+    if active_data.get("financed_assets"):
+        for fin in active_data["financed_assets"]:
+            m_start = int(fin.get("month", 1))
+            total_val = float(fin.get("amount", 0.0))
+            deposit_pct = float(fin.get("deposit_pct", 10.0)) / 100.0
+            financed_principal = total_val * (1.0 - deposit_pct)
+            term = max(1, int(fin.get("term_months", 36)))
+            monthly_prin = financed_principal / term
+            paid_prin = monthly_prin * min(max(0, horizon_months - m_start + 1), term)
+            closing_bal = max(0.0, financed_principal - paid_prin)
+            html_hp += f"<tr><td>{sanitize_label(fin.get('name'))}</td><td align='right'>£{financed_principal:,.2f}</td><td align='right'>£{paid_prin:,.2f}</td><td align='right'><b>£{closing_bal:,.2f}</b></td></tr>"
+    else:
+        html_hp = "<tr><td colspan='4'>No HP facilities registered.</td></tr>"
+
     th_headers = "".join(f"<th align='right' style='text-align: right;'>{y}</th>" for y in years_labels)
     total_months = horizon_years * 12
 
@@ -720,6 +755,20 @@ def compile_premium_html_report(project_name, peak_cash, lowest_cash, horizon_wo
 
         <h2>Balance Sheet Capital Statement (Years 1 to {horizon_years})</h2>
         <table><thead><tr><th align="left" style="text-align: left;">Ledger Balance Structure</th>{th_headers}</tr></thead><tbody>{html_bs}</tbody></table>
+
+        <pdf:nextpage />
+
+        <h2>Appendix I: Fixed Asset & Depreciation Roll-Forward Schedule</h2>
+        <table>
+            <thead><tr><th align="left">Asset Description</th><th align="right">Original Cost</th><th align="right">Accumulated Depreciation</th><th align="right">Net Book Value (NBV)</th></tr></thead>
+            <tbody>{html_fa}</tbody>
+        </table>
+
+        <h2>Appendix II: HP & Lease Liability Roll-Forward Schedule</h2>
+        <table>
+            <thead><tr><th align="left">Facility Name</th><th align="right">Initial Principal</th><th align="right">Principal Repaid</th><th align="right">Closing Balance</th></tr></thead>
+            <tbody>{html_hp}</tbody>
+        </table>
     </body>
     </html>
     """
@@ -1188,7 +1237,7 @@ df_cf_view.at["Closing Bank Cash Reserves (£)", "Horizon Total"] = df_cf.at["Cl
 df_bs_view["Terminal Position"] = df_bs[targets[-1]]
 
 # =========================================================================
-# 📥 PRODUCTION EXPORT CONTROLS
+# 📥 PRODUCTION EXPORT CONTROLS (PDFS + CSVs)
 # =========================================================================
 st.subheader("📥 Executive Report Pack Export Controls")
 
@@ -1219,7 +1268,7 @@ with exp_c1:
             st.error(f"Statutory compiler error: {str(st_err)}")
 
 with exp_c2:
-    st.markdown("##### 📊 Raw Granular Datasets (CSV)")
+    st.markdown("##### 📊 Raw Granular Datasets & Expert Schedules (CSV)")
     c1, c2, c3 = st.columns(3)
     with c1:
         st.download_button(
@@ -1349,10 +1398,11 @@ if st.session_state["cached_ai_analysis"]:
                 df_cf=df_cf,
                 df_bs=df_bs,
                 active_data=active_data_context,
+                gl_instance=gl_instance,
                 horizon_years=horizon_years,
             )
             st.download_button(
-                label="📄 Download Official Executive Management Pack PDF (Portrait)",
+                label="📄 Download Official Executive Management Pack PDF (Portrait with Appendices)",
                 data=pdf_binary,
                 file_name=f"STRATA_Executive_Summary_{horizon_years}Yr.pdf",
                 mime="application/pdf",
@@ -1449,7 +1499,7 @@ with t3:
         st.info("No long-term debt facilities registered in active scenario.")
 
 # =========================================================================
-# 🏛️ EXPERT PANEL RECONCILIATION SCHEDULES (ADDITIONAL AUDIT SUITE)
+# 🏛️ EXPERT PANEL RECONCILIATION SCHEDULES (WITH CSV EXPORTS)
 # =========================================================================
 st.markdown("---")
 st.markdown("### 🔍 Institutional Underwriting & Compliance Reconciliation Schedules")
@@ -1488,6 +1538,12 @@ with expert_t1:
             })
         df_fa_sched = pd.DataFrame(fa_schedule_rows).set_index("Asset Description")
         st.dataframe(df_fa_sched.style.format("£{:,.2f}"), width="stretch")
+        st.download_button(
+            "📥 Download Fixed Asset Schedule CSV",
+            data=format_df_for_csv(df_fa_sched, "Asset Description"),
+            file_name="STRATA_FixedAsset_Schedule.csv",
+            mime="text/csv"
+        )
     else:
         st.info("No fixed infrastructure assets registered in active scenario.")
 
@@ -1520,6 +1576,12 @@ with expert_t2:
             })
         df_hp_sched = pd.DataFrame(hp_rows).set_index("Facility Name")
         st.dataframe(df_hp_sched.style.format("£{:,.2f}"), width="stretch")
+        st.download_button(
+            "📥 Download HP Roll-Forward Schedule CSV",
+            data=format_df_for_csv(df_hp_sched, "Facility Name"),
+            file_name="STRATA_HP_RollForward_Schedule.csv",
+            mime="text/csv"
+        )
     else:
         st.info("No financed HP facilities registered in active scenario.")
 
@@ -1551,6 +1613,12 @@ with expert_t3:
             })
         df_int_sched = pd.DataFrame(int_rows).set_index("Facility Name")
         st.dataframe(df_int_sched.style.format({"Initial Principal (£)": "£{:,.2f}", "Cumulative Interest Charged (P&L) (£)": "£{:,.2f}"}), width="stretch")
+        st.download_button(
+            "📥 Download Interest & APR Schedule CSV",
+            data=format_df_for_csv(df_int_sched, "Facility Name"),
+            file_name="STRATA_Interest_APR_Schedule.csv",
+            mime="text/csv"
+        )
     else:
         st.info("No financed debt facilities registered for interest reconciliation.")
 
@@ -1589,3 +1657,9 @@ with expert_t4:
     ]
     df_wc_sched = pd.DataFrame(wc_rows).set_index("Control Account")
     st.dataframe(df_wc_sched.style.format("£{:,.2f}"), width="stretch")
+    st.download_button(
+        "📥 Download Working Capital Schedule CSV",
+        data=format_df_for_csv(df_wc_sched, "Control Account"),
+        file_name="STRATA_WorkingCapital_Tax_Schedule.csv",
+        mime="text/csv"
+    )
