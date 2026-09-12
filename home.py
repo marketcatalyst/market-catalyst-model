@@ -9,7 +9,7 @@ PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-from utils.scenario_manager import (
+from utils.scenario_manager import (  # type: ignore[import-not-found]
     list_available_scenarios,
     load_scenario_from_disk,
     save_scenario_to_disk,
