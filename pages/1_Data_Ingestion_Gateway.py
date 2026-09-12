@@ -1,3 +1,4 @@
+# pyright: reportMissingImports=false
 # pages/1_Data_Ingestion_Gateway.py
 # STRATA SUITE PRODUCTION ENGINE // DATA INGESTION GATEWAY & SANDBOX v7.4.1-PRODUCTION
 
@@ -8,12 +9,34 @@ import pandas as pd
 import google.generativeai as genai
 import re
 
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
+from utils.scenario_manager import render_global_scenario_sidebar
+
+st.markdown(
+    """
+    <style>
+        div[data-testid="stSidebarNav"], 
+        section[data-testid="stSidebarNav"], 
+        ul[data-testid="stSidebarNav"], 
+        .stSidebarNav {
+            display: none !important;
+        }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 # =========================================================================
 # 🛡️ SECURITY INTERCEPT LAYER
 # =========================================================================
 if not st.session_state.get("authenticated"):
-    st.warning("⚠️ **Security Intercept:** Route session token context not cleared.")
-    st.page_link("home.py", label="↩️ Return to Access Gateway Portal")
+    st.title("🏛️ STRATA // Security Intercept")
+    st.warning("🔒 This workspace session is currently unauthenticated or has timed out.")
+    if st.button("🔑 Return to Home Portal & Sign In", width="stretch"):
+        st.switch_page("home.py")
     st.stop()
 
 active_sic = st.session_state.get(
@@ -29,8 +52,6 @@ active_sic = st.session_state.get(
 # =========================================================================
 # 🎛️ PORTAL FRONT-END USER INTERFACE CANVAS
 # =========================================================================
-st.set_page_config(page_title="STRATA Suite // Ingestion Gateway", layout="wide")
-
 st.title("📥 Unstructured Data Ingestion Gateway")
 st.markdown(
     f"🏭 **Active Industry Configuration:** Mapped to Code `{active_sic['sic_code']}` ({active_sic['sector']}) | "
@@ -82,13 +103,11 @@ def extract_clean_json(text: str):
         clean_text = re.sub(r"^```(?:json)?\s*", "", clean_text, flags=re.IGNORECASE)
         clean_text = re.sub(r"\s*```$", "", clean_text)
 
-    # 1. First try parsing directly
     try:
         return json.loads(clean_text)
     except json.JSONDecodeError:
         pass
 
-    # 2. Try locating top-level JSON array
     array_match = re.search(r"(\[.*\])", clean_text, re.DOTALL)
     if array_match:
         try:
@@ -96,7 +115,6 @@ def extract_clean_json(text: str):
         except json.JSONDecodeError:
             pass
 
-    # 3. Try locating single top-level JSON object
     obj_match = re.search(r"(\{.*\})", clean_text, re.DOTALL)
     if obj_match:
         return json.loads(obj_match.group(1))
@@ -138,7 +156,6 @@ if uploaded_file is not None:
                         )
                         file_payload = [file_content]
 
-                    # 🚀 SECURE 5-YEAR & MONTH 00 MULTI-ROW SCHEMA PROMPT
                     prompt = f"""
                     You are a professional corporate accounting data extraction engine. Process the attached business data, financial forecast, statement, image or opening trial balance ledger.
                     
@@ -164,7 +181,6 @@ if uploaded_file is not None:
                     ]
                     """
 
-                    # Configure model with explicit application/json MIME-type
                     model = genai.GenerativeModel(
                         model_name="gemini-2.5-flash",
                         generation_config={"response_mime_type": "application/json"},
@@ -173,7 +189,6 @@ if uploaded_file is not None:
 
                     parsed_result = extract_clean_json(response.text)
 
-                    # Normalize parsed result into a list of line items
                     if isinstance(parsed_result, dict):
                         items_to_process = [parsed_result]
                     elif isinstance(parsed_result, list):
@@ -337,3 +352,17 @@ st.markdown("---")
 st.page_link(
     "pages/app.py", label="↩️ Skip Ingestion & Open Corporate Command Center Directly"
 )
+
+# =========================================================================
+# 🧭 FIXED SIDEBAR COMPASS & UNIFIED SCENARIO CONTROLS
+# =========================================================================
+st.sidebar.markdown("### Compass Options")
+st.sidebar.page_link("home.py", label="🏠 Home Portal")
+st.sidebar.page_link(
+    "pages/1_Data_Ingestion_Gateway.py", label="📥 Data Ingestion Gateway"
+)
+st.sidebar.page_link("pages/onboarding.py", label="🕸️ Data Input Parameters")
+st.sidebar.page_link("pages/app.py", label="✍️ Data Entry Panel")
+st.sidebar.page_link("pages/reports.py", label="📊 Performance Tab")
+
+render_global_scenario_sidebar()
