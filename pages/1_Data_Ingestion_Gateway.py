@@ -2,12 +2,13 @@
 # pages/1_Data_Ingestion_Gateway.py
 # STRATA SUITE PRODUCTION ENGINE // DATA INGESTION GATEWAY & SANDBOX v7.4.1-PRODUCTION
 
-import streamlit as st
-import json
 import os
+import sys
+import json
 import pandas as pd
 import google.generativeai as genai
 import re
+import streamlit as st
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if PROJECT_ROOT not in sys.path:
