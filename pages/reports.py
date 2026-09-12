@@ -1286,7 +1286,7 @@ with st.expander("📋 Statutory Notes & Analysis of Aggregated Performance Line
 st.markdown("---")
 
 # =========================================================================
-# 🧠 EXECUTIVE NARRATIVE SYNTHESIS
+# 🧠 EXECUTIVE NARRATIVE SYNTHESIS (EDITABLE)
 # =========================================================================
 st.markdown("### 🧠 Executive Management Commentary Synthesis")
 if "cached_ai_analysis" not in st.session_state:
@@ -1327,7 +1327,13 @@ if st.button("🤖 Generate Executive Summary Report & Compile PDF Pack", width=
 if st.session_state["cached_ai_analysis"]:
     st.markdown("---")
     st.markdown("## 🏛 Executive Strategy Summary Pack Preview")
-    st.write(st.session_state["cached_ai_analysis"])
+    
+    st.session_state["cached_ai_analysis"] = st.text_area(
+        "Edit Executive Summary Narrative (Changes will reflect in the downloaded PDF):",
+        value=st.session_state["cached_ai_analysis"],
+        height=220,
+        key="editable_executive_summary_box"
+    )
 
     if not PDF_ENGINE_AVAILABLE:
         st.warning("⚠️ PDF generation engine not installed. Run `pip install xhtml2pdf`.")
