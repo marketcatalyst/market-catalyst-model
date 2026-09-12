@@ -1,7 +1,7 @@
 ﻿# pyright: reportMissingImports=false
 # pages/reports.py
-# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v10.9-STATUTORY
-# INTEGRATED DOUBLE-ENTRY GENERAL LEDGER // HARDENED LANDSCAPE STATUTORY PACK
+# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v11.0-AUDIT-READY
+# INTEGRATED DOUBLE-ENTRY GENERAL LEDGER // EXPERT RECONCILIATION SCHEDULES
 
 import os
 import sys
@@ -1447,3 +1447,145 @@ with t3:
         st.dataframe(pd.DataFrame(loan_rows).set_index(["Facility", "Metric"])[targets].style.format("{:,.2f}"), width="stretch")
     else:
         st.info("No long-term debt facilities registered in active scenario.")
+
+# =========================================================================
+# 🏛️ EXPERT PANEL RECONCILIATION SCHEDULES (ADDITIONAL AUDIT SUITE)
+# =========================================================================
+st.markdown("---")
+st.markdown("### 🔍 Institutional Underwriting & Compliance Reconciliation Schedules")
+
+expert_t1, expert_t2, expert_t3, expert_t4 = st.tabs([
+    "🚜 Fixed Asset & Depreciation Schedule",
+    "📑 HP & Lease Roll-Forward Schedule",
+    "💷 Financing Interest & APR Reconciliation",
+    "📊 Working Capital & Tax Movement Schedule"
+])
+
+with expert_t1:
+    st.markdown("#### Fixed Infrastructure Asset & Accumulated Depreciation Roll-Forward")
+    st.caption("Reconciles opening cost, in-year CapEx additions, accumulated depreciation, and closing Net Book Value (NBV).")
+    fa_schedule_rows = []
+    all_assets = []
+    for cap in active_data_context.get("outright_capex", []):
+        all_assets.append({"Name": sanitize_label(cap.get("name")), "Cost": float(cap.get("amount", 0.0)), "Month": int(cap.get("month", 1)), "Rate": float(cap.get("depreciation_rate", 0.20))})
+    for fin in active_data_context.get("financed_assets", []):
+        all_assets.append({"Name": sanitize_label(fin.get("name")), "Cost": float(fin.get("amount", 0.0)), "Month": int(fin.get("month", 1)), "Rate": float(fin.get("depreciation_rate", 0.15))})
+    
+    if all_assets:
+        for ast in all_assets:
+            cost = ast["Cost"]
+            m_pur = ast["Month"]
+            rate = ast["Rate"]
+            total_dep = sum((cost * rate / 12.0) for m in range(m_pur, horizon_months + 1)) if m_pur <= horizon_months else 0.0
+            nbv = max(0.0, cost - total_dep)
+            fa_schedule_rows.append({
+                "Asset Description": ast["Name"],
+                "Opening Cost (£)": 0.0 if m_pur > 0 else cost,
+                "In-Year Additions (£)": cost if m_pur > 0 else 0.0,
+                "Closing Cost (£)": cost,
+                "Accumulated Depreciation (£)": round(total_dep, 2),
+                "Net Book Value (NBV) (£)": round(nbv, 2)
+            })
+        df_fa_sched = pd.DataFrame(fa_schedule_rows).set_index("Asset Description")
+        st.dataframe(df_fa_sched.style.format("£{:,.2f}"), width="stretch")
+    else:
+        st.info("No fixed infrastructure assets registered in active scenario.")
+
+with expert_t2:
+    st.markdown("#### Hire Purchase (HP) & Lease Liability Roll-Forward Schedule")
+    st.caption("Details opening facility debt, principal repayments, closing liability, and current/non-current classification.")
+    if active_data_context.get("financed_assets"):
+        hp_rows = []
+        for fin in active_data_context["financed_assets"]:
+            m_start = int(fin.get("month", 1))
+            total_val = float(fin.get("amount", 0.0))
+            deposit_pct = float(fin.get("deposit_pct", 10.0)) / 100.0
+            financed_principal = total_val * (1.0 - deposit_pct)
+            term = max(1, int(fin.get("term_months", 36)))
+            monthly_prin = financed_principal / term
+            
+            paid_prin = monthly_prin * min(max(0, horizon_months - m_start + 1), term)
+            closing_bal = max(0.0, financed_principal - paid_prin)
+            current_liab = min(closing_bal, monthly_prin * 12)
+            non_current_liab = max(0.0, closing_bal - current_liab)
+            
+            hp_rows.append({
+                "Facility Name": sanitize_label(fin.get("name")),
+                "Opening Principal (£)": 0.0,
+                "Drawdowns / Initial Debt (£)": financed_principal,
+                "Principal Repaid (£)": round(paid_prin, 2),
+                "Closing Balance (£)": round(closing_bal, 2),
+                "Current Liability (<12m) (£)": round(current_liab, 2),
+                "Non-Current Liability (>1yr) (£)": round(non_current_liab, 2)
+            })
+        df_hp_sched = pd.DataFrame(hp_rows).set_index("Facility Name")
+        st.dataframe(df_hp_sched.style.format("£{:,.2f}"), width="stretch")
+    else:
+        st.info("No financed HP facilities registered in active scenario.")
+
+with expert_t3:
+    st.markdown("#### Financing Interest & APR Servicing Reconciliation Schedule")
+    st.caption("Reconciles monthly interest overhead charges with outstanding principal balances and stated APR rates.")
+    if active_data_context.get("financed_assets"):
+        int_rows = []
+        for fin in active_data_context["financed_assets"]:
+            m_start = int(fin.get("month", 1))
+            financed_principal = float(fin.get("amount", 0.0)) * (1.0 - (float(fin.get("deposit_pct", 10.0)) / 100.0))
+            apr = float(fin.get("interest_rate", 5.0)) / 100.0
+            term = max(1, int(fin.get("term_months", 36)))
+            monthly_prin = financed_principal / term
+            
+            cum_interest = 0.0
+            running_bal = financed_principal
+            for m in range(1, horizon_months + 1):
+                if m >= m_start and running_bal > 0:
+                    m_int = running_bal * (apr / 12.0)
+                    cum_interest += m_int
+                    running_bal = max(0.0, running_bal - monthly_prin)
+            
+            int_rows.append({
+                "Facility Name": sanitize_label(fin.get("name")),
+                "Stated APR Rate (%)": f"{float(fin.get('interest_rate', 5.0)):.2f}%",
+                "Initial Principal (£)": financed_principal,
+                "Cumulative Interest Charged (P&L) (£)": round(cum_interest, 2)
+            })
+        df_int_sched = pd.DataFrame(int_rows).set_index("Facility Name")
+        st.dataframe(df_int_sched.style.format({"Initial Principal (£)": "£{:,.2f}", "Cumulative Interest Charged (P&L) (£)": "£{:,.2f}"}), width="stretch")
+    else:
+        st.info("No financed debt facilities registered for interest reconciliation.")
+
+with expert_t4:
+    st.markdown("#### Working Capital & Statutory Taxation Movement Schedule")
+    st.caption("Details opening balances, period accruals/invoicing, cash settlements, and closing liabilities for trade control accounts.")
+    wc_rows = [
+        {
+            "Control Account": "Trade Debtors Control (1100)",
+            "Opening Balance (£)": gl_instance.get_cumulative_balance("1100", 0),
+            "Period Invoiced (£)": sum(gl_instance.get_period_movement("1100", m) for m in range(1, horizon_months + 1) if gl_instance.get_period_movement("1100", m) > 0),
+            "Cash Collected (£)": sum(gl_instance.journal_sum("1200", "1100", m) for m in range(1, horizon_months + 1)),
+            "Closing Balance (£)": gl_instance.get_cumulative_balance("1100", horizon_months)
+        },
+        {
+            "Control Account": "Trade Creditors Control (2100)",
+            "Opening Balance (£)": gl_instance.get_cumulative_balance("2100", 0),
+            "Period Incurred (£)": sum(gl_instance.get_period_movement("2100", m) for m in range(1, horizon_months + 1) if gl_instance.get_period_movement("2100", m) > 0),
+            "Cash Settled (£)": sum(gl_instance.journal_sum("2100", "1200", m) for m in range(1, horizon_months + 1)),
+            "Closing Balance (£)": gl_instance.get_cumulative_balance("2100", horizon_months)
+        },
+        {
+            "Control Account": "HMRC VAT Control Account (2200)",
+            "Opening Balance (£)": gl_instance.get_cumulative_balance("2200", 0),
+            "Period Movement (£)": sum(gl_instance.get_period_movement("2200", m) for m in range(1, horizon_months + 1)),
+            "Cash Settled / Paid (£)": sum(gl_instance.journal_sum("2200", "1200", m) for m in range(1, horizon_months + 1)),
+            "Closing Balance (£)": gl_instance.get_cumulative_balance("2200", horizon_months)
+        },
+        {
+            "Control Account": "Corporation Tax Provision (2220)",
+            "Opening Balance (£)": gl_instance.get_cumulative_balance("2220", 0),
+            "Period Accrued (£)": sum(gl_instance.get_period_movement("2220", m) for m in range(1, horizon_months + 1)),
+            "Tax Discharged (£)": sum(gl_instance.journal_sum("2220", "1200", m) for m in range(1, horizon_months + 1)),
+            "Closing Balance (£)": gl_instance.get_cumulative_balance("2220", horizon_months)
+        }
+    ]
+    df_wc_sched = pd.DataFrame(wc_rows).set_index("Control Account")
+    st.dataframe(df_wc_sched.style.format("£{:,.2f}"), width="stretch")
