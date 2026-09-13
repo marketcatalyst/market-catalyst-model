@@ -159,6 +159,7 @@ def get_exact_period_value(item_dict: dict, month_idx: int, yr_idx: int, seasona
     m_offset = (month_idx - 1) % 12
     m_lbl = f"M{str(month_idx).zfill(2)}"
 
+    # PRIORITY 1: Explicit Monthly Matrix Data (Directly preserves ingested WinForecast monthly splits)
     matrix = item_dict.get("matrix_data")
     if isinstance(matrix, dict):
         y_key = f"Y{yr_idx}"
@@ -172,17 +173,17 @@ def get_exact_period_value(item_dict: dict, month_idx: int, yr_idx: int, seasona
                     except (ValueError, TypeError):
                         pass
 
+    # PRIORITY 2: Manual Monthly Overrides
     overrides = item_dict.get("overrides")
     if isinstance(overrides, dict) and m_lbl in overrides:
-        has_positive = any(float(v) > 0.001 for v in overrides.values() if v is not None and str(v).strip() != "")
-        if has_positive:
-            raw_val = overrides[m_lbl]
-            if raw_val is not None and str(raw_val).strip() != "":
-                try:
-                    return float(raw_val)
-                except (ValueError, TypeError):
-                    pass
+        raw_val = overrides[m_lbl]
+        if raw_val is not None and str(raw_val).strip() != "":
+            try:
+                return float(raw_val)
+            except (ValueError, TypeError):
+                pass
 
+    # PRIORITY 3: Fallback Baseline Annual Total Distributed via Seasonality Curve
     y_base = float(item_dict.get(f"y{yr_idx}_baseline", item_dict.get("y1_baseline", 0.0)))
     flex = (1.0 + (float(item_dict.get("flex_pct", 0.0)) / 100.0)) if yr_idx > 1 else 1.0
     season_name = item_dict.get("seasonality", "Flat_Linear")
@@ -657,7 +658,6 @@ def compile_premium_html_report(project_name, peak_cash, lowest_cash, horizon_wo
         ]
     )
 
-    # Build HTML Rows for Expert Schedules Appendix
     all_assets = []
     for cap in active_data.get("outright_capex", []):
         all_assets.append({"Name": sanitize_label(cap.get("name")), "Cost": float(cap.get("amount", 0.0)), "Month": int(cap.get("month", 1)), "Rate": float(cap.get("depreciation_rate", 0.20))})
@@ -842,9 +842,6 @@ def compile_statutory_landscape_pdf(project_name: str, state: dict, gl: AuditedG
             col_ths.append(f"<th align='right'>{month_names[idx]} {str(cal_y)[-2:]}<br>&pound;</th>")
         th_line = "".join(col_ths)
 
-        # -----------------------------------------------------------------
-        # PAGE 1 OF YEAR: PROFIT & LOSS FORECAST
-        # -----------------------------------------------------------------
         sales_rows = ""
         m_tot_rev = [0.0] * 12
         for s in state.get("sales", []):
@@ -944,9 +941,6 @@ def compile_statutory_landscape_pdf(project_name: str, state: dict, gl: AuditedG
         """
         pages_html.append(page_pl)
 
-        # -----------------------------------------------------------------
-        # PAGE 2 OF YEAR: CASH FLOW FORECAST
-        # -----------------------------------------------------------------
         m_rec = [gl.journal_sum("1200", "1100", m) for m in m_indices]
         yr_rec = sum(m_rec)
         rec_rows = f"<tr><td class='left-txt'>Invoiced Sales</td>" + "".join(f"<td align='right'>{fmt_acc(v)}</td>" for v in m_rec) + f"<td align='right'><b>{fmt_acc(yr_rec)}</b></td></tr>"
@@ -1005,9 +999,6 @@ def compile_statutory_landscape_pdf(project_name: str, state: dict, gl: AuditedG
         """
         pages_html.append(page_cf)
 
-        # -----------------------------------------------------------------
-        # PAGE 3 OF YEAR: BALANCE SHEET FORECAST
-        # -----------------------------------------------------------------
         open_col_lbl = "Opening<br>&pound;"
         m_bank = [gl.get_cumulative_balance("1200", m) for m in m_indices]
         m_tc = [gl.get_cumulative_balance("2100", m) for m in m_indices]
@@ -1164,10 +1155,6 @@ def compile_statutory_landscape_pdf(project_name: str, state: dict, gl: AuditedG
     return pdf_buffer.getvalue()
 
 
-# =========================================================================
-# 🎛️ WORKSPACE DISPLAY RENDERING CANVAS
-# =========================================================================
-
 st.title("📊 Performance & Reporting Summary Pack")
 st.caption(f"Active Scenario Context: `{st.session_state.get('active_project_name', 'Unsaved_Draft_Scenario')}`")
 st.page_link("pages/app.py", label="✍️ Return to Data Entry Panel")
@@ -1236,9 +1223,6 @@ df_cf_view["Horizon Total"] = df_cf[active_months_for_sum].sum(axis=1)
 df_cf_view.at["Closing Bank Cash Reserves (£)", "Horizon Total"] = df_cf.at["Closing Bank Cash Reserves (£)", targets[-1]]
 df_bs_view["Terminal Position"] = df_bs[targets[-1]]
 
-# =========================================================================
-# 📥 PRODUCTION EXPORT CONTROLS (PDFS + CSVs)
-# =========================================================================
 st.subheader("📥 Executive Report Pack Export Controls")
 
 exp_c1, exp_c2 = st.columns(2)
@@ -1334,9 +1318,6 @@ with st.expander("📋 Statutory Notes & Analysis of Aggregated Performance Line
 
 st.markdown("---")
 
-# =========================================================================
-# 🧠 EXECUTIVE NARRATIVE SYNTHESIS (EDITABLE)
-# =========================================================================
 st.markdown("### 🧠 Executive Management Commentary Synthesis")
 if "cached_ai_analysis" not in st.session_state:
     st.session_state["cached_ai_analysis"] = ""
@@ -1498,9 +1479,6 @@ with t3:
     else:
         st.info("No long-term debt facilities registered in active scenario.")
 
-# =========================================================================
-# 🏛️ EXPERT PANEL RECONCILIATION SCHEDULES (WITH CSV EXPORTS)
-# =========================================================================
 st.markdown("---")
 st.markdown("### 🔍 Institutional Underwriting & Compliance Reconciliation Schedules")
 
