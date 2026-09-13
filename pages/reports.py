@@ -16,6 +16,9 @@ if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
 from utils.scenario_manager import render_global_scenario_sidebar
+from utils.depreciation import calculate_monthly_depreciation
+from utils.invoice_finance import process_invoice_finance_drawdown
+from utils.consolidation import consolidate_group_entities
 
 try:
     from google import genai
@@ -365,7 +368,7 @@ def execute_full_simulation(state, horizon_months=36):
             gl.post_journal(m + 1, "2100", "1200", gross_op, f"Overhead Paid: {op.get('name')}")
 
         for pay in state.get("payroll", []):
-            if int(pay.get("start_month", 1)) <= m <= min(int(pay.get("end_month", 60)), horizon_months):
+            if int(pay.get("start_month", 1)) <= m <= min(int(pay.get("end_month", 120)), horizon_months):
                 gross_sal = int(pay.get("headcount", 1)) * float(pay.get("monthly_wage", 2000.0))
                 nic = gross_sal * nic_rate
                 gl.post_journal(m, "7000", "1200", gross_sal, "Staff Net Wages Paid")
@@ -374,13 +377,13 @@ def execute_full_simulation(state, horizon_months=36):
 
         for outright in state.get("outright_capex", []):
             if int(outright.get("month", 1)) <= m:
-                dep = (float(outright.get("amount", 0.0)) * float(outright.get("depreciation_rate", 0.20))) / 12.0
-                gl.post_journal(m, "8000", "0021", dep, f"Depr Direct CapEx: {outright.get('name')}")
+                dep = calculate_monthly_depreciation(outright, m)
+                gl.post_journal(m, "8000", "0021", dep, f"Multi-Basis Depr Direct CapEx: {outright.get('name')}")
 
         for fin in state.get("financed_assets", []):
             if int(fin.get("month", 1)) <= m:
-                dep = (float(fin.get("amount", 0.0)) * float(fin.get("depreciation_rate", 0.15))) / 12.0
-                gl.post_journal(m, "8000", "0021", dep, f"Depr Lease Asset: {fin.get('name')}")
+                dep = calculate_monthly_depreciation(fin, m)
+                gl.post_journal(m, "8000", "0021", dep, f"Multi-Basis Depr Lease Asset: {fin.get('name')}")
 
         if m in vat_settle_months:
             vat_liability = gl.get_cumulative_balance("2200", m - 1)
@@ -411,8 +414,9 @@ def execute_full_simulation(state, horizon_months=36):
     for yr in range(1, horizon_years + 1):
         annual_final_tax[yr] = ytd_tax[yr]
 
-    corp_tax_pay_calendar = {1: 21, 2: 33, 3: 45, 4: 57}
-    for yr, settle_m in corp_tax_pay_calendar.items():
+    # Elastic Corporation Tax Payment Calendar for 1 to 10+ Years (Due Month 21, 33, 45, etc.)
+    for yr in range(1, horizon_years + 1):
+        settle_m = (yr * 12) + 9
         if settle_m <= horizon_months and annual_final_tax.get(yr, 0.0) > 0.01:
             gl.post_journal(settle_m, "2220", "1200", annual_final_tax[yr], f"Year {yr} Corporation Tax Discharge to HMRC")
 
@@ -779,10 +783,6 @@ def compile_premium_html_report(project_name, peak_cash, lowest_cash, horizon_wo
         raise Exception(f"xhtml2pdf encountered an error code: {pisa_status.err}")
     return pdf_buffer.getvalue()
 
-
-# =========================================================================
-# 🏛️ STRATA STATUTORY 9-PAGE LANDSCAPE ENGINE (HARDENED GEOMETRY)
-# =========================================================================
 
 def compile_statutory_landscape_pdf(project_name: str, state: dict, gl: AuditedGeneralLedger, df_pl: pd.DataFrame, df_cf: pd.DataFrame, df_bs: pd.DataFrame, horizon_years: int = 3) -> bytes:
     month_names = ["Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar", "Apr", "May"]
@@ -1155,20 +1155,24 @@ def compile_statutory_landscape_pdf(project_name: str, state: dict, gl: AuditedG
     return pdf_buffer.getvalue()
 
 
+# =========================================================================
+# 🎛️ WORKSPACE DISPLAY RENDERING CANVAS WITH DYNAMIC HORIZON SELECTOR (REQ-ENG-01)
+# =========================================================================
+
 st.title("📊 Performance & Reporting Summary Pack")
 st.caption(f"Active Scenario Context: `{st.session_state.get('active_project_name', 'Unsaved_Draft_Scenario')}`")
 st.page_link("pages/app.py", label="✍️ Return to Data Entry Panel")
 st.markdown("---")
 
-horizon_choice = st.radio(
-    "Select Master Forecasting Horizon Window:",
-    [
-        "3-Year Horizon (M00 - M36) [STRATA Statutory Benchmark]",
-        "5-Year Horizon (M00 - M60) [STRATA Strategic Horizon]",
-    ],
-    horizontal=True,
+# REQ-ENG-01: Dynamic Horizon Slider / Selector (Supports 1 to 10+ Operating Years)
+horizon_years = st.slider(
+    "Select Master Forecasting Horizon Window (Operating Years):",
+    min_value=1,
+    max_value=10,
+    value=3,
+    step=1,
+    help="Parameterizes simulation engine and statement reporting from 1 to 10+ years dynamically."
 )
-horizon_years = 3 if "3-Year" in horizon_choice else 5
 horizon_months = horizon_years * 12
 
 active_data_context = st.session_state.get("active_data", {})
@@ -1394,8 +1398,7 @@ if st.session_state["cached_ai_analysis"]:
 
 st.markdown("---")
 
-t1, t2, t3 = st.tabs([" Reconciled Financial Statements", " Fixed Infrastructure Asset Ledger", " External Debt Liabilities Registry"])
-
+t1, t2, t3, t4 = st.tabs([" Reconciled Financial Statements", " Fixed Infrastructure Asset Ledger", " External Debt Liabilities Registry", "🌐 Master Group Consolidation"])
 
 def highlight_totals(row):
     highlight_rows = [
@@ -1412,7 +1415,6 @@ def highlight_totals(row):
     if row.name in highlight_rows:
         return ["font-weight: bold; background-color: #f1f5f9; color: #1e3a8a;"] * len(row)
     return [""] * len(row)
-
 
 with t1:
     st.markdown("#### Profit & Loss Statement (£)")
@@ -1478,6 +1480,27 @@ with t3:
         st.dataframe(pd.DataFrame(loan_rows).set_index(["Facility", "Metric"])[targets].style.format("{:,.2f}"), width="stretch")
     else:
         st.info("No long-term debt facilities registered in active scenario.")
+
+with t4:
+    st.markdown("### 🌐 Master Group Consolidated Balance Sheet & Inter-Company Eliminations")
+    st.caption("Rolls up subsidiary trial balances and applies FRS 102 inter-company eliminations.")
+    subsidiary_list = st.session_state.get("subsidiary_ledgers", [])
+    if subsidiary_list:
+        group_result = consolidate_group_entities(subsidiary_list)
+        consolidated_bs_data = group_result.get("consolidated_balance_sheet", {})
+        elim_summary = group_result.get("eliminations_summary", {})
+        is_balanced = group_result.get("is_balanced", True)
+        
+        col_g1, col_g2 = st.columns(2)
+        with col_g1:
+            st.metric("Consolidation Status", "Balanced & Audited" if is_balanced else "Checksum Warning")
+        with col_g2:
+            st.metric("Inter-Company Eliminations", f"£{elim_summary.get('intercompany_debtors_creditors', 0.0):,.2f}")
+        
+        df_group_bs = pd.DataFrame(list(consolidated_bs_data.items()), columns=["Balance Sheet Line Item", "Consolidated Value (£)"]).set_index("Balance Sheet Line Item")
+        st.dataframe(df_group_bs.style.format("£{:,.2f}"), width="stretch")
+    else:
+        st.info("Operating as a single standalone entity. Register subsidiary ledgers via the Ingestion Gateway to activate multi-entity group roll-ups.")
 
 st.markdown("---")
 st.markdown("### 🔍 Institutional Underwriting & Compliance Reconciliation Schedules")

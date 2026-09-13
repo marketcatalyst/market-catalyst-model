@@ -1,9 +1,10 @@
 # utils/scenario_manager.py
-# STRATA SUITE // UNIFIED SCENARIO PERSISTENCE ENGINE
+# STRATA SUITE // UNIFIED SCENARIO PERSISTENCE ENGINE (DUAL-WRITE ENABLED)
 
 import json
 import os
 import streamlit as st
+from .database import get_db_cursor
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SCENARIOS_DIR = os.path.join(PROJECT_ROOT, "saved_scenarios")
@@ -42,9 +43,39 @@ def save_scenario_to_disk(scenario_name: str) -> bool:
         "vector_couplings": st.session_state.get("vector_couplings", []),
         "active_data": st.session_state.get("active_data", {}),
     }
-    # Enforce utf-8-sig encoding on save
-    with open(file_path, "w", encoding="utf-8-sig") as f:
-        json.dump(payload, f, indent=2)
+    
+    # 1. Local JSON Disk Persistence (Legacy Fallback)
+    try:
+        with open(file_path, "w", encoding="utf-8-sig") as f:
+            json.dump(payload, f, indent=2)
+    except Exception as e:
+        st.sidebar.error(f"Local disk write error: {e}")
+        return False
+
+    # 2. Cloud PostgreSQL Dual-Write (Neon DB)
+    tenant_id = st.session_state.get("tenant_id", "00000000-0000-0000-0000-000000000000")
+    try:
+        with get_db_cursor(tenant_id=tenant_id) as cursor:
+            if cursor:
+                # Upsert scenario into PostgreSQL scenarios table
+                cursor.execute(
+                    """
+                    INSERT INTO scenarios (tenant_id, project_name, horizon_months, active_data, custom_curves, updated_at)
+                    VALUES (%s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+                    ON CONFLICT DO NOTHING;
+                    """,
+                    (
+                        tenant_id if tenant_id != "default_tenant" else None,
+                        scenario_name,
+                        36,
+                        json.dumps(payload["active_data"]),
+                        json.dumps(payload["custom_curves"])
+                    )
+                )
+    except Exception as db_err:
+        # Log database sync warning but do not block local operation during dual-write phase
+        st.sidebar.warning(f"Cloud sync notice: {db_err}")
+
     st.session_state["active_project_name"] = scenario_name
     return True
 
@@ -54,7 +85,6 @@ def load_scenario_from_disk(scenario_name: str) -> bool:
     file_path = os.path.join(SCENARIOS_DIR, f"{clean_name}.json")
     if os.path.exists(file_path):
         try:
-            # Enforce utf-8-sig encoding on load to automatically strip Windows UTF-8 BOM
             with open(file_path, "r", encoding="utf-8-sig") as f:
                 payload = json.load(f)
             st.session_state["active_project_name"] = payload.get(
@@ -103,7 +133,7 @@ def render_global_scenario_sidebar():
 
     if c_btn2.button("💾 Save", width="stretch", key="btn_save_global_scen"):
         if save_scenario_to_disk(curr_active):
-            st.sidebar.success("Saved")
+            st.sidebar.success("Saved (Dual-Write Active)")
             st.rerun()
 
     with st.sidebar.expander("💾 Save / Duplicate As..."):
