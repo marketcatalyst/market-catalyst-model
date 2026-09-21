@@ -1,6 +1,6 @@
 ﻿# pyright: reportMissingImports=false
 # pages/reports.py
-# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v11.3-AUDIT-READY-EXPERT
+# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v11.4-AUDIT-READY-EXPERT
 # INTEGRATED DOUBLE-ENTRY GENERAL LEDGER // COMPLIANCE RECONCILIATION SCHEDULES & PDF/CSV EXPORTS
 
 import os
@@ -210,6 +210,11 @@ def sanitize_label(name: str) -> str:
 def get_exact_period_value(
     item_dict: dict, month_idx: int, yr_idx: int, seasonality_profiles: dict
 ) -> float:
+    # Strict enforcement: Suppress auxiliary/room hire or zero-baselined Year 1 revenue under severe stress
+    y1_base = float(item_dict.get("y1_baseline", 0.0))
+    if yr_idx == 1 and y1_base == 0.0:
+        return 0.0
+
     m_offset = (month_idx - 1) % 12
     m_lbl = f"M{str(month_idx).zfill(2)}"
 
@@ -222,7 +227,8 @@ def get_exact_period_value(
                 raw_val = arr[m_offset]
                 if raw_val is not None and str(raw_val).strip() != "":
                     try:
-                        return float(raw_val)
+                        val = float(raw_val)
+                        return 0.0 if (yr_idx == 1 and y1_base == 0.0) else val
                     except (ValueError, TypeError):
                         pass
 
@@ -231,13 +237,14 @@ def get_exact_period_value(
         raw_val = overrides[m_lbl]
         if raw_val is not None and str(raw_val).strip() != "":
             try:
-                return float(raw_val)
+                val = float(raw_val)
+                return 0.0 if (yr_idx == 1 and y1_base == 0.0) else val
             except (ValueError, TypeError):
                 pass
 
-    y_base = float(
-        item_dict.get(f"y{yr_idx}_baseline", item_dict.get("y1_baseline", 0.0))
-    )
+    if yr_idx == 1 and y1_base == 0.0:
+        return 0.0
+
     flex = (
         (1.0 + (float(item_dict.get("flex_pct", 0.0)) / 100.0)) if yr_idx > 1 else 1.0
     )
@@ -245,7 +252,11 @@ def get_exact_period_value(
     crv = seasonality_profiles.get(
         season_name, seasonality_profiles.get("Flat_Linear", [1 / 12] * 12)
     )
-    return y_base * flex * crv[m_offset]
+    return (
+        y1_base * flex * crv[m_offset]
+        if yr_idx == 1
+        else float(item_dict.get(f"y{yr_idx}_baseline", 0.0)) * flex * crv[m_offset]
+    )
 
 
 def get_active_seasonality():
@@ -2227,7 +2238,7 @@ with expert_t4:
             "Period Incurred (£)": sum(
                 gl_instance.get_period_movement("2100", m)
                 for m in range(1, horizon_months + 1)
-                if gl_instance.get_period_movement("2100", m) > 0
+                if gl_instance.get_period_movement("1100", m) > 0
             ),
             "Cash Settled (£)": sum(
                 gl_instance.journal_sum("2100", "1200", m)
