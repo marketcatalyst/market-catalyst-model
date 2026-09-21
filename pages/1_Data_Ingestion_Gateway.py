@@ -1,6 +1,6 @@
 # pyright: reportMissingImports=false
 # pages/1_Data_Ingestion_Gateway.py
-# STRATA SUITE PRODUCTION ENGINE // DATA INGESTION GATEWAY & SANDBOX v7.4.1-PRODUCTION
+# STRATA SUITE PRODUCTION ENGINE // DATA INGESTION GATEWAY & SANDBOX v7.4.2-PRODUCTION
 
 import os
 import sys
@@ -30,12 +30,11 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# =========================================================================
-# 🛡️ SECURITY INTERCEPT LAYER
-# =========================================================================
 if not st.session_state.get("authenticated"):
     st.title("🏛️ STRATA // Security Intercept")
-    st.warning("🔒 This workspace session is currently unauthenticated or has timed out.")
+    st.warning(
+        "🔒 This workspace session is currently unauthenticated or has timed out."
+    )
     if st.button("🔑 Return to Home Portal & Sign In", width="stretch"):
         st.switch_page("home.py")
     st.stop()
@@ -50,9 +49,6 @@ active_sic = st.session_state.get(
     },
 )
 
-# =========================================================================
-# 🎛️ PORTAL FRONT-END USER INTERFACE CANVAS
-# =========================================================================
 st.title("📥 Unstructured Data Ingestion Gateway")
 st.markdown(
     f"🏭 **Active Industry Configuration:** Mapped to Code `{active_sic['sic_code']}` ({active_sic['sector']}) | "
@@ -70,7 +66,7 @@ with col_info1:
     st.markdown(
         "* **Multi-Format Scanning:** Drop raw transaction metrics, text-based PDFs, spreadsheets, or scanned image receipts (`JPEG`, `JPG`, `PNG`) safely.\n"
         "* **Month 00 Initialization:** Automatically isolates opening Trial Balance entries, capital injections, and setup costs specifically allocated to Month '00' preparation hooks.\n"
-        "* **Automated Mapping:** Formulates standalone baseline target profiles for Years 1 through 5, matching active framework parameters behind the scenes."
+        "* **Automated Mapping:** Formulates standalone baseline target profiles for Years 1 through 3, matching active framework parameters behind the scenes."
     )
 
 with col_info2:
@@ -86,9 +82,6 @@ st.markdown("---")
 if "scratchpad_queue" not in st.session_state:
     st.session_state["scratchpad_queue"] = []
 
-# =========================================================================
-# 📂 MULTI-FORMAT FILE UPLOADER (PDF, CSV, JPEG, JPG, PNG, TXT)
-# =========================================================================
 st.subheader("📂 Drag and Drop Documents or Scanned Images")
 uploaded_file = st.file_uploader(
     "Upload Structural Corporate Document or Image (PDF, CSV, JPEG, JPG, PNG, TXT):",
@@ -98,7 +91,6 @@ uploaded_file = st.file_uploader(
 
 
 def extract_clean_json(text: str):
-    """Safely isolates and parses JSON objects or lists from raw AI responses."""
     clean_text = text.strip()
     if clean_text.startswith("```"):
         clean_text = re.sub(r"^```(?:json)?\s*", "", clean_text, flags=re.IGNORECASE)
@@ -140,7 +132,6 @@ if uploaded_file is not None:
                     )
                 else:
                     genai.configure(api_key=g_key)
-
                     file_extension = uploaded_file.name.split(".")[-1].lower()
 
                     if file_extension in ["jpeg", "jpg", "png", "pdf"]:
@@ -162,8 +153,8 @@ if uploaded_file is not None:
                     
                     CRITICAL DIRECTIONS:
                     1. Extract ALL primary income statement, direct cost, overhead, capex, and equity line items present in the document.
-                    2. If the document represents an opening Trial Balance, setup expenditure, or pre-launch capital infusion meant for Month '00' initialization, explicitly assign starting values to Year 1 ('y1') and set target_month_index to 0.
-                    3. Extract historical baselines or annual totals for up to 5 operating years ('y1' through 'y5'). If multi-year data is not provided, populate 'y1' with the annual total or run-rate and set y2..y5 to 0.0.
+                    2. If the document represents an opening Trial Balance, setup expenditure, or pre-launch capital infusion meant for Month '00' initialization, explicitly assign starting values to Year 1 ('y1_baseline') and set target_month_index to 0.
+                    3. Extract historical baselines or annual totals for up to 3 operating years ('y1_baseline', 'y2_baseline', 'y3_baseline'). If multi-year data is not provided, populate 'y1_baseline' with the annual total or run-rate and set y2..y3 to 0.0.
                     4. Valid 'type' values are strictly: "sales", "cogs", "opex", "equity_funding", or "outright_capex".
                     
                     Return a valid JSON ARRAY of objects matching this schema exactly:
@@ -171,13 +162,12 @@ if uploaded_file is not None:
                       {{
                         "type": "sales" or "cogs" or "opex" or "equity_funding" or "outright_capex",
                         "name": "Line item identifier name description",
-                        "y1": float_value,
-                        "y2": float_value,
-                        "y3": float_value,
-                        "y4": float_value,
-                        "y5": float_value,
+                        "y1_baseline": float_value,
+                        "y2_baseline": float_value,
+                        "y3_baseline": float_value,
                         "target_month_index": 0 or 1,
-                        "seasonality": "Flat_Linear" or "Winter_Peak" or "Summer_Peak"
+                        "seasonality": "Flat_Linear" or "Winter_Peak" or "Summer_Peak",
+                        "enable_seasonality": false
                       }}
                     ]
                     """
@@ -187,15 +177,13 @@ if uploaded_file is not None:
                         generation_config={"response_mime_type": "application/json"},
                     )
                     response = model.generate_content([prompt] + file_payload)
-
                     parsed_result = extract_clean_json(response.text)
 
-                    if isinstance(parsed_result, dict):
-                        items_to_process = [parsed_result]
-                    elif isinstance(parsed_result, list):
-                        items_to_process = parsed_result
-                    else:
-                        items_to_process = []
+                    items_to_process = (
+                        [parsed_result]
+                        if isinstance(parsed_result, dict)
+                        else (parsed_result if isinstance(parsed_result, list) else [])
+                    )
 
                     count_added = 0
                     for item in items_to_process:
@@ -204,16 +192,23 @@ if uploaded_file is not None:
                                 {
                                     "type": item.get("type", "opex"),
                                     "name": f"[AI Scan] {item.get('name')}",
-                                    "y1": float(item.get("y1", 0.0)),
-                                    "y2": float(item.get("y2", 0.0)),
-                                    "y3": float(item.get("y3", 0.0)),
-                                    "y4": float(item.get("y4", 0.0)),
-                                    "y5": float(item.get("y5", 0.0)),
+                                    "y1_baseline": float(
+                                        item.get("y1_baseline", item.get("y1", 0.0))
+                                    ),
+                                    "y2_baseline": float(
+                                        item.get("y2_baseline", item.get("y2", 0.0))
+                                    ),
+                                    "y3_baseline": float(
+                                        item.get("y3_baseline", item.get("y3", 0.0))
+                                    ),
                                     "target_month_index": int(
                                         item.get("target_month_index", 1)
                                     ),
                                     "seasonality": item.get(
                                         "seasonality", "Flat_Linear"
+                                    ),
+                                    "enable_seasonality": bool(
+                                        item.get("enable_seasonality", False)
                                     ),
                                 }
                             )
@@ -232,9 +227,6 @@ if uploaded_file is not None:
             except Exception as e:
                 st.error(f"Cognitive Pipeline Exception Encountered: {str(e)}")
 
-# =========================================================================
-# 📝 THE COGNITIVE SCRATCHPAD REVIEW INTERFACE
-# =========================================================================
 if st.session_state["scratchpad_queue"]:
     st.markdown("---")
     st.subheader("📝 Sandbox Scratchpad Queue (Review & Verify Items)")
@@ -251,18 +243,25 @@ if st.session_state["scratchpad_queue"]:
             width="small",
         ),
         "name": st.column_config.TextColumn("Line Item Identifier", width="large"),
-        "y1": st.column_config.NumberColumn("Year 1 Base (£)", format="£%,.2f"),
-        "y2": st.column_config.NumberColumn("Year 2 Base (£)", format="£%,.2f"),
-        "y3": st.column_config.NumberColumn("Year 3 Base (£)", format="£%,.2f"),
-        "y4": st.column_config.NumberColumn("Year 4 Base (£)", format="£%,.2f"),
-        "y5": st.column_config.NumberColumn("Year 5 Base (£)", format="£%,.2f"),
+        "y1_baseline": st.column_config.NumberColumn(
+            "Year 1 Base (£)", format="£%,.2f"
+        ),
+        "y2_baseline": st.column_config.NumberColumn(
+            "Year 2 Base (£)", format="£%,.2f"
+        ),
+        "y3_baseline": st.column_config.NumberColumn(
+            "Year 3 Base (£)", format="£%,.2f"
+        ),
         "target_month_index": st.column_config.NumberColumn(
-            "Target Month Index (e.g. 0 for Opening Balance)", format="%d"
+            "Target Month Index (0 for Opening)", format="%d"
         ),
         "seasonality": st.column_config.SelectboxColumn(
             "Timeline Seasonal Curve",
             options=["Flat_Linear", "Winter_Peak", "Summer_Peak"],
             width="medium",
+        ),
+        "enable_seasonality": st.column_config.CheckboxColumn(
+            "Enable Seasonality Toggle", default=False
         ),
     }
 
@@ -308,7 +307,7 @@ if st.session_state["scratchpad_queue"]:
                     st.session_state["active_data"]["equity_funding"].append(
                         {
                             "name": str(r["name"]),
-                            "amount": float(r["y1"]),
+                            "amount": float(r["y1_baseline"]),
                             "month": int(r["target_month_index"]),
                         }
                     )
@@ -316,7 +315,7 @@ if st.session_state["scratchpad_queue"]:
                     st.session_state["active_data"]["outright_capex"].append(
                         {
                             "name": str(r["name"]),
-                            "amount": float(r["y1"]),
+                            "amount": float(r["y1_baseline"]),
                             "month": (
                                 int(r["target_month_index"])
                                 if int(r["target_month_index"]) > 0
@@ -329,16 +328,16 @@ if st.session_state["scratchpad_queue"]:
                     st.session_state["active_data"][bucket].append(
                         {
                             "name": str(r["name"]),
-                            "y1_baseline": float(r["y1"]),
-                            "y2_baseline": float(r["y2"]),
-                            "y3_baseline": float(r["y3"]),
-                            "y4_baseline": float(r["y4"]),
-                            "y5_baseline": float(r["y5"]),
+                            "y1_baseline": float(r["y1_baseline"]),
+                            "y2_baseline": float(r["y2_baseline"]),
+                            "y3_baseline": float(r["y3_baseline"]),
                             "seasonality": str(r["seasonality"]),
+                            "enable_seasonality": bool(r["enable_seasonality"]),
                             "vat_rate_type": active_sic.get(
                                 "default_vat_type", "Standard 20%"
                             ),
                             "payment_delay": 0,
+                            "flex_pct": 0.0,
                             "overrides": {},
                         }
                     )
@@ -354,9 +353,6 @@ st.page_link(
     "pages/app.py", label="↩️ Skip Ingestion & Open Corporate Command Center Directly"
 )
 
-# =========================================================================
-# 🧭 FIXED SIDEBAR COMPASS & UNIFIED SCENARIO CONTROLS
-# =========================================================================
 st.sidebar.markdown("### Compass Options")
 st.sidebar.page_link("home.py", label="🏠 Home Portal")
 st.sidebar.page_link(

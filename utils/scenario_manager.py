@@ -17,6 +17,10 @@ def get_saved_scenarios():
     return sorted(files) if files else ["Default_Baseline"]
 
 
+# Backward compatibility alias for home.py routing
+list_available_scenarios = get_saved_scenarios
+
+
 def load_scenario_from_disk(scenario_name: str):
     os.makedirs(SCENARIOS_DIR, exist_ok=True)
     file_path = os.path.join(SCENARIOS_DIR, f"{scenario_name}.json")
@@ -31,13 +35,13 @@ def load_scenario_from_disk(scenario_name: str):
 
 
 def save_scenario_to_disk(
-    scenario_name: str, state_data: dict, custom_curves: dict = None
+    scenario_name: str, state_data: dict = None, custom_curves: dict = None
 ):
     os.makedirs(SCENARIOS_DIR, exist_ok=True)
     file_path = os.path.join(SCENARIOS_DIR, f"{scenario_name}.json")
     payload = {
-        "active_ project_name": scenario_name,
-        "active_data": state_data,
+        "active_project_name": scenario_name,
+        "active_data": state_data or st.session_state.get("active_data", {}),
         "custom_curves": custom_curves or st.session_state.get("custom_curves", {}),
     }
     try:
