@@ -1,6 +1,6 @@
 ﻿# pyright: reportMissingImports=false
 # pages/app.py
-# STRATA SUITE PRODUCTION ENGINE // DATA ENTRY & SCENARIO MANAGER v9.8.0-ENTERPRISE
+# STRATA SUITE PRODUCTION ENGINE // DATA ENTRY & SCENARIO MANAGER v9.8.1-ENTERPRISE
 # FULL UNABRIDGED SPECIFICATION: DISK PERSISTENCE, VECTOR COUPLINGS, MATRIX OVERRIDES, CUSTOM CURVES
 
 import json
@@ -525,7 +525,9 @@ with st.expander("👥 4. THE PERSONNEL HORIZON DESK", expanded=False):
             }
         )
         st.rerun()
-    if payroll_list and col_btn2.button("🗑️ Remove Last Personnel Position", width="stretch"):
+    if payroll_list and col_btn2.button(
+        "🗑️ Remove Last Personnel Position", width="stretch"
+    ):
         payroll_list.pop()
         st.rerun()
 
@@ -628,7 +630,9 @@ with st.expander("📑 6. FINANCED ASSETS & FACILITY LIABILITIES", expanded=Fals
             }
         )
         st.rerun()
-    if fin_list and col_btn2.button("🗑️ Remove Last Financed Facility", width="stretch"):
+    if fin_list and col_btn2.button(
+        "🗑️ Remove Last Financed Facility", width="stretch"
+    ):
         fin_list.pop()
         st.rerun()
 
@@ -683,7 +687,9 @@ b_save, b_rep = st.columns(2)
 with b_save:
     if st.button("💾 Persist Current Working State to Disk", width="stretch"):
         cur_scen = st.session_state.get("active_project_name", "Padel_Centre_Baseline")
-        if save_scenario_to_disk(cur_scen):
+        current_state = st.session_state.get("active_data", {})
+        current_curves = st.session_state.get("custom_curves", {})
+        if save_scenario_to_disk(cur_scen, current_state, current_curves):
             st.success(f"✔️ Active data successfully written to disk as `{cur_scen}`.")
 with b_rep:
     if st.button("🚀 Calculate & View Reconciled Reports", width="stretch"):
