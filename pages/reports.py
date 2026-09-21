@@ -1,7 +1,7 @@
 ﻿# pyright: reportMissingImports=false
 # pages/reports.py
-# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v11.6-SSOT-STRICT
-# INTEGRATED DOUBLE-ENTRY GENERAL LEDGER // COMPLIANCE RECONCILIATION SCHEDULES & PDF/CSV EXPORTS
+# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v11.9-SSOT-STRICT
+# INTEGRATED DOUBLE-ENTRY GENERAL LEDGER // EXPLICIT ENTRY MODE RESOLVER
 
 import os
 import sys
@@ -55,7 +55,7 @@ if not st.session_state.get("authenticated"):
     st.warning(
         "🔒 This workspace session is currently unauthenticated or has timed out."
     )
-    if st.button("🔑 Return to Home Portal & Sign In", width="stretch"):
+    if st.button("🔑 Return to Home Portal & Sign In", use_container_width=True):
         st.switch_page("home.py")
     st.stop()
 
@@ -213,50 +213,58 @@ def get_exact_period_value(
     item_dict: dict, month_idx: int, yr_idx: int, seasonality_profiles: dict
 ) -> float:
     """
-    Single Source of Truth Period Resolver:
-    1. Monthly Matrix Data (Primary Standard)
-    2. Manual Monthly Overrides
-    3. Fallback Baseline with Optional Seasonality Toggle
+    Explicit Mode SSOT Period Resolver:
+    1. 'Manual Monthly Override': Reads strictly from monthly overrides / matrix grids.
+    2. 'Flat Linear Baseline': Evenly divides the annual baseline across 12 months.
+    3. 'Annual Baseline + Seasonality Curve': Applies the selected curve distribution weights.
     """
+    entry_mode = item_dict.get("entry_mode", "Annual Baseline + Seasonality Curve")
     m_offset = (month_idx - 1) % 12
     m_lbl = f"M{str(month_idx).zfill(2)}"
 
-    matrix = item_dict.get("matrix_data")
-    if isinstance(matrix, dict):
-        y_key = f"Y{yr_idx}"
-        if y_key in matrix and isinstance(matrix[y_key], list):
-            arr = matrix[y_key]
-            if len(arr) > m_offset:
-                raw_val = arr[m_offset]
-                if raw_val is not None and str(raw_val).strip() != "":
-                    try:
-                        return float(raw_val)
-                    except (ValueError, TypeError):
-                        pass
-
-    overrides = item_dict.get("overrides")
-    if isinstance(overrides, dict) and m_lbl in overrides:
-        raw_val = overrides[m_lbl]
-        if raw_val is not None and str(raw_val).strip() != "":
+    if entry_mode == "Manual Monthly Override":
+        overrides = item_dict.get("overrides", {})
+        if m_lbl in overrides and str(overrides[m_lbl]).strip() != "":
             try:
-                return float(raw_val)
+                return float(overrides[m_lbl])
             except (ValueError, TypeError):
                 pass
+        matrix = item_dict.get("matrix_data", {})
+        y_key = f"Y{yr_idx}"
+        if isinstance(matrix, dict) and y_key in matrix:
+            arr = matrix[y_key]
+            if isinstance(arr, list) and len(arr) > m_offset:
+                try:
+                    val = arr[m_offset]
+                    if val is not None and str(val).strip() != "":
+                        return float(val)
+                except (ValueError, TypeError):
+                    pass
+        return 0.0
 
-    y_base = float(
-        item_dict.get(f"y{yr_idx}_baseline", item_dict.get("y1_baseline", 0.0))
-    )
-    flex = (
-        (1.0 + (float(item_dict.get("flex_pct", 0.0)) / 100.0)) if yr_idx > 1 else 1.0
-    )
+    elif entry_mode == "Flat Linear Baseline":
+        y_base = float(
+            item_dict.get(f"y{yr_idx}_baseline", item_dict.get("y1_baseline", 0.0))
+        )
+        flex = (
+            (1.0 + (float(item_dict.get("flex_pct", 0.0)) / 100.0))
+            if yr_idx > 1
+            else 1.0
+        )
+        return (y_base * flex) / 12.0
 
-    use_seasonality = item_dict.get("enable_seasonality", False)
-    if use_seasonality:
+    else:  # Annual Baseline + Seasonality Curve (Default)
+        y_base = float(
+            item_dict.get(f"y{yr_idx}_baseline", item_dict.get("y1_baseline", 0.0))
+        )
+        flex = (
+            (1.0 + (float(item_dict.get("flex_pct", 0.0)) / 100.0))
+            if yr_idx > 1
+            else 1.0
+        )
         season_name = item_dict.get("seasonality", "Flat_Linear")
         crv = seasonality_profiles.get(season_name, [1 / 12] * 12)
         return y_base * flex * crv[m_offset]
-    else:
-        return (y_base * flex) / 12.0
 
 
 def get_active_seasonality():
@@ -311,18 +319,13 @@ def audit_ingestion_completeness(state: dict, horizon_years: int = 3):
         y1 = float(s.get("y1_baseline", 0.0))
         y2 = float(s.get("y2_baseline", 0.0))
         y3 = float(s.get("y3_baseline", 0.0))
-        has_ov = any(
-            float(v) > 0 for v in s.get("overrides", {}).values() if str(v).strip()
-        )
-        if y1 == 0 and y2 == 0 and y3 == 0 and not has_ov:
-            warnings.append(
-                f"⚠️ Vector '{name}' in Sales has zero revenue across all years and overrides."
-            )
         aggregation_notes["Sales"].append(
             {
                 "Line Item": name,
+                "Entry Mode": s.get(
+                    "entry_mode", "Annual Baseline + Seasonality Curve"
+                ),
                 "VAT Profile": s.get("vat_rate_type", "Standard 20%"),
-                "Payment Terms": f"{s.get('payment_delay', 0)} Days Lag",
                 "Year 1": y1,
                 "Year 2": y2,
                 "Year 3": y3,
@@ -338,12 +341,10 @@ def audit_ingestion_completeness(state: dict, horizon_years: int = 3):
         aggregation_notes["COGS"].append(
             {
                 "Line Item": name,
-                "VAT Profile": c.get("vat_rate_type", "Standard 20%"),
-                "Cost Nature": (
-                    "Direct Personnel"
-                    if "staff" in name.lower()
-                    else "Direct Operating Cost"
+                "Entry Mode": c.get(
+                    "entry_mode", "Annual Baseline + Seasonality Curve"
                 ),
+                "VAT Profile": c.get("vat_rate_type", "Standard 20%"),
                 "Year 1": y1,
                 "Year 2": y2,
                 "Year 3": y3,
@@ -565,7 +566,7 @@ def execute_full_simulation(state, horizon_months=36):
                     "8000",
                     "0021",
                     dep,
-                    f"Multi-Basis Depr Direct CapEx: {outright.get('name')}",
+                    f"Depreciation Direct CapEx: {outright.get('name')}",
                 )
 
         for fin in state.get("financed_assets", []):
@@ -576,7 +577,7 @@ def execute_full_simulation(state, horizon_months=36):
                     "8000",
                     "0021",
                     dep,
-                    f"Multi-Basis Depr Lease Asset: {fin.get('name')}",
+                    f"Depreciation Lease Asset: {fin.get('name')}",
                 )
 
         if m in vat_settle_months:
@@ -1901,9 +1902,9 @@ st.markdown("---")
 
 t1, t2, t3, t4 = st.tabs(
     [
-        " Reconciled Financial Statements",
-        " Fixed Infrastructure Asset Ledger",
-        " External Debt Liabilities Registry",
+        "📋 Reconciled Financial Statements",
+        "🚜 Fixed Infrastructure Asset Ledger",
+        "🏛️ External Debt Liabilities Registry",
         "🌐 Master Group Consolidation",
     ]
 )
