@@ -1,5 +1,5 @@
 # home.py
-# STRATA SUITE ACCESS GATEWAY // MAIN ENTRANCE PORTAL v8.0-PRODUCTION
+# STRATA SUITE ACCESS GATEWAY // MAIN ENTRANCE PORTAL v8.1-PRODUCTION
 
 import os
 import sys
@@ -97,7 +97,7 @@ p_col1, p_col2 = st.columns([6, 6])
 with p_col1:
     avail_blueprints = list_available_scenarios()
     curr_active = st.session_state.get("active_project_name", "Padel_Centre_Baseline")
-    
+
     options = ["-- Select Saved Project Scenario --"] + avail_blueprints
     selected_blueprint = st.selectbox(
         "Switch Active Project Model Context:",
@@ -107,7 +107,12 @@ with p_col1:
         selected_blueprint != "-- Select Saved Project Scenario --"
         and selected_blueprint != curr_active
     ):
-        if load_scenario_from_disk(selected_blueprint):
+        loaded_data = load_scenario_from_disk(selected_blueprint)
+        if loaded_data:
+            st.session_state["active_project_name"] = selected_blueprint
+            st.session_state["active_data"] = loaded_data.get("active_data", {})
+            st.session_state["custom_curves"] = loaded_data.get("custom_curves", {})
+            st.session_state["cached_ai_analysis"] = ""
             st.toast(f"Loaded Core State Matrix: {selected_blueprint}")
             st.rerun()
 
@@ -118,7 +123,13 @@ with p_col2:
     )
     if st.button("💾 Save Project Configuration", use_container_width=True):
         if active_project_handle.strip():
-            save_scenario_to_disk(active_project_handle.strip())
+            clean_name = active_project_handle.strip().replace(" ", "_")
+            save_scenario_to_disk(
+                clean_name,
+                st.session_state.get("active_data", {}),
+                st.session_state.get("custom_curves", {}),
+            )
+            st.session_state["active_project_name"] = clean_name
             st.toast("Project Configuration committed successfully to disk!")
             st.rerun()
 

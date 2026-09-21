@@ -75,6 +75,12 @@ def render_global_scenario_sidebar():
         if loaded_data:
             st.session_state["active_data"] = loaded_data.get("active_data", {})
             st.session_state["custom_curves"] = loaded_data.get("custom_curves", {})
+        else:
+            st.session_state["active_data"] = {}
+            st.session_state["custom_curves"] = {}
+
+        # Clear analysis cache to prevent cross-scenario data bleeding
+        st.session_state["cached_ai_analysis"] = ""
         st.rerun()
 
     st.sidebar.markdown("---")
@@ -88,7 +94,9 @@ def render_global_scenario_sidebar():
         if st.button("Save Current", width="stretch"):
             if current_active:
                 save_scenario_to_disk(
-                    current_active, st.session_state.get("active_data", {})
+                    current_active,
+                    st.session_state.get("active_data", {}),
+                    st.session_state.get("custom_curves", {}),
                 )
                 st.sidebar.success(f"Saved '{current_active}'")
     with col2:
@@ -96,6 +104,10 @@ def render_global_scenario_sidebar():
             if new_scenario_name.strip():
                 clean_name = new_scenario_name.strip().replace(" ", "_")
                 base_data = st.session_state.get("active_data", {})
-                save_scenario_to_disk(clean_name, base_data)
+                base_curves = st.session_state.get("custom_curves", {})
+                save_scenario_to_disk(clean_name, base_data, base_curves)
                 st.session_state["active_project_name"] = clean_name
+                st.session_state["active_data"] = base_data
+                st.session_state["custom_curves"] = base_curves
+                st.session_state["cached_ai_analysis"] = ""
                 st.rerun()
