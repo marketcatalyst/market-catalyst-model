@@ -1,6 +1,6 @@
 ﻿# pyright: reportMissingImports=false
 # pages/reports.py
-# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v11.5-AUDIT-READY-EXPERT
+# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v11.6-SSOT-STRICT
 # INTEGRATED DOUBLE-ENTRY GENERAL LEDGER // COMPLIANCE RECONCILIATION SCHEDULES & PDF/CSV EXPORTS
 
 import os
@@ -60,6 +60,28 @@ if not st.session_state.get("authenticated"):
     st.stop()
 
 # =========================================================================
+# 🔄 RIGID SSOT DISK SYNC & CACHE PURGE (PREVENTS STALE MEMORY LEAKS)
+# =========================================================================
+current_project = st.session_state.get("active_project_name", "Padel_Centre_Baseline")
+scenario_path = os.path.join(PROJECT_ROOT, "saved_scenarios", f"{current_project}.json")
+
+if os.path.exists(scenario_path):
+    try:
+        with open(scenario_path, "r", encoding="utf-8-sig") as sf:
+            disk_scenario = json.load(sf)
+            if "active_data" in disk_scenario:
+                st.session_state["active_data"] = disk_scenario["active_data"]
+            if "custom_curves" in disk_scenario:
+                st.session_state["custom_curves"] = disk_scenario["custom_curves"]
+    except Exception:
+        pass
+
+prev_project = st.session_state.get("_last_synced_project")
+if prev_project is not None and prev_project != current_project:
+    st.session_state["cached_ai_analysis"] = ""
+st.session_state["_last_synced_project"] = current_project
+
+# =========================================================================
 # 🧭 SIDEBAR COMPASS & SCENARIO CONTROL DESK
 # =========================================================================
 st.sidebar.markdown("### Compass Options")
@@ -71,27 +93,7 @@ st.sidebar.page_link("pages/onboarding.py", label="🕸️ Data Input Parameters
 st.sidebar.page_link("pages/app.py", label="✍️ Data Entry Panel")
 st.sidebar.page_link("pages/reports.py", label="📊 Performance Tab")
 
-prev_project = st.session_state.get("_last_synced_project")
 render_global_scenario_sidebar()
-current_project = st.session_state.get("active_project_name", "Unsaved_Draft_Scenario")
-if prev_project is not None and prev_project != current_project:
-    st.session_state["cached_ai_analysis"] = ""
-st.session_state["_last_synced_project"] = current_project
-
-# =========================================================================
-# 🔄 FORCE DIRECT SYNC FROM SCENARIO DISK (PREVENTS STALE MEMORY CACHE)
-# =========================================================================
-scenario_path = os.path.join(PROJECT_ROOT, "saved_scenarios", f"{current_project}.json")
-if os.path.exists(scenario_path):
-    try:
-        with open(scenario_path, "r", encoding="utf-8-sig") as sf:
-            disk_scenario = json.load(sf)
-            if "active_data" in disk_scenario:
-                st.session_state["active_data"] = disk_scenario["active_data"]
-            if "custom_curves" in disk_scenario:
-                st.session_state["custom_curves"] = disk_scenario["custom_curves"]
-    except Exception:
-        pass
 
 # =========================================================================
 # 🏛️ AUDITED GENERAL LEDGER ENGINE
@@ -219,7 +221,6 @@ def get_exact_period_value(
     m_offset = (month_idx - 1) % 12
     m_lbl = f"M{str(month_idx).zfill(2)}"
 
-    # 1. Monthly Matrix Data
     matrix = item_dict.get("matrix_data")
     if isinstance(matrix, dict):
         y_key = f"Y{yr_idx}"
@@ -233,7 +234,6 @@ def get_exact_period_value(
                     except (ValueError, TypeError):
                         pass
 
-    # 2. Manual Monthly Overrides
     overrides = item_dict.get("overrides")
     if isinstance(overrides, dict) and m_lbl in overrides:
         raw_val = overrides[m_lbl]
@@ -243,7 +243,6 @@ def get_exact_period_value(
             except (ValueError, TypeError):
                 pass
 
-    # 3. Fallback Baseline with Optional Seasonality Toggle
     y_base = float(
         item_dict.get(f"y{yr_idx}_baseline", item_dict.get("y1_baseline", 0.0))
     )
@@ -1091,11 +1090,11 @@ def compile_premium_html_report(
 
 def compile_statutory_landscape_pdf(
     project_name: str,
-    state: dict,
-    gl: AuditedGeneralLedger,
     df_pl: pd.DataFrame,
     df_cf: pd.DataFrame,
     df_bs: pd.DataFrame,
+    state: dict,
+    gl: AuditedGeneralLedger,
     horizon_years: int = 3,
 ) -> bytes:
     month_names = [
@@ -1613,12 +1612,12 @@ def compile_statutory_landscape_pdf(
 
 
 # =========================================================================
-# 🎛️ WORKSPACE DISPLAY RENDERING CANVAS WITH DYNAMIC HORIZON SELECTOR (REQ-ENG-01)
+# 🎛️ WORKSPACE DISPLAY RENDERING CANVAS WITH DYNAMIC HORIZON SELECTOR
 # =========================================================================
 
 st.title("📊 Performance & Reporting Summary Pack")
 st.caption(
-    f"Active Scenario Context: `{st.session_state.get('active_project_name', 'Unsaved_Draft_Scenario')}`"
+    f"Active Scenario Context: `{st.session_state.get('active_project_name', 'Padel_Centre_Baseline')}`"
 )
 st.page_link("pages/app.py", label="✍️ Return to Data Entry Panel")
 st.markdown("---")
@@ -1709,11 +1708,11 @@ with exp_c1:
                 project_name=st.session_state.get(
                     "active_project_name", "Padel_Centre_Baseline"
                 ),
-                state=active_data_context,
-                gl=gl_instance,
                 df_pl=df_pl,
                 df_cf=df_cf,
                 df_bs=df_bs,
+                state=active_data_context,
+                gl=gl_instance,
                 horizon_years=horizon_years,
             )
             st.download_button(
