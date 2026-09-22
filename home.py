@@ -13,6 +13,7 @@ from utils.scenario_manager import (  # type: ignore[import-not-found]
     list_available_scenarios,
     load_scenario_from_disk,
     save_scenario_to_disk,
+    generate_standard_scenarios,
 )
 
 st.set_page_config(
@@ -177,6 +178,17 @@ st.sidebar.page_link("pages/reports.py", label="📊 Performance Tab")
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 👤 Session Controls")
+
+if st.sidebar.button("🔄 Force Regenerate Scenarios", use_container_width=True):
+    generate_standard_scenarios()
+    loaded_data = load_scenario_from_disk(
+        st.session_state.get("active_project_name", "Padel_Centre_Baseline")
+    )
+    if loaded_data:
+        st.session_state["active_data"] = loaded_data.get("active_data", {})
+        st.session_state["custom_curves"] = loaded_data.get("custom_curves", {})
+    st.sidebar.success("Canonical scenarios regenerated and reloaded from disk!")
+    st.rerun()
 
 if st.sidebar.button("🚪 Log Off Session", use_container_width=True):
     st.session_state["authenticated"] = False

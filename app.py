@@ -1,4 +1,4 @@
-﻿# pyright: reportMissingImports=false
+# pyright: reportMissingImports=false
 # pages/app.py
 # STRATA SUITE PRODUCTION ENGINE // DATA ENTRY & VECTOR CONFIGURATION DESK v11.11-SSOT-STRICT
 
