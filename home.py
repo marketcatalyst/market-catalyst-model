@@ -1,5 +1,5 @@
 # home.py
-# STRATA SUITE ACCESS GATEWAY // MAIN ENTRANCE PORTAL v8.1-PRODUCTION
+# STRATA SUITE ACCESS GATEWAY // MAIN ENTRANCE PORTAL v12.0-SSOT-BLANK-CLIENT
 
 import os
 import sys
@@ -9,11 +9,12 @@ PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-from utils.scenario_manager import (  # type: ignore[import-not-found]
+from utils.scenario_manager import (
+    DEFAULT_BLANK_SCENARIO,
+    create_blank_scenario,
     list_available_scenarios,
     load_scenario_from_disk,
     save_scenario_to_disk,
-    generate_standard_scenarios,
 )
 
 st.set_page_config(
@@ -43,21 +44,36 @@ if "sic_profile" not in st.session_state:
 if "active_data" not in st.session_state:
     st.session_state["active_data"] = {
         "sales": [],
-        "milestones": [],
         "cogs": [],
         "opex": [],
+        "payroll": [],
         "financed_assets": [],
         "outright_capex": [],
-        "payroll": [],
         "equity_funding": [],
     }
 if "vector_couplings" not in st.session_state:
     st.session_state["vector_couplings"] = []
 if "custom_curves" not in st.session_state:
     st.session_state["custom_curves"] = {}
+if "scratchpad_queue" not in st.session_state:
+    st.session_state["scratchpad_queue"] = []
+if "cached_ai_analysis" not in st.session_state:
+    st.session_state["cached_ai_analysis"] = ""
 
-if "active_project_name" not in st.session_state:
-    st.session_state["active_project_name"] = "Padel_Centre_Baseline"
+available_on_boot = list_available_scenarios()
+default_active = available_on_boot[0] if available_on_boot else DEFAULT_BLANK_SCENARIO
+if (
+    "active_project_name" not in st.session_state
+    or not st.session_state["active_project_name"]
+):
+    st.session_state["active_project_name"] = default_active
+
+
+def wipe_slate_for_new_client(project_name: str):
+    clean_name = create_blank_scenario(project_name or DEFAULT_BLANK_SCENARIO)
+    st.session_state["scratchpad_queue"] = []
+    st.session_state["cached_ai_analysis"] = ""
+    return clean_name
 
 
 # --- GATEWAY VIEW 1: SECURE SIGN-IN PORTAL ---
@@ -94,14 +110,15 @@ st.title("🏛️ STRATA // Financial Intelligence Suite")
 st.markdown("---")
 
 st.subheader("📁 Project Workspace Directory Room")
-p_col1, p_col2 = st.columns([6, 6])
-with p_col1:
-    avail_blueprints = list_available_scenarios()
-    curr_active = st.session_state.get("active_project_name", "Padel_Centre_Baseline")
+curr_active = st.session_state.get("active_project_name", DEFAULT_BLANK_SCENARIO)
+avail_blueprints = list_available_scenarios()
 
+p_col1, p_col2, p_col3 = st.columns([4, 4, 4])
+
+with p_col1:
     options = ["-- Select Saved Project Scenario --"] + avail_blueprints
     selected_blueprint = st.selectbox(
-        "Switch Active Project Model Context:",
+        "Switch Existing Project Scenario:",
         options=options,
     )
     if (
@@ -113,31 +130,46 @@ with p_col1:
             st.session_state["active_project_name"] = selected_blueprint
             st.session_state["active_data"] = loaded_data.get("active_data", {})
             st.session_state["custom_curves"] = loaded_data.get("custom_curves", {})
+            st.session_state["vector_couplings"] = loaded_data.get(
+                "vector_couplings", []
+            )
             st.session_state["cached_ai_analysis"] = ""
             st.toast(f"Loaded Core State Matrix: {selected_blueprint}")
             st.rerun()
 
 with p_col2:
-    active_project_handle = st.text_input(
-        "Create / Save Project Name Identifier:",
-        value=curr_active,
+    new_client_name = st.text_input(
+        "New Client / Project Name:",
+        placeholder="e.g. Acme_Ltd_Baseline",
+        key="home_new_client_input",
     )
-    if st.button("💾 Save Project Configuration", use_container_width=True):
-        if active_project_handle.strip():
-            clean_name = active_project_handle.strip().replace(" ", "_")
+    if st.button("✨ Start New Blank Project", use_container_width=True):
+        created_name = wipe_slate_for_new_client(new_client_name)
+        st.toast(f"Started clean blank project: {created_name}")
+        st.rerun()
+
+with p_col3:
+    rename_or_save_name = st.text_input(
+        "Save Current Project As:",
+        value=curr_active,
+        key="home_save_current_input",
+    )
+    if st.button("💾 Save Current Project", use_container_width=True):
+        if rename_or_save_name.strip():
+            clean_name = rename_or_save_name.strip().replace(" ", "_")
             save_scenario_to_disk(
                 clean_name,
                 st.session_state.get("active_data", {}),
                 st.session_state.get("custom_curves", {}),
             )
             st.session_state["active_project_name"] = clean_name
-            st.toast("Project Configuration committed successfully to disk!")
+            st.toast(f"Saved project '{clean_name}' to disk!")
             st.rerun()
 
 st.markdown("---")
 st.subheader("🧭 Guided Corporate Optimization Pipeline")
 st.info(
-    f"💡 **Active Working Blueprint Instance Context:** `{st.session_state.get('active_project_name', 'Unsaved_Draft_Scenario')}`"
+    f"💡 **Active Working Blueprint Instance Context:** `{st.session_state.get('active_project_name', DEFAULT_BLANK_SCENARIO)}`"
 )
 
 col1, col2, col3, col4 = st.columns(4)
@@ -179,15 +211,9 @@ st.sidebar.page_link("pages/reports.py", label="📊 Performance Tab")
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 👤 Session Controls")
 
-if st.sidebar.button("🔄 Force Regenerate Scenarios", use_container_width=True):
-    generate_standard_scenarios()
-    loaded_data = load_scenario_from_disk(
-        st.session_state.get("active_project_name", "Padel_Centre_Baseline")
-    )
-    if loaded_data:
-        st.session_state["active_data"] = loaded_data.get("active_data", {})
-        st.session_state["custom_curves"] = loaded_data.get("custom_curves", {})
-    st.sidebar.success("Canonical scenarios regenerated and reloaded from disk!")
+if st.sidebar.button("🧹 Reset to Blank Client", use_container_width=True):
+    wipe_slate_for_new_client(DEFAULT_BLANK_SCENARIO)
+    st.sidebar.success("Workspace reset to a clean blank client!")
     st.rerun()
 
 if st.sidebar.button("🚪 Log Off Session", use_container_width=True):
