@@ -7,576 +7,13 @@ import streamlit as st
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SCENARIOS_DIR = os.path.join(PROJECT_ROOT, "saved_scenarios")
+
 DEFAULT_BLANK_SCENARIO = "New_Client_Baseline"
 
-
-def generate_standard_scenarios():
-    """
-    Programmatically generates and writes the 4 core canonical STRATA scenarios
-    to disk with exact WinForecast monthly start-up arrays and robust delta-derived variants.
-    """
-    os.makedirs(SCENARIOS_DIR, exist_ok=True)
-
-    mature_sales_curve = [
-        0.083333,
-        0.083333,
-        0.083333,
-        0.083333,
-        0.083333,
-        0.083333,
-        0.083333,
-        0.083333,
-        0.083333,
-        0.083333,
-        0.083333,
-        0.083337,
-    ]
-    mature_cost_curve = [
-        0.083333,
-        0.083333,
-        0.083333,
-        0.083333,
-        0.083333,
-        0.083333,
-        0.083333,
-        0.083333,
-        0.083333,
-        0.083333,
-        0.083333,
-        0.083337,
-    ]
-
-    # Exact Year 1 monthly start-up arrays extracted from WinForecast PDF
-    y1_court_fees = [
-        0.0,
-        6500.0,
-        8125.0,
-        8125.0,
-        8125.0,
-        8125.0,
-        38220.0,
-        40950.0,
-        38220.0,
-        42316.0,
-        39586.0,
-        42316.0,
-    ]
-    y1_events = [
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        1500.0,
-        1500.0,
-        2500.0,
-        2500.0,
-        3500.0,
-    ]
-    y1_food_sales = [
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        8333.0,
-        8333.0,
-        12083.0,
-        12917.0,
-        12917.0,
-    ]
-
-    y1_padel_staff = [
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        15417.0,
-        15416.0,
-        15417.0,
-        15417.0,
-        15416.0,
-        15417.0,
-    ]
-    y1_food_purchases = [
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        3333.0,
-        3333.0,
-        4834.0,
-        5166.0,
-        5167.0,
-        0.0,
-    ]
-    y1_canteen_staff = [
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        2203.0,
-        2203.0,
-        4406.0,
-        4406.0,
-        4406.0,
-    ]
-
-    y1_maint = [
-        1167.0,
-        1166.0,
-        1167.0,
-        1167.0,
-        1166.0,
-        1167.0,
-        1167.0,
-        1166.0,
-        1167.0,
-        1167.0,
-        1166.0,
-        1167.0,
-    ]
-    y1_mktg = [
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        2500.0,
-        2500.0,
-        2500.0,
-        2500.0,
-        2500.0,
-        2500.0,
-        2500.0,
-        2500.0,
-    ]
-    y1_soft = [
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        1000.0,
-        1000.0,
-        1000.0,
-        1000.0,
-        1000.0,
-        1000.0,
-        1000.0,
-        1000.0,
-    ]
-    y1_admin = [
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        1834.0,
-        1833.0,
-        1833.0,
-        1834.0,
-        1833.0,
-        1833.0,
-        1834.0,
-        1833.0,
-    ]
-    y1_rent = [
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        4167.0,
-        4167.0,
-        4167.0,
-        4167.0,
-        4167.0,
-        4167.0,
-    ]
-    y1_util = [
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        5833.0,
-        5834.0,
-        5833.0,
-        5833.0,
-        5834.0,
-        5833.0,
-    ]
-    y1_ins = [
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        1833.0,
-        1834.0,
-        1833.0,
-        1833.0,
-        1834.0,
-        1833.0,
-    ]
-
-    base_sales = [
-        {
-            "name": "[AI Scan] Court Fees",
-            "entry_mode": "Manual Monthly Override",
-            "y1_baseline": sum(y1_court_fees),
-            "y2_baseline": 529200.0,
-            "y3_baseline": 586854.0,
-            "seasonality": "Curve_court_fees",
-            "vat_rate_type": "Standard 20%",
-            "payment_delay": 0,
-            "overrides": {
-                f"M{str(i+1).zfill(2)}": val for i, val in enumerate(y1_court_fees)
-            },
-            "matrix_data": {
-                "Y1": y1_court_fees,
-                "Y2": [529200.0 / 12] * 12,
-                "Y3": [586854.0 / 12] * 12,
-            },
-        },
-        {
-            "name": "[AI Scan] Events & Room Hire",
-            "entry_mode": "Manual Monthly Override",
-            "y1_baseline": sum(y1_events),
-            "y2_baseline": 42000.0,
-            "y3_baseline": 43470.0,
-            "seasonality": "Curve_events_and_room_hire",
-            "vat_rate_type": "Standard 20%",
-            "payment_delay": 0,
-            "overrides": {
-                f"M{str(i+1).zfill(2)}": val for i, val in enumerate(y1_events)
-            },
-            "matrix_data": {
-                "Y1": y1_events,
-                "Y2": [42000.0 / 12] * 12,
-                "Y3": [43470.0 / 12] * 12,
-            },
-        },
-        {
-            "name": "[AI Scan] Food and Drink Sales",
-            "entry_mode": "Manual Monthly Override",
-            "y1_baseline": sum(y1_food_sales),
-            "y2_baseline": 155836.0,
-            "y3_baseline": 129863.0,
-            "seasonality": "Curve_food_and_drink_sales",
-            "vat_rate_type": "Standard 20%",
-            "payment_delay": 0,
-            "overrides": {
-                f"M{str(i+1).zfill(2)}": val for i, val in enumerate(y1_food_sales)
-            },
-            "matrix_data": {
-                "Y1": y1_food_sales,
-                "Y2": [155836.0 / 12] * 12,
-                "Y3": [129863.0 / 12] * 12,
-            },
-        },
-    ]
-
-    base_cogs = [
-        {
-            "name": "[AI Scan] Padel Court Staff",
-            "entry_mode": "Manual Monthly Override",
-            "y1_baseline": sum(y1_padel_staff),
-            "y2_baseline": 185000.0,
-            "y3_baseline": 191475.0,
-            "seasonality": "Curve_padel_court_staff",
-            "vat_rate_type": "Standard 20%",
-            "payment_delay": 0,
-            "overrides": {
-                f"M{str(i+1).zfill(2)}": val for i, val in enumerate(y1_padel_staff)
-            },
-            "matrix_data": {
-                "Y1": y1_padel_staff,
-                "Y2": [185000.0 / 12] * 12,
-                "Y3": [191475.0 / 12] * 12,
-            },
-        },
-        {
-            "name": "[AI Scan] Food & Drink Purchases",
-            "entry_mode": "Manual Monthly Override",
-            "y1_baseline": sum(y1_food_purchases),
-            "y2_baseline": 62335.0,
-            "y3_baseline": 51945.0,
-            "seasonality": "Curve_food_and_drink_purchases",
-            "vat_rate_type": "Standard 20%",
-            "payment_delay": 0,
-            "overrides": {
-                f"M{str(i+1).zfill(2)}": val for i, val in enumerate(y1_food_purchases)
-            },
-            "matrix_data": {
-                "Y1": y1_food_purchases,
-                "Y2": [62335.0 / 12] * 12,
-                "Y3": [51945.0 / 12] * 12,
-            },
-        },
-        {
-            "name": "[AI Scan] Canteen Staff",
-            "entry_mode": "Manual Monthly Override",
-            "y1_baseline": sum(y1_canteen_staff),
-            "y2_baseline": 52872.0,
-            "y3_baseline": 54723.0,
-            "seasonality": "Curve_canteen_staff",
-            "vat_rate_type": "Standard 20%",
-            "payment_delay": 0,
-            "overrides": {
-                f"M{str(i+1).zfill(2)}": val for i, val in enumerate(y1_canteen_staff)
-            },
-            "matrix_data": {
-                "Y1": y1_canteen_staff,
-                "Y2": [52872.0 / 12] * 12,
-                "Y3": [54723.0 / 12] * 12,
-            },
-        },
-    ]
-
-    base_opex = [
-        {
-            "name": "[AI Scan] Rent",
-            "entry_mode": "Manual Monthly Override",
-            "y1_baseline": sum(y1_rent),
-            "y2_baseline": 50004.0,
-            "y3_baseline": 50004.0,
-            "vat_rate_type": "Standard 20%",
-            "seasonality": "Curve_rent",
-            "overrides": {
-                f"M{str(i+1).zfill(2)}": val for i, val in enumerate(y1_rent)
-            },
-            "matrix_data": {
-                "Y1": y1_rent,
-                "Y2": [50004.0 / 12] * 12,
-                "Y3": [50004.0 / 12] * 12,
-            },
-        },
-        {
-            "name": "[AI Scan] Utility Costs",
-            "entry_mode": "Manual Monthly Override",
-            "y1_baseline": sum(y1_util),
-            "y2_baseline": 70000.0,
-            "y3_baseline": 72036.0,
-            "vat_rate_type": "Standard 20%",
-            "seasonality": "Curve_utility_costs",
-            "overrides": {
-                f"M{str(i+1).zfill(2)}": val for i, val in enumerate(y1_util)
-            },
-            "matrix_data": {
-                "Y1": y1_util,
-                "Y2": [70000.0 / 12] * 12,
-                "Y3": [72036.0 / 12] * 12,
-            },
-        },
-        {
-            "name": "[AI Scan] Insurances",
-            "entry_mode": "Manual Monthly Override",
-            "y1_baseline": sum(y1_ins),
-            "y2_baseline": 22000.0,
-            "y3_baseline": 22770.0,
-            "vat_rate_type": "Standard 20%",
-            "seasonality": "Curve_insurances",
-            "overrides": {f"M{str(i+1).zfill(2)}": val for i, val in enumerate(y1_ins)},
-            "matrix_data": {
-                "Y1": y1_ins,
-                "Y2": [22000.0 / 12] * 12,
-                "Y3": [22770.0 / 12] * 12,
-            },
-        },
-        {
-            "name": "[AI Scan] Maintenance Costs",
-            "entry_mode": "Manual Monthly Override",
-            "y1_baseline": sum(y1_maint),
-            "y2_baseline": 28000.0,
-            "y3_baseline": 28980.0,
-            "vat_rate_type": "Standard 20%",
-            "seasonality": "Curve_maintenance_costs",
-            "overrides": {
-                f"M{str(i+1).zfill(2)}": val for i, val in enumerate(y1_maint)
-            },
-            "matrix_data": {
-                "Y1": y1_maint,
-                "Y2": [28000.0 / 12] * 12,
-                "Y3": [28980.0 / 12] * 12,
-            },
-        },
-        {
-            "name": "[AI Scan] Marketing Costs",
-            "entry_mode": "Manual Monthly Override",
-            "y1_baseline": sum(y1_mktg),
-            "y2_baseline": 30000.0,
-            "y3_baseline": 31050.0,
-            "vat_rate_type": "Standard 20%",
-            "seasonality": "Curve_marketing_costs",
-            "overrides": {
-                f"M{str(i+1).zfill(2)}": val for i, val in enumerate(y1_mktg)
-            },
-            "matrix_data": {
-                "Y1": y1_mktg,
-                "Y2": [30000.0 / 12] * 12,
-                "Y3": [31050.0 / 12] * 12,
-            },
-        },
-        {
-            "name": "[AI Scan] Software & Booking System",
-            "entry_mode": "Manual Monthly Override",
-            "y1_baseline": sum(y1_soft),
-            "y2_baseline": 12000.0,
-            "y3_baseline": 12420.0,
-            "vat_rate_type": "Standard 20%",
-            "seasonality": "Curve_software_and_booking_system",
-            "overrides": {
-                f"M{str(i+1).zfill(2)}": val for i, val in enumerate(y1_soft)
-            },
-            "matrix_data": {
-                "Y1": y1_soft,
-                "Y2": [12000.0 / 12] * 12,
-                "Y3": [12420.0 / 12] * 12,
-            },
-        },
-        {
-            "name": "[AI Scan] Administration & Supplies",
-            "entry_mode": "Manual Monthly Override",
-            "y1_baseline": sum(y1_admin),
-            "y2_baseline": 21996.0,
-            "y3_baseline": 22766.0,
-            "vat_rate_type": "Standard 20%",
-            "seasonality": "Curve_administration_and_supplies",
-            "overrides": {
-                f"M{str(i+1).zfill(2)}": val for i, val in enumerate(y1_admin)
-            },
-            "matrix_data": {
-                "Y1": y1_admin,
-                "Y2": [21996.0 / 12] * 12,
-                "Y3": [22766.0 / 12] * 12,
-            },
-        },
-    ]
-
-    custom_curves = {
-        "Curve_court_fees": mature_sales_curve,
-        "Curve_events_and_room_hire": mature_sales_curve,
-        "Curve_food_and_drink_sales": mature_sales_curve,
-        "Curve_padel_court_staff": mature_cost_curve,
-        "Curve_food_and_drink_purchases": mature_cost_curve,
-        "Curve_canteen_staff": mature_cost_curve,
-        "Curve_rent": mature_cost_curve,
-        "Curve_utility_costs": mature_cost_curve,
-        "Curve_insurances": mature_cost_curve,
-        "Curve_maintenance_costs": mature_cost_curve,
-        "Curve_marketing_costs": mature_cost_curve,
-        "Curve_software_and_booking_system": mature_cost_curve,
-        "Curve_administration_and_supplies": mature_cost_curve,
-    }
-
-    # Scenario 0: Padel_Centre_Baseline
-    s0_data = {
-        "sales": base_sales,
-        "cogs": base_cogs,
-        "opex": base_opex,
-        "payroll": [],
-        "financed_assets": [],
-        "outright_capex": [],
-        "equity_funding": [],
-    }
-    save_scenario_to_disk("Padel_Centre_Baseline", s0_data, custom_curves)
-
-    # Scenario 1: DBW_Mild_Downside (Derived via deep clone delta)
-    s1_sales = []
-    for item in base_sales:
-        copied_item = json.loads(json.dumps(item))
-        if "[AI Scan] Court Fees" in copied_item["name"]:
-            copied_item["y1_baseline"] *= 0.8
-            copied_item["y2_baseline"] *= 0.8
-            copied_item["y3_baseline"] *= 0.8
-            if "matrix_data" in copied_item:
-                for yr in copied_item["matrix_data"]:
-                    copied_item["matrix_data"][yr] = [
-                        val * 0.8 for val in copied_item["matrix_data"][yr]
-                    ]
-            if "overrides" in copied_item:
-                copied_item["overrides"] = {
-                    k: v * 0.8 for k, v in copied_item["overrides"].items()
-                }
-        elif "[AI Scan] Events & Room Hire" in copied_item["name"]:
-            copied_item["y1_baseline"] = 0.0
-            copied_item["y2_baseline"] *= 0.5
-            if "matrix_data" in copied_item:
-                if "Y1" in copied_item["matrix_data"]:
-                    copied_item["matrix_data"]["Y1"] = [0.0] * 12
-                if "Y2" in copied_item["matrix_data"]:
-                    copied_item["matrix_data"]["Y2"] = [
-                        val * 0.5 for val in copied_item["matrix_data"]["Y2"]
-                    ]
-            if "overrides" in copied_item:
-                copied_item["overrides"] = {k: 0.0 for k in copied_item["overrides"]}
-        s1_sales.append(copied_item)
-
-    s1_data = {
-        "sales": s1_sales,
-        "cogs": base_cogs,
-        "opex": base_opex,
-        "payroll": [],
-        "financed_assets": [],
-        "outright_capex": [],
-        "equity_funding": [],
-    }
-    save_scenario_to_disk("DBW_Mild_Downside", s1_data, custom_curves)
-
-    # Scenario 2: DBW_Moderate_Downside (Derived via deep clone delta)
-    s2_cogs = []
-    for item in base_cogs:
-        copied_item = json.loads(json.dumps(item))
-        if "Staff" in copied_item["name"]:
-            copied_item["y1_baseline"] *= 1.1
-            copied_item["y2_baseline"] *= 1.1
-            copied_item["y3_baseline"] *= 1.1
-            if "matrix_data" in copied_item:
-                for yr in copied_item["matrix_data"]:
-                    copied_item["matrix_data"][yr] = [
-                        val * 1.1 for val in copied_item["matrix_data"][yr]
-                    ]
-            if "overrides" in copied_item:
-                copied_item["overrides"] = {
-                    k: v * 1.1 for k, v in copied_item["overrides"].items()
-                }
-        s2_cogs.append(copied_item)
-
-    s2_data = {
-        "sales": base_sales,
-        "cogs": s2_cogs,
-        "opex": base_opex,
-        "payroll": [],
-        "financed_assets": [],
-        "outright_capex": [],
-        "equity_funding": [],
-    }
-    save_scenario_to_disk("DBW_Moderate_Downside", s2_data, custom_curves)
-
-    # Scenario 3: DBW_Severe_Stress (Combined S1 sales + S2 cogs)
-    s3_data = {
-        "sales": s1_sales,
-        "cogs": s2_cogs,
-        "opex": base_opex,
-        "payroll": [],
-        "financed_assets": [],
-        "outright_capex": [],
-        "equity_funding": [],
-    }
-    save_scenario_to_disk("DBW_Severe_Stress", s3_data, custom_curves)
+ENTRY_MODE_CURVE = "Annual Baseline + Monthly Distribution Curve"
+ENTRY_MODE_OVERRIDE = "Manual Monthly Override"
+ENTRY_MODE_FLAT = "Flat Linear Baseline"
+VALID_ENTRY_MODES = [ENTRY_MODE_CURVE, ENTRY_MODE_OVERRIDE, ENTRY_MODE_FLAT]
 
 
 def create_blank_scenario(scenario_name: str = DEFAULT_BLANK_SCENARIO) -> str:
@@ -633,6 +70,14 @@ def normalize_scenario_payload(raw_data: dict, scenario_name: str) -> dict:
                 "supplier_credit_days": 30,
             },
         ),
+        "onboarding_config": raw_data.get(
+            "onboarding_config",
+            {
+                "business_model": "Standard Commercial Enterprise",
+                "default_currency": "GBP (£)",
+                "working_capital_buffer": 25000.0,
+            },
+        ),
         "custom_curves": raw_data.get("custom_curves", {}),
         "vector_couplings": raw_data.get("vector_couplings", []),
         "active_data": {},
@@ -642,43 +87,129 @@ def normalize_scenario_payload(raw_data: dict, scenario_name: str) -> dict:
     if not isinstance(raw_active, dict):
         raw_active = {}
 
-    list_keys = [
-        "sales",
-        "cogs",
-        "opex",
-        "payroll",
-        "financed_assets",
-        "outright_capex",
-        "equity_funding",
-    ]
-
-    for l_key in list_keys:
-        items = raw_active.get(l_key, [])
+    vector_keys = ["sales", "cogs", "opex"]
+    for v_key in vector_keys:
+        items = raw_active.get(v_key, [])
         cleaned_items = []
         if isinstance(items, list):
             for item in items:
                 if not isinstance(item, dict):
                     continue
-                clean_item = {
-                    "name": str(item.get("name", "Unnamed Vector")),
-                    "entry_mode": str(
-                        item.get(
-                            "entry_mode", "Annual Baseline + Monthly Distribution Curve"
-                        )
-                    ),
-                    "y1_baseline": float(item.get("y1_baseline", item.get("y1", 0.0))),
-                    "y2_baseline": float(item.get("y2_baseline", item.get("y2", 0.0))),
-                    "y3_baseline": float(item.get("y3_baseline", item.get("y3", 0.0))),
-                    "vat_rate_type": str(item.get("vat_rate_type", "Standard 20%")),
-                    "payment_delay": int(item.get("payment_delay", 0)),
-                    "seasonality": str(item.get("seasonality", "Flat_Linear")),
-                    "overrides": item.get("overrides", {}),
-                    "matrix_data": item.get("matrix_data", {}),
+                raw_mode = str(item.get("entry_mode", ENTRY_MODE_CURVE))
+                if raw_mode == "Annual Baseline + Seasonality Curve":
+                    raw_mode = ENTRY_MODE_CURVE
+                elif raw_mode not in VALID_ENTRY_MODES:
+                    raw_mode = ENTRY_MODE_CURVE
+
+                overrides = item.get("overrides", {})
+                if not isinstance(overrides, dict):
+                    overrides = {}
+
+                matrix_data = item.get("matrix_data", {})
+                if not isinstance(matrix_data, dict):
+                    matrix_data = {}
+
+                if raw_mode == ENTRY_MODE_OVERRIDE and overrides:
+                    y1_arr = [
+                        float(overrides.get(f"M{str(m).zfill(2)}", 0.0))
+                        for m in range(1, 13)
+                    ]
+                    matrix_data["Y1"] = y1_arr
+                    y1_base = sum(y1_arr)
+                else:
+                    y1_base = float(item.get("y1_baseline", item.get("y1", 0.0)))
+
+                cleaned_items.append(
+                    {
+                        "name": str(item.get("name", "Unnamed Vector")),
+                        "entry_mode": raw_mode,
+                        "y1_baseline": y1_base,
+                        "y2_baseline": float(
+                            item.get("y2_baseline", item.get("y2", 0.0))
+                        ),
+                        "y3_baseline": float(
+                            item.get("y3_baseline", item.get("y3", 0.0))
+                        ),
+                        "flex_pct": float(item.get("flex_pct", 0.0)),
+                        "vat_rate_type": str(item.get("vat_rate_type", "Standard 20%")),
+                        "payment_delay": int(item.get("payment_delay", 0)),
+                        "seasonality": str(item.get("seasonality", "Flat_Linear")),
+                        "overrides": overrides,
+                        "matrix_data": matrix_data,
+                    }
+                )
+        normalized["active_data"][v_key] = cleaned_items
+
+    # Payroll normalization
+    cleaned_payroll = []
+    for p in raw_active.get("payroll", []):
+        if isinstance(p, dict):
+            cleaned_payroll.append(
+                {
+                    "name": str(p.get("name", "Unnamed Role")),
+                    "headcount": int(p.get("headcount", 1)),
+                    "monthly_wage": float(p.get("monthly_wage", 0.0)),
+                    "start_month": int(p.get("start_month", 1)),
+                    "end_month": int(p.get("end_month", 36)),
                 }
-                if not isinstance(clean_item["overrides"], dict):
-                    clean_item["overrides"] = {}
-                cleaned_items.append(clean_item)
-        normalized["active_data"][l_key] = cleaned_items
+            )
+    normalized["active_data"]["payroll"] = cleaned_payroll
+
+    # Outright CapEx normalization
+    cleaned_capex = []
+    for cap in raw_active.get("outright_capex", []):
+        if isinstance(cap, dict):
+            cleaned_capex.append(
+                {
+                    "name": str(cap.get("name", "CapEx Asset")),
+                    "amount": float(cap.get("amount", 0.0)),
+                    "month": int(cap.get("month", 1)),
+                    "depreciation_basis": str(
+                        cap.get("depreciation_basis", "straight_line")
+                    ),
+                    "depreciation_rate": float(cap.get("depreciation_rate", 0.20)),
+                    "term_months": int(cap.get("term_months", 60)),
+                    "residual_value": float(cap.get("residual_value", 0.0)),
+                }
+            )
+    normalized["active_data"]["outright_capex"] = cleaned_capex
+
+    # Financed Assets normalization
+    cleaned_financed = []
+    for fa in raw_active.get("financed_assets", []):
+        if isinstance(fa, dict):
+            cleaned_financed.append(
+                {
+                    "name": str(fa.get("name", "Financed Asset")),
+                    "amount": float(fa.get("amount", 0.0)),
+                    "month": int(fa.get("month", 1)),
+                    "deposit_pct": float(fa.get("deposit_pct", 10.0)),
+                    "term_months": int(fa.get("term_months", 36)),
+                    "interest_rate": float(fa.get("interest_rate", 5.0)),
+                    "depreciation_basis": str(
+                        fa.get("depreciation_basis", "straight_line")
+                    ),
+                    "depreciation_rate": float(fa.get("depreciation_rate", 0.15)),
+                    "residual_value": float(fa.get("residual_value", 0.0)),
+                }
+            )
+    normalized["active_data"]["financed_assets"] = cleaned_financed
+
+    # Equity Funding normalization
+    cleaned_equity = []
+    for eq in raw_active.get("equity_funding", []):
+        if isinstance(eq, dict):
+            cleaned_equity.append(
+                {
+                    "source": str(
+                        eq.get("source", eq.get("name", "Shareholder Equity"))
+                    ),
+                    "name": str(eq.get("name", eq.get("source", "Shareholder Equity"))),
+                    "amount": float(eq.get("amount", 0.0)),
+                    "month": int(eq.get("month", 0)),
+                }
+            )
+    normalized["active_data"]["equity_funding"] = cleaned_equity
 
     return normalized
 
@@ -737,29 +268,10 @@ def save_scenario_to_disk(
     file_path = os.path.join(SCENARIOS_DIR, f"{scenario_name}.json")
 
     active_payload = state_data or st.session_state.get("active_data", {})
-    for category, items in active_payload.items():
-        if isinstance(items, list):
-            for item in items:
-                if isinstance(item, dict):
-                    for k in [
-                        "y1_baseline",
-                        "y2_baseline",
-                        "y3_baseline",
-                        "monthly_wage",
-                        "amount",
-                        "headcount",
-                    ]:
-                        if k in item:
-                            try:
-                                item[k] = (
-                                    float(item[k]) if k != "headcount" else int(item[k])
-                                )
-                            except (ValueError, TypeError):
-                                pass
-
     raw_payload = {
         "project_name": scenario_name,
         "sic_profile": st.session_state.get("sic_profile", {}),
+        "onboarding_config": st.session_state.get("onboarding_config", {}),
         "custom_curves": custom_curves or st.session_state.get("custom_curves", {}),
         "vector_couplings": st.session_state.get("vector_couplings", []),
         "active_data": active_payload,
@@ -803,6 +315,9 @@ def render_global_scenario_sidebar():
             )
             st.session_state["sic_profile"] = loaded_data.get(
                 "sic_profile", st.session_state.get("sic_profile", {})
+            )
+            st.session_state["onboarding_config"] = loaded_data.get(
+                "onboarding_config", st.session_state.get("onboarding_config", {})
             )
         else:
             st.session_state["active_data"] = {}

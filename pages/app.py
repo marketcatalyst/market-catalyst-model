@@ -1,6 +1,6 @@
 ﻿# pyright: reportMissingImports=false
 # pages/app.py
-# STRATA SUITE PRODUCTION ENGINE // DATA ENTRY & VECTOR CONFIGURATION DESK v11.11-SSOT-STRICT
+# STRATA SUITE PRODUCTION ENGINE // DATA ENTRY & VECTOR CONFIGURATION DESK v11.14-SSOT-STRICT
 
 import os
 import sys
@@ -11,6 +11,11 @@ if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
 from utils.scenario_manager import (
+    DEFAULT_BLANK_SCENARIO,
+    ENTRY_MODE_CURVE,
+    ENTRY_MODE_FLAT,
+    ENTRY_MODE_OVERRIDE,
+    VALID_ENTRY_MODES,
     render_global_scenario_sidebar,
     save_scenario_to_disk,
 )
@@ -56,10 +61,10 @@ render_global_scenario_sidebar()
 # ✍️ DATA ENTRY & VECTOR CONFIGURATION DESK
 # =========================================================================
 
+active_project = st.session_state.get("active_project_name", DEFAULT_BLANK_SCENARIO)
+
 st.title("✍️ Data Entry & Vector Configuration Desk")
-st.caption(
-    f"Active Scenario Context: `{st.session_state.get('active_project_name', 'Padel_Centre_Baseline')}`"
-)
+st.caption(f"Active Scenario Context: `{active_project}`")
 st.page_link("pages/reports.py", label="📊 Proceed to Performance Tab")
 st.markdown("---")
 
@@ -76,7 +81,6 @@ if "active_data" not in st.session_state:
 
 active_data = st.session_state["active_data"]
 
-# Initialize default keys if missing
 for key in [
     "sales",
     "cogs",
@@ -88,6 +92,30 @@ for key in [
 ]:
     if key not in active_data:
         active_data[key] = []
+
+VAT_OPTIONS = ["Standard 20%", "Reduced 5%", "Zero-Rated 0%"]
+CURVE_OPTIONS = ["Flat_Linear", "Winter_Peak", "Summer_Peak"] + sorted(
+    [
+        k
+        for k in st.session_state.get("custom_curves", {}).keys()
+        if k not in ["Flat_Linear", "Winter_Peak", "Summer_Peak"]
+    ]
+)
+
+
+def resolve_mode_index(mode_val: str) -> int:
+    if mode_val == "Annual Baseline + Seasonality Curve":
+        mode_val = ENTRY_MODE_CURVE
+    return VALID_ENTRY_MODES.index(mode_val) if mode_val in VALID_ENTRY_MODES else 0
+
+
+def resolve_vat_index(vat_val: str) -> int:
+    return VAT_OPTIONS.index(vat_val) if vat_val in VAT_OPTIONS else 0
+
+
+def resolve_curve_index(curve_val: str) -> int:
+    return CURVE_OPTIONS.index(curve_val) if curve_val in CURVE_OPTIONS else 0
+
 
 tab_sales, tab_cogs, tab_opex, tab_payroll, tab_capex, tab_equity = st.tabs(
     [
@@ -108,7 +136,7 @@ with tab_sales:
         sales_list.append(
             {
                 "name": f"New_Sales_Vector_{len(sales_list)+1}",
-                "entry_mode": "Annual Baseline + Monthly Distribution Curve",
+                "entry_mode": ENTRY_MODE_CURVE,
                 "y1_baseline": 0.0,
                 "y2_baseline": 0.0,
                 "y3_baseline": 0.0,
@@ -116,6 +144,7 @@ with tab_sales:
                 "vat_rate_type": "Standard 20%",
                 "payment_delay": 0,
                 "overrides": {},
+                "matrix_data": {},
             }
         )
         st.rerun()
@@ -129,32 +158,15 @@ with tab_sales:
                 )
                 item["entry_mode"] = st.selectbox(
                     "Projection Methodology / Basis:",
-                    options=[
-                        "Annual Baseline + Monthly Distribution Curve",
-                        "Manual Monthly Override",
-                        "Flat Linear Baseline",
-                    ],
-                    index=(
-                        0
-                        if item.get(
-                            "entry_mode", "Annual Baseline + Monthly Distribution Curve"
-                        )
-                        == "Annual Baseline + Monthly Distribution Curve"
-                        else (
-                            1
-                            if item.get("entry_mode") == "Manual Monthly Override"
-                            else 2
-                        )
-                    ),
+                    options=VALID_ENTRY_MODES,
+                    index=resolve_mode_index(item.get("entry_mode", ENTRY_MODE_CURVE)),
                     key=f"s_mode_{idx}",
                 )
             with col2:
                 item["vat_rate_type"] = st.selectbox(
                     "VAT Profile:",
-                    options=["Standard 20%", "Reduced 5%", "Zero-Rated 0%"],
-                    index=(
-                        0 if "Standard" in item.get("vat_rate_type", "Standard") else 1
-                    ),
+                    options=VAT_OPTIONS,
+                    index=resolve_vat_index(item.get("vat_rate_type", "Standard 20%")),
                     key=f"s_vat_{idx}",
                 )
                 item["payment_delay"] = st.number_input(
@@ -185,15 +197,16 @@ with tab_sales:
                     key=f"s_y3_{idx}",
                 )
 
-            if item["entry_mode"] == "Annual Baseline + Monthly Distribution Curve":
+            if item["entry_mode"] == ENTRY_MODE_CURVE:
                 item["seasonality"] = st.selectbox(
                     "Monthly Distribution Curve Profile:",
-                    options=["Flat_Linear", "Winter_Peak", "Summer_Peak"],
+                    options=CURVE_OPTIONS,
+                    index=resolve_curve_index(item.get("seasonality", "Flat_Linear")),
                     key=f"s_season_{idx}",
                 )
-            elif item["entry_mode"] == "Manual Monthly Override":
-                st.markdown("##### Monthly Override Values (£)")
-                if "overrides" not in item:
+            elif item["entry_mode"] == ENTRY_MODE_OVERRIDE:
+                st.markdown("##### Year 1 Monthly Override Values (£)")
+                if "overrides" not in item or not isinstance(item["overrides"], dict):
                     item["overrides"] = {}
                 m_cols = st.columns(6)
                 for m_i in range(1, 13):
@@ -204,6 +217,10 @@ with tab_sales:
                             value=float(item["overrides"].get(m_lbl, 0.0)),
                             key=f"s_ov_{idx}_{m_lbl}",
                         )
+                item["y1_baseline"] = sum(
+                    float(item["overrides"].get(f"M{str(m).zfill(2)}", 0.0))
+                    for m in range(1, 13)
+                )
 
             if st.button(f"🗑️ Delete Sales Vector {idx}", key=f"del_sales_{idx}"):
                 sales_list.pop(idx)
@@ -217,7 +234,7 @@ with tab_cogs:
         cogs_list.append(
             {
                 "name": f"New_COGS_{len(cogs_list)+1}",
-                "entry_mode": "Annual Baseline + Monthly Distribution Curve",
+                "entry_mode": ENTRY_MODE_CURVE,
                 "y1_baseline": 0.0,
                 "y2_baseline": 0.0,
                 "y3_baseline": 0.0,
@@ -225,6 +242,7 @@ with tab_cogs:
                 "vat_rate_type": "Standard 20%",
                 "payment_delay": 0,
                 "overrides": {},
+                "matrix_data": {},
             }
         )
         st.rerun()
@@ -238,32 +256,15 @@ with tab_cogs:
                 )
                 item["entry_mode"] = st.selectbox(
                     "Projection Methodology / Basis:",
-                    options=[
-                        "Annual Baseline + Monthly Distribution Curve",
-                        "Manual Monthly Override",
-                        "Flat Linear Baseline",
-                    ],
-                    index=(
-                        0
-                        if item.get(
-                            "entry_mode", "Annual Baseline + Monthly Distribution Curve"
-                        )
-                        == "Annual Baseline + Monthly Distribution Curve"
-                        else (
-                            1
-                            if item.get("entry_mode") == "Manual Monthly Override"
-                            else 2
-                        )
-                    ),
+                    options=VALID_ENTRY_MODES,
+                    index=resolve_mode_index(item.get("entry_mode", ENTRY_MODE_CURVE)),
                     key=f"c_mode_{idx}",
                 )
             with col2:
                 item["vat_rate_type"] = st.selectbox(
                     "VAT Profile:",
-                    options=["Standard 20%", "Reduced 5%", "Zero-Rated 0%"],
-                    index=(
-                        0 if "Standard" in item.get("vat_rate_type", "Standard") else 1
-                    ),
+                    options=VAT_OPTIONS,
+                    index=resolve_vat_index(item.get("vat_rate_type", "Standard 20%")),
                     key=f"c_vat_{idx}",
                 )
 
@@ -287,15 +288,16 @@ with tab_cogs:
                     key=f"c_y3_{idx}",
                 )
 
-            if item["entry_mode"] == "Annual Baseline + Monthly Distribution Curve":
+            if item["entry_mode"] == ENTRY_MODE_CURVE:
                 item["seasonality"] = st.selectbox(
                     "Monthly Distribution Curve Profile:",
-                    options=["Flat_Linear", "Winter_Peak", "Summer_Peak"],
+                    options=CURVE_OPTIONS,
+                    index=resolve_curve_index(item.get("seasonality", "Flat_Linear")),
                     key=f"c_season_{idx}",
                 )
-            elif item["entry_mode"] == "Manual Monthly Override":
-                st.markdown("##### Monthly Override Values (£)")
-                if "overrides" not in item:
+            elif item["entry_mode"] == ENTRY_MODE_OVERRIDE:
+                st.markdown("##### Year 1 Monthly Override Values (£)")
+                if "overrides" not in item or not isinstance(item["overrides"], dict):
                     item["overrides"] = {}
                 m_cols = st.columns(6)
                 for m_i in range(1, 13):
@@ -306,6 +308,10 @@ with tab_cogs:
                             value=float(item["overrides"].get(m_lbl, 0.0)),
                             key=f"c_ov_{idx}_{m_lbl}",
                         )
+                item["y1_baseline"] = sum(
+                    float(item["overrides"].get(f"M{str(m).zfill(2)}", 0.0))
+                    for m in range(1, 13)
+                )
 
             if st.button(f"🗑️ Delete COGS Item {idx}", key=f"del_cogs_{idx}"):
                 cogs_list.pop(idx)
@@ -319,13 +325,14 @@ with tab_opex:
         opex_list.append(
             {
                 "name": f"New_Overhead_{len(opex_list)+1}",
-                "entry_mode": "Annual Baseline + Monthly Distribution Curve",
+                "entry_mode": ENTRY_MODE_CURVE,
                 "y1_baseline": 0.0,
                 "y2_baseline": 0.0,
                 "y3_baseline": 0.0,
                 "seasonality": "Flat_Linear",
                 "vat_rate_type": "Standard 20%",
                 "overrides": {},
+                "matrix_data": {},
             }
         )
         st.rerun()
@@ -339,32 +346,15 @@ with tab_opex:
                 )
                 item["entry_mode"] = st.selectbox(
                     "Projection Methodology / Basis:",
-                    options=[
-                        "Annual Baseline + Monthly Distribution Curve",
-                        "Manual Monthly Override",
-                        "Flat Linear Baseline",
-                    ],
-                    index=(
-                        0
-                        if item.get(
-                            "entry_mode", "Annual Baseline + Monthly Distribution Curve"
-                        )
-                        == "Annual Baseline + Monthly Distribution Curve"
-                        else (
-                            1
-                            if item.get("entry_mode") == "Manual Monthly Override"
-                            else 2
-                        )
-                    ),
+                    options=VALID_ENTRY_MODES,
+                    index=resolve_mode_index(item.get("entry_mode", ENTRY_MODE_CURVE)),
                     key=f"op_mode_{idx}",
                 )
             with col2:
                 item["vat_rate_type"] = st.selectbox(
                     "VAT Profile:",
-                    options=["Standard 20%", "Reduced 5%", "Zero-Rated 0%"],
-                    index=(
-                        0 if "Standard" in item.get("vat_rate_type", "Standard") else 1
-                    ),
+                    options=VAT_OPTIONS,
+                    index=resolve_vat_index(item.get("vat_rate_type", "Standard 20%")),
                     key=f"op_vat_{idx}",
                 )
 
@@ -388,15 +378,16 @@ with tab_opex:
                     key=f"op_y3_{idx}",
                 )
 
-            if item["entry_mode"] == "Annual Baseline + Monthly Distribution Curve":
+            if item["entry_mode"] == ENTRY_MODE_CURVE:
                 item["seasonality"] = st.selectbox(
                     "Monthly Distribution Curve Profile:",
-                    options=["Flat_Linear", "Winter_Peak", "Summer_Peak"],
+                    options=CURVE_OPTIONS,
+                    index=resolve_curve_index(item.get("seasonality", "Flat_Linear")),
                     key=f"op_season_{idx}",
                 )
-            elif item["entry_mode"] == "Manual Monthly Override":
-                st.markdown("##### Monthly Override Values (£)")
-                if "overrides" not in item:
+            elif item["entry_mode"] == ENTRY_MODE_OVERRIDE:
+                st.markdown("##### Year 1 Monthly Override Values (£)")
+                if "overrides" not in item or not isinstance(item["overrides"], dict):
                     item["overrides"] = {}
                 m_cols = st.columns(6)
                 for m_i in range(1, 13):
@@ -407,6 +398,10 @@ with tab_opex:
                             value=float(item["overrides"].get(m_lbl, 0.0)),
                             key=f"op_ov_{idx}_{m_lbl}",
                         )
+                item["y1_baseline"] = sum(
+                    float(item["overrides"].get(f"M{str(m).zfill(2)}", 0.0))
+                    for m in range(1, 13)
+                )
 
             if st.button(f"🗑️ Delete Overhead {idx}", key=f"del_opex_{idx}"):
                 opex_list.pop(idx)
@@ -429,7 +424,7 @@ with tab_payroll:
 
     for idx, item in enumerate(payroll_list):
         with st.expander(f"Role: {item.get('name', 'Unnamed')}", expanded=True):
-            col1, col2, col3, col4 = st.columns(4)
+            col1, col2, col3, col4, col5 = st.columns(5)
             with col1:
                 item["name"] = st.text_input(
                     "Role Title:", value=item.get("name", ""), key=f"p_name_{idx}"
@@ -455,6 +450,13 @@ with tab_payroll:
                     value=int(item.get("start_month", 1)),
                     key=f"p_start_{idx}",
                 )
+            with col5:
+                item["end_month"] = st.number_input(
+                    "End Month:",
+                    min_value=1,
+                    value=int(item.get("end_month", 36)),
+                    key=f"p_end_{idx}",
+                )
 
             if st.button(f"🗑️ Delete Role {idx}", key=f"del_pay_{idx}"):
                 payroll_list.pop(idx)
@@ -469,14 +471,17 @@ with tab_capex:
                 "name": f"Asset_{len(capex_list)+1}",
                 "amount": 10000.0,
                 "month": 1,
+                "depreciation_basis": "straight_line",
                 "depreciation_rate": 0.20,
+                "term_months": 60,
+                "residual_value": 0.0,
             }
         )
         st.rerun()
 
     for idx, item in enumerate(capex_list):
         with st.expander(f"Capex Asset: {item.get('name', 'Unnamed')}", expanded=True):
-            col1, col2, col3 = st.columns(3)
+            col1, col2, col3, col4 = st.columns(4)
             with col1:
                 item["name"] = st.text_input(
                     "Asset Description:",
@@ -496,6 +501,17 @@ with tab_capex:
                     value=int(item.get("month", 1)),
                     key=f"cap_m_{idx}",
                 )
+            with col4:
+                item["depreciation_rate"] = (
+                    st.number_input(
+                        "Annual Depr. Rate (%):",
+                        min_value=0.0,
+                        max_value=100.0,
+                        value=float(item.get("depreciation_rate", 0.20)) * 100.0,
+                        key=f"cap_rate_{idx}",
+                    )
+                    / 100.0
+                )
 
             if st.button(f"🗑️ Delete Capex {idx}", key=f"del_cap_{idx}"):
                 capex_list.pop(idx)
@@ -505,18 +521,27 @@ with tab_equity:
     st.subheader("Manage Equity Funding Injections")
     eq_list = active_data["equity_funding"]
     if st.button("➕ Add Equity Funding Injection"):
-        eq_list.append({"month": 1, "amount": 50000.0, "source": "Founder Investment"})
+        eq_list.append(
+            {
+                "month": 0,
+                "amount": 50000.0,
+                "source": "Founder Investment",
+                "name": "Founder Investment",
+            }
+        )
         st.rerun()
 
     for idx, item in enumerate(eq_list):
         with st.expander(f"Equity Injection {idx+1}", expanded=True):
             col1, col2, col3 = st.columns(3)
             with col1:
-                item["source"] = st.text_input(
+                src = st.text_input(
                     "Investor / Source:",
-                    value=item.get("source", ""),
+                    value=item.get("source", item.get("name", "")),
                     key=f"eq_src_{idx}",
                 )
+                item["source"] = src
+                item["name"] = src
             with col2:
                 item["amount"] = st.number_input(
                     "Injection Amount (£):",
@@ -525,9 +550,9 @@ with tab_equity:
                 )
             with col3:
                 item["month"] = st.number_input(
-                    "Injection Month:",
-                    min_value=1,
-                    value=int(item.get("month", 1)),
+                    "Injection Month (0 = Opening):",
+                    min_value=0,
+                    value=int(item.get("month", 0)),
                     key=f"eq_m_{idx}",
                 )
 
@@ -537,7 +562,7 @@ with tab_equity:
 
 st.markdown("---")
 if st.button("💾 Persist Current Working State to Disk", use_container_width=True):
-    current_name = st.session_state.get("active_project_name", "Padel_Centre_Baseline")
+    current_name = st.session_state.get("active_project_name", DEFAULT_BLANK_SCENARIO)
     success = save_scenario_to_disk(
         current_name, active_data, st.session_state.get("custom_curves", {})
     )

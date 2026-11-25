@@ -1,6 +1,6 @@
 # pyright: reportMissingImports=false
 # pages/onboarding.py
-# STRATA SUITE PRODUCTION ENGINE // DATA INPUT PARAMETERS & SETUP WIZARD
+# STRATA SUITE PRODUCTION ENGINE // DATA INPUT PARAMETERS & SETUP WIZARD v11.14-SSOT
 
 import os
 import sys
@@ -10,7 +10,11 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-from utils.scenario_manager import render_global_scenario_sidebar, save_scenario_to_disk
+from utils.scenario_manager import (
+    DEFAULT_BLANK_SCENARIO,
+    render_global_scenario_sidebar,
+    save_scenario_to_disk,
+)
 
 st.markdown(
     """
@@ -31,34 +35,41 @@ if not st.session_state.get("authenticated"):
     st.warning(
         "🔒 This workspace session is currently unauthenticated or has timed out."
     )
-    if st.button("🔑 Return to Home Portal & Sign In", width="stretch"):
+    if st.button("🔑 Return to Home Portal & Sign In", use_container_width=True):
         st.switch_page("home.py")
     st.stop()
 
+active_project = st.session_state.get("active_project_name", DEFAULT_BLANK_SCENARIO)
+
 st.title("🕸️ Data Input Parameters & Configuration Wizard")
-st.caption(
-    f"Active Scenario Context: `{st.session_state.get('active_project_name', 'Padel_Centre_Baseline')}`"
-)
+st.caption(f"Active Scenario Context: `{active_project}`")
 
 st.markdown("---")
-st.markdown("### Onboarding Setup & Parameters[cite: 6]")
+st.markdown("### Onboarding Setup & Parameters")
 st.write(
-    "Configure baseline parameter defaults, corporate tax profiles, and initialization structures for your scenario workspace[cite: 6]."
+    "Configure baseline parameter defaults, corporate tax profiles, and initialization structures for your scenario workspace."
 )
 
 if "onboarding_config" not in st.session_state:
     st.session_state["onboarding_config"] = {
-        "business_model": "Padel Facility & Sports Club",
+        "business_model": "Standard Commercial Enterprise",
         "default_currency": "GBP (£)",
         "working_capital_buffer": 25000.0,
     }
 
 config = st.session_state["onboarding_config"]
+currencies = ["GBP (£)", "EUR (€)", "USD ($)"]
+cur_idx = (
+    currencies.index(config.get("default_currency", "GBP (£)"))
+    if config.get("default_currency", "GBP (£)") in currencies
+    else 0
+)
+
 config["business_model"] = st.text_input(
     "Business Model Classification", value=config.get("business_model", "")
 )
 config["default_currency"] = st.selectbox(
-    "Base Reporting Currency", ["GBP (£)", "EUR (€)", "USD ($)"], index=0
+    "Base Reporting Currency", currencies, index=cur_idx
 )
 config["working_capital_buffer"] = st.number_input(
     "Target Initial Working Capital Reserve (£)",
@@ -66,13 +77,14 @@ config["working_capital_buffer"] = st.number_input(
     step=5000.0,
 )
 
-if st.button("💾 Save Parameter Setup & Proceed to Data Entry", width="stretch"):
-    cur_scen = st.session_state.get("active_project_name", "Padel_Centre_Baseline")
+if st.button(
+    "💾 Save Parameter Setup & Proceed to Data Entry", use_container_width=True
+):
     current_state = st.session_state.get("active_data", {})
     current_curves = st.session_state.get("custom_curves", {})
 
     st.session_state["onboarding_config"] = config
-    save_scenario_to_disk(cur_scen, current_state, current_curves)
+    save_scenario_to_disk(active_project, current_state, current_curves)
 
     st.success(
         "✔️ Onboarding configuration updated and persisted to disk successfully."

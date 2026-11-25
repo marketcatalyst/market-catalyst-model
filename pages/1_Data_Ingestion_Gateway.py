@@ -1,20 +1,33 @@
 # pyright: reportMissingImports=false
 # pages/1_Data_Ingestion_Gateway.py
-# STRATA SUITE PRODUCTION ENGINE // DATA INGESTION GATEWAY & SANDBOX v7.4.2-PRODUCTION
+# STRATA SUITE PRODUCTION ENGINE // DATA INGESTION GATEWAY & SANDBOX v7.5.0-SSOT
 
 import os
 import sys
 import json
-import pandas as pd
-import google.generativeai as genai
 import re
+import pandas as pd
 import streamlit as st
+
+try:
+    from google import genai
+    from google.genai import types
+
+    GENAI_AVAILABLE = True
+except ImportError:
+    genai = None
+    types = None
+    GENAI_AVAILABLE = False
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-from utils.scenario_manager import render_global_scenario_sidebar
+from utils.scenario_manager import (
+    ENTRY_MODE_CURVE,
+    ENTRY_MODE_FLAT,
+    render_global_scenario_sidebar,
+)
 
 st.markdown(
     """
@@ -35,7 +48,7 @@ if not st.session_state.get("authenticated"):
     st.warning(
         "🔒 This workspace session is currently unauthenticated or has timed out."
     )
-    if st.button("🔑 Return to Home Portal & Sign In", width="stretch"):
+    if st.button("🔑 Return to Home Portal & Sign In", use_container_width=True):
         st.switch_page("home.py")
     st.stop()
 
@@ -130,25 +143,15 @@ if uploaded_file is not None:
                     st.error(
                         "Missing Gemini API Key configuration token in environment secrets."
                     )
+                elif not GENAI_AVAILABLE:
+                    st.error(
+                        "google-genai library missing. Run `pip install google-genai`."
+                    )
                 else:
-                    genai.configure(api_key=g_key)
+                    client = genai.Client(api_key=g_key)
                     file_extension = uploaded_file.name.split(".")[-1].lower()
 
-                    if file_extension in ["jpeg", "jpg", "png", "pdf"]:
-                        raw_bytes = uploaded_file.read()
-                        mime_type = (
-                            f"image/{file_extension}"
-                            if file_extension != "pdf"
-                            else "application/pdf"
-                        )
-                        file_payload = [{"mime_type": mime_type, "data": raw_bytes}]
-                    else:
-                        file_content = uploaded_file.read().decode(
-                            "utf-8", errors="ignore"
-                        )
-                        file_payload = [file_content]
-
-                    prompt = f"""
+                    prompt = """
                     You are a professional corporate accounting data extraction engine. Process the attached business data, financial forecast, statement, image or opening trial balance ledger.
                     
                     CRITICAL DIRECTIONS:
@@ -159,7 +162,7 @@ if uploaded_file is not None:
                     
                     Return a valid JSON ARRAY of objects matching this schema exactly:
                     [
-                      {{
+                      {
                         "type": "sales" or "cogs" or "opex" or "equity_funding" or "outright_capex",
                         "name": "Line item identifier name description",
                         "y1_baseline": float_value,
@@ -168,15 +171,34 @@ if uploaded_file is not None:
                         "target_month_index": 0 or 1,
                         "seasonality": "Flat_Linear" or "Winter_Peak" or "Summer_Peak",
                         "enable_seasonality": false
-                      }}
+                      }
                     ]
                     """
 
-                    model = genai.GenerativeModel(
-                        model_name="gemini-2.5-flash",
-                        generation_config={"response_mime_type": "application/json"},
+                    if file_extension in ["jpeg", "jpg", "png", "pdf"]:
+                        raw_bytes = uploaded_file.read()
+                        mime_type = (
+                            f"image/{file_extension}"
+                            if file_extension != "pdf"
+                            else "application/pdf"
+                        )
+                        contents = [
+                            prompt,
+                            types.Part.from_bytes(data=raw_bytes, mime_type=mime_type),
+                        ]
+                    else:
+                        file_content = uploaded_file.read().decode(
+                            "utf-8", errors="ignore"
+                        )
+                        contents = [prompt, file_content]
+
+                    response = client.models.generate_content(
+                        model="gemini-2.5-flash",
+                        contents=contents,
+                        config=types.GenerateContentConfig(
+                            response_mime_type="application/json"
+                        ),
                     )
-                    response = model.generate_content([prompt] + file_payload)
                     parsed_result = extract_clean_json(response.text)
 
                     items_to_process = (
@@ -289,7 +311,6 @@ if st.session_state["scratchpad_queue"]:
             if "active_data" not in st.session_state:
                 st.session_state["active_data"] = {
                     "sales": [],
-                    "milestones": [],
                     "cogs": [],
                     "opex": [],
                     "financed_assets": [],
@@ -306,6 +327,7 @@ if st.session_state["scratchpad_queue"]:
                 if bucket == "equity_funding":
                     st.session_state["active_data"]["equity_funding"].append(
                         {
+                            "source": str(r["name"]),
                             "name": str(r["name"]),
                             "amount": float(r["y1_baseline"]),
                             "month": int(r["target_month_index"]),
@@ -321,24 +343,31 @@ if st.session_state["scratchpad_queue"]:
                                 if int(r["target_month_index"]) > 0
                                 else 1
                             ),
+                            "depreciation_basis": "straight_line",
                             "depreciation_rate": 0.20,
+                            "term_months": 60,
+                            "residual_value": 0.0,
                         }
                     )
                 else:
+                    use_curve = bool(r["enable_seasonality"])
                     st.session_state["active_data"][bucket].append(
                         {
                             "name": str(r["name"]),
+                            "entry_mode": (
+                                ENTRY_MODE_CURVE if use_curve else ENTRY_MODE_FLAT
+                            ),
                             "y1_baseline": float(r["y1_baseline"]),
                             "y2_baseline": float(r["y2_baseline"]),
                             "y3_baseline": float(r["y3_baseline"]),
                             "seasonality": str(r["seasonality"]),
-                            "enable_seasonality": bool(r["enable_seasonality"]),
                             "vat_rate_type": active_sic.get(
                                 "default_vat_type", "Standard 20%"
                             ),
                             "payment_delay": 0,
                             "flex_pct": 0.0,
                             "overrides": {},
+                            "matrix_data": {},
                         }
                     )
 
