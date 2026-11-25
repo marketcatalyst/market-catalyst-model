@@ -1,6 +1,6 @@
 # pyright: reportMissingImports=false
 # pages/1_Data_Ingestion_Gateway.py
-# STRATA SUITE PRODUCTION ENGINE // DATA INGESTION GATEWAY & SANDBOX v7.6.0-SSOT
+# STRATA SUITE PRODUCTION ENGINE // DATA INGESTION GATEWAY & SANDBOX v7.6.1-SSOT
 
 import io
 import json
@@ -178,7 +178,16 @@ if uploaded_file is not None:
                         "google-genai library missing. Run `pip install google-genai`."
                     )
                 else:
-                    client = genai.Client(api_key=g_key)
+                    http_opts = (
+                        types.HttpOptions(api_version="v1beta")
+                        if types and hasattr(types, "HttpOptions")
+                        else None
+                    )
+                    client = (
+                        genai.Client(api_key=g_key, http_options=http_opts)
+                        if http_opts
+                        else genai.Client(api_key=g_key)
+                    )
                     file_extension = uploaded_file.name.split(".")[-1].lower()
                     raw_bytes = uploaded_file.read()
 
