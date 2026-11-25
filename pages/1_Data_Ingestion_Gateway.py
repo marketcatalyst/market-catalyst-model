@@ -1,11 +1,13 @@
 # pyright: reportMissingImports=false
 # pages/1_Data_Ingestion_Gateway.py
-# STRATA SUITE PRODUCTION ENGINE // DATA INGESTION GATEWAY & SANDBOX v7.5.0-SSOT
+# STRATA SUITE PRODUCTION ENGINE // DATA INGESTION GATEWAY & SANDBOX v7.6.0-SSOT
 
-import os
-import sys
+import io
 import json
+import os
 import re
+import sys
+
 import pandas as pd
 import streamlit as st
 
@@ -32,10 +34,12 @@ from utils.scenario_manager import (
 st.markdown(
     """
     <style>
-        div[data-testid="stSidebarNav"], 
-        section[data-testid="stSidebarNav"], 
-        ul[data-testid="stSidebarNav"], 
-        .stSidebarNav {
+        div[data-testid="stSidebarNav"],
+        section[data-testid="stSidebarNav"],
+        ul[data-testid="stSidebarNav"],
+        .stSidebarNav,
+        [data-testid="stSidebarNavItems"],
+        section[data-testid="stSidebar"] ul:first-of-type {
             display: none !important;
         }
     </style>
@@ -77,7 +81,7 @@ col_info1, col_info2 = st.columns([7, 5])
 with col_info1:
     st.markdown("### 💡 Ingestion Playbook & System Capabilities")
     st.markdown(
-        "* **Multi-Format Scanning:** Drop raw transaction metrics, text-based PDFs, spreadsheets, or scanned image receipts (`JPEG`, `JPG`, `PNG`) safely.\n"
+        "* **Multi-Format Scanning:** Drop raw transaction metrics, text-based PDFs, Excel workbooks (`XLSX`, `XLS`), CSVs, or scanned image receipts (`JPEG`, `JPG`, `PNG`) safely.\n"
         "* **Month 00 Initialization:** Automatically isolates opening Trial Balance entries, capital injections, and setup costs specifically allocated to Month '00' preparation hooks.\n"
         "* **Automated Mapping:** Formulates standalone baseline target profiles for Years 1 through 3, matching active framework parameters behind the scenes."
     )
@@ -95,10 +99,10 @@ st.markdown("---")
 if "scratchpad_queue" not in st.session_state:
     st.session_state["scratchpad_queue"] = []
 
-st.subheader("📂 Drag and Drop Documents or Scanned Images")
+st.subheader("📂 Drag and Drop Documents, Spreadsheets, or Scanned Images")
 uploaded_file = st.file_uploader(
-    "Upload Structural Corporate Document or Image (PDF, CSV, JPEG, JPG, PNG, TXT):",
-    type=["pdf", "csv", "jpeg", "jpg", "png", "txt"],
+    "Upload Structural Corporate Document or Spreadsheet (PDF, XLSX, XLS, CSV, JPEG, JPG, PNG, TXT):",
+    type=["pdf", "xlsx", "xls", "csv", "jpeg", "jpg", "png", "txt"],
     key="gateway_document_uploader",
 )
 
@@ -128,6 +132,32 @@ def extract_clean_json(text: str):
     raise ValueError("No valid JSON structure found in cognitive payload.")
 
 
+def parse_excel_workbook_to_text(raw_bytes: bytes, file_extension: str) -> str:
+    engine = "openpyxl" if file_extension == "xlsx" else None
+    read_kwargs = {"sheet_name": None}
+    if engine:
+        read_kwargs["engine"] = engine
+
+    sheets = pd.read_excel(io.BytesIO(raw_bytes), **read_kwargs)
+    if not isinstance(sheets, dict) or not sheets:
+        raise ValueError("No readable worksheets found in Excel workbook.")
+
+    sections = []
+    for sheet_name, df_sheet in sheets.items():
+        if df_sheet is None or df_sheet.empty:
+            continue
+        cleaned = df_sheet.dropna(how="all").dropna(axis=1, how="all")
+        if cleaned.empty:
+            continue
+        csv_block = cleaned.to_csv(index=False)
+        sections.append(f"=== WORKSHEET: {sheet_name} ===\n{csv_block}")
+
+    if not sections:
+        raise ValueError("All worksheets in the Excel workbook were empty.")
+
+    return "\n\n".join(sections)
+
+
 if uploaded_file is not None:
     if st.button(
         "🪄 Execute Cognitive Document Scan & Parse Vectors", use_container_width=True
@@ -150,16 +180,17 @@ if uploaded_file is not None:
                 else:
                     client = genai.Client(api_key=g_key)
                     file_extension = uploaded_file.name.split(".")[-1].lower()
+                    raw_bytes = uploaded_file.read()
 
                     prompt = """
-                    You are a professional corporate accounting data extraction engine. Process the attached business data, financial forecast, statement, image or opening trial balance ledger.
-                    
+                    You are a professional corporate accounting data extraction engine. Process the attached business data, financial forecast, statement, spreadsheet workbook, image or opening trial balance ledger.
+
                     CRITICAL DIRECTIONS:
-                    1. Extract ALL primary income statement, direct cost, overhead, capex, and equity line items present in the document.
-                    2. If the document represents an opening Trial Balance, setup expenditure, or pre-launch capital infusion meant for Month '00' initialization, explicitly assign starting values to Year 1 ('y1_baseline') and set target_month_index to 0.
+                    1. Extract ALL primary income statement, direct cost, overhead, capex, and equity line items present in the document or worksheets.
+                    2. If a worksheet or row represents an opening Trial Balance, setup expenditure, or pre-launch capital infusion meant for Month '00' initialization, explicitly assign starting values to Year 1 ('y1_baseline') and set target_month_index to 0.
                     3. Extract historical baselines or annual totals for up to 3 operating years ('y1_baseline', 'y2_baseline', 'y3_baseline'). If multi-year data is not provided, populate 'y1_baseline' with the annual total or run-rate and set y2..y3 to 0.0.
                     4. Valid 'type' values are strictly: "sales", "cogs", "opex", "equity_funding", or "outright_capex".
-                    
+
                     Return a valid JSON ARRAY of objects matching this schema exactly:
                     [
                       {
@@ -176,7 +207,6 @@ if uploaded_file is not None:
                     """
 
                     if file_extension in ["jpeg", "jpg", "png", "pdf"]:
-                        raw_bytes = uploaded_file.read()
                         mime_type = (
                             f"image/{file_extension}"
                             if file_extension != "pdf"
@@ -186,10 +216,16 @@ if uploaded_file is not None:
                             prompt,
                             types.Part.from_bytes(data=raw_bytes, mime_type=mime_type),
                         ]
-                    else:
-                        file_content = uploaded_file.read().decode(
-                            "utf-8", errors="ignore"
+                    elif file_extension in ["xlsx", "xls"]:
+                        workbook_text = parse_excel_workbook_to_text(
+                            raw_bytes, file_extension
                         )
+                        contents = [
+                            prompt,
+                            f"Filename: {uploaded_file.name}\n\n{workbook_text}",
+                        ]
+                    else:
+                        file_content = raw_bytes.decode("utf-8", errors="ignore")
                         contents = [prompt, file_content]
 
                     response = client.models.generate_content(
