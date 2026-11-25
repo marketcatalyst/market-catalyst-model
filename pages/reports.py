@@ -1,12 +1,13 @@
 ﻿# pyright: reportMissingImports=false
 # pages/reports.py
-# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v12.0-MODULAR-SSOT
+# STRATA SUITE PRODUCTION ENGINE // THREE-WAY REPORTING CANVAS v12.1-MODULAR-SSOT
 # PRESENTATION & STATUTORY EXPORT LAYER // CONSUMES utils.ledger_engine
 
+import json
 import os
 import sys
-import json
 from io import BytesIO
+
 import pandas as pd
 import streamlit as st
 
@@ -14,12 +15,7 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-from utils.scenario_manager import (
-    DEFAULT_BLANK_SCENARIO,
-    get_saved_scenarios,
-    load_scenario_from_disk,
-    render_global_scenario_sidebar,
-)
+from utils.consolidation import consolidate_group_entities
 from utils.ledger_engine import (
     AuditedGeneralLedger,
     audit_ingestion_completeness,
@@ -29,7 +25,12 @@ from utils.ledger_engine import (
     get_exact_period_value,
     sanitize_label,
 )
-from utils.consolidation import consolidate_group_entities
+from utils.scenario_manager import (
+    DEFAULT_BLANK_SCENARIO,
+    get_saved_scenarios,
+    load_scenario_from_disk,
+    render_global_scenario_sidebar,
+)
 
 try:
     from google import genai
@@ -50,10 +51,12 @@ except ImportError:
 st.markdown(
     """
     <style>
-        div[data-testid="stSidebarNav"], 
-        section[data-testid="stSidebarNav"], 
-        ul[data-testid="stSidebarNav"], 
-        .stSidebarNav {
+        div[data-testid="stSidebarNav"],
+        section[data-testid="stSidebarNav"],
+        ul[data-testid="stSidebarNav"],
+        .stSidebarNav,
+        [data-testid="stSidebarNavItems"],
+        section[data-testid="stSidebar"] ul:first-of-type {
             display: none !important;
         }
     </style>
@@ -125,6 +128,25 @@ render_global_scenario_sidebar()
 # =========================================================================
 # 📄 EXPORT & STATUTORY REPORT COMPILERS
 # =========================================================================
+
+
+def _to_float_scalar(val, default: float = 0.0) -> float:
+    if isinstance(val, pd.Series):
+        if val.empty:
+            return default
+        val = val.iloc[0]
+    try:
+        f_val = float(val)
+        return default if pd.isna(f_val) else f_val
+    except (TypeError, ValueError):
+        return default
+
+
+def _set_cell_float(
+    df: pd.DataFrame, row_label: str, col_label: str, val: float
+) -> None:
+    if row_label in df.index and col_label in df.columns:
+        df.loc[row_label, col_label] = float(val)
 
 
 def format_df_for_csv(
@@ -346,7 +368,7 @@ def compile_premium_html_report(
             <p>Statutory {horizon_years}-Year Integrated Financial Projections (Double-Entry Audited)</p>
         </div>
         <div class="ctx">Project: {project_name} | Accounting Horizon: {horizon_years} Operating Years ({total_months} Months)</div>
-        
+
         <table>
             <thead><tr><th align="left" style="text-align: left;">Target Core Metric</th><th align="right" style="text-align: right;">Projected Value Position</th></tr></thead>
             <tbody>
@@ -986,27 +1008,61 @@ df_pl_view = df_pl[targets].copy()
 df_cf_view = df_cf[targets].copy()
 df_bs_view = df_bs[targets].copy()
 
-df_pl_view["Horizon Total"] = df_pl[active_months_for_sum].sum(axis=1)
-df_pl_view.at["Gross Profit Margin (£)", "Horizon Total"] = (
-    df_pl_view.loc["Total Revenue (£)", "Horizon Total"]
-    - df_pl_view.loc["Cost of Goods Sold (COGS) (£)", "Horizon Total"]
-)
-df_pl_view.at["Net Operating Profit (EBIT)", "Horizon Total"] = (
-    df_pl_view.loc["Gross Profit Margin (£)", "Horizon Total"]
-    - df_pl_view.loc["Operational Overheads (£)", "Horizon Total"]
-    - df_pl_view.loc["Staff Payroll Overhead (£)", "Horizon Total"]
-    - df_pl_view.loc["Depreciation Overhead (£)", "Horizon Total"]
-    - df_pl_view.loc["Financing Interest Cost (£)", "Horizon Total"]
-)
-df_pl_view.at["Profit After Tax (PAT) (£)", "Horizon Total"] = (
-    df_pl_view.loc["Net Operating Profit (EBIT)", "Horizon Total"]
-    - df_pl_view.loc["Corporation Tax Provision (£)", "Horizon Total"]
-)
+df_pl_view["Horizon Total"] = df_pl[active_months_for_sum].sum(axis=1).astype(float)
 
-df_cf_view["Horizon Total"] = df_cf[active_months_for_sum].sum(axis=1)
-df_cf_view.at["Closing Bank Cash Reserves (£)", "Horizon Total"] = df_cf.at[
-    "Closing Bank Cash Reserves (£)", targets[-1]
-]
+rev_total = (
+    _to_float_scalar(df_pl_view.loc["Total Revenue (£)", "Horizon Total"])
+    if "Total Revenue (£)" in df_pl_view.index
+    else 0.0
+)
+cogs_total = (
+    _to_float_scalar(df_pl_view.loc["Cost of Goods Sold (COGS) (£)", "Horizon Total"])
+    if "Cost of Goods Sold (COGS) (£)" in df_pl_view.index
+    else 0.0
+)
+gp_total = rev_total - cogs_total
+_set_cell_float(df_pl_view, "Gross Profit Margin (£)", "Horizon Total", gp_total)
+
+opex_total = (
+    _to_float_scalar(df_pl_view.loc["Operational Overheads (£)", "Horizon Total"])
+    if "Operational Overheads (£)" in df_pl_view.index
+    else 0.0
+)
+payroll_total = (
+    _to_float_scalar(df_pl_view.loc["Staff Payroll Overhead (£)", "Horizon Total"])
+    if "Staff Payroll Overhead (£)" in df_pl_view.index
+    else 0.0
+)
+dep_total = (
+    _to_float_scalar(df_pl_view.loc["Depreciation Overhead (£)", "Horizon Total"])
+    if "Depreciation Overhead (£)" in df_pl_view.index
+    else 0.0
+)
+int_total = (
+    _to_float_scalar(df_pl_view.loc["Financing Interest Cost (£)", "Horizon Total"])
+    if "Financing Interest Cost (£)" in df_pl_view.index
+    else 0.0
+)
+ebit_total = gp_total - opex_total - payroll_total - dep_total - int_total
+_set_cell_float(df_pl_view, "Net Operating Profit (EBIT)", "Horizon Total", ebit_total)
+
+tax_total = (
+    _to_float_scalar(df_pl_view.loc["Corporation Tax Provision (£)", "Horizon Total"])
+    if "Corporation Tax Provision (£)" in df_pl_view.index
+    else 0.0
+)
+pat_total = ebit_total - tax_total
+_set_cell_float(df_pl_view, "Profit After Tax (PAT) (£)", "Horizon Total", pat_total)
+
+df_cf_view["Horizon Total"] = df_cf[active_months_for_sum].sum(axis=1).astype(float)
+closing_cash_val = _to_float_scalar(
+    df_cf.loc["Closing Bank Cash Reserves (£)", targets[-1]]
+    if "Closing Bank Cash Reserves (£)" in df_cf.index and targets[-1] in df_cf.columns
+    else 0.0
+)
+_set_cell_float(
+    df_cf_view, "Closing Bank Cash Reserves (£)", "Horizon Total", closing_cash_val
+)
 df_bs_view["Terminal Position"] = df_bs[targets[-1]]
 
 st.subheader("📥 Executive Report Pack Export Controls")
