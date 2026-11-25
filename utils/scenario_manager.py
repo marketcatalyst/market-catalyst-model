@@ -7,6 +7,7 @@ import streamlit as st
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SCENARIOS_DIR = os.path.join(PROJECT_ROOT, "saved_scenarios")
+DEFAULT_BLANK_SCENARIO = "New_Client_Baseline"
 
 
 def generate_standard_scenarios():
@@ -578,6 +579,46 @@ def generate_standard_scenarios():
     save_scenario_to_disk("DBW_Severe_Stress", s3_data, custom_curves)
 
 
+def create_blank_scenario(scenario_name: str = DEFAULT_BLANK_SCENARIO) -> str:
+    """
+    Creates a clean, empty SSOT scenario file for a new client and sets it active.
+    """
+    clean_name = (scenario_name or "").strip().replace(
+        " ", "_"
+    ) or DEFAULT_BLANK_SCENARIO
+    empty_data = {
+        "sales": [],
+        "cogs": [],
+        "opex": [],
+        "payroll": [],
+        "financed_assets": [],
+        "outright_capex": [],
+        "equity_funding": [],
+    }
+    save_scenario_to_disk(clean_name, empty_data, {})
+    st.session_state["active_project_name"] = clean_name
+    st.session_state["active_data"] = empty_data
+    st.session_state["custom_curves"] = {}
+    st.session_state["vector_couplings"] = []
+    st.session_state["cached_ai_analysis"] = ""
+    return clean_name
+
+
+def delete_scenario_from_disk(scenario_name: str) -> bool:
+    """
+    Deletes a scenario JSON file from disk if it exists.
+    """
+    os.makedirs(SCENARIOS_DIR, exist_ok=True)
+    file_path = os.path.join(SCENARIOS_DIR, f"{scenario_name}.json")
+    if os.path.exists(file_path):
+        try:
+            os.remove(file_path)
+            return True
+        except Exception as e:
+            print(f"Failed to delete scenario {scenario_name}: {e}")
+    return False
+
+
 def normalize_scenario_payload(raw_data: dict, scenario_name: str) -> dict:
     normalized = {
         "project_name": raw_data.get("project_name", scenario_name),
@@ -648,13 +689,13 @@ def get_saved_scenarios():
         f.replace(".json", "") for f in os.listdir(SCENARIOS_DIR) if f.endswith(".json")
     ]
     if not files:
-        generate_standard_scenarios()
+        create_blank_scenario(DEFAULT_BLANK_SCENARIO)
         files = [
             f.replace(".json", "")
             for f in os.listdir(SCENARIOS_DIR)
             if f.endswith(".json")
         ]
-    return sorted(files) if files else ["Padel_Centre_Baseline"]
+    return sorted(files) if files else [DEFAULT_BLANK_SCENARIO]
 
 
 list_available_scenarios = get_saved_scenarios
@@ -664,7 +705,17 @@ def load_scenario_from_disk(scenario_name: str):
     os.makedirs(SCENARIOS_DIR, exist_ok=True)
     file_path = os.path.join(SCENARIOS_DIR, f"{scenario_name}.json")
     if not os.path.exists(file_path):
-        generate_standard_scenarios()
+        existing = [
+            f.replace(".json", "")
+            for f in os.listdir(SCENARIOS_DIR)
+            if f.endswith(".json")
+        ]
+        if existing:
+            scenario_name = sorted(existing)[0]
+            file_path = os.path.join(SCENARIOS_DIR, f"{scenario_name}.json")
+        else:
+            scenario_name = create_blank_scenario(DEFAULT_BLANK_SCENARIO)
+            file_path = os.path.join(SCENARIOS_DIR, f"{scenario_name}.json")
 
     if os.path.exists(file_path):
         try:
@@ -763,7 +814,7 @@ def render_global_scenario_sidebar():
     st.sidebar.markdown("---")
     st.sidebar.markdown("##### 💾 Scenario Actions")
     new_scenario_name = st.sidebar.text_input(
-        "New Scenario Name:", key="sidebar_new_scenario_input"
+        "Client / Scenario Name:", key="sidebar_new_scenario_input"
     )
 
     col1, col2 = st.sidebar.columns(2)
@@ -777,7 +828,7 @@ def render_global_scenario_sidebar():
                 )
                 st.sidebar.success(f"Saved '{current_active}'")
     with col2:
-        if st.button("Create New", use_container_width=True):
+        if st.button("Clone / New", use_container_width=True):
             if new_scenario_name.strip():
                 clean_name = new_scenario_name.strip().replace(" ", "_")
                 base_data = st.session_state.get("active_data", {})
@@ -786,5 +837,28 @@ def render_global_scenario_sidebar():
                 st.session_state["active_project_name"] = clean_name
                 st.session_state["active_data"] = base_data
                 st.session_state["custom_curves"] = base_curves
+                st.session_state["cached_ai_analysis"] = ""
+                st.rerun()
+
+    col3, col4 = st.sidebar.columns(2)
+    with col3:
+        if st.button("Blank Client", use_container_width=True):
+            create_blank_scenario(new_scenario_name or DEFAULT_BLANK_SCENARIO)
+            st.rerun()
+    with col4:
+        if st.button("Delete Active", use_container_width=True):
+            if current_active:
+                delete_scenario_from_disk(current_active)
+                remaining = get_saved_scenarios()
+                next_scen = remaining[0]
+                st.session_state["active_project_name"] = next_scen
+                loaded = load_scenario_from_disk(next_scen)
+                if loaded:
+                    st.session_state["active_data"] = loaded.get("active_data", {})
+                    st.session_state["custom_curves"] = loaded.get("custom_curves", {})
+                    st.session_state["vector_couplings"] = loaded.get(
+                        "vector_couplings", []
+                    )
+                    st.session_state["sic_profile"] = loaded.get("sic_profile", {})
                 st.session_state["cached_ai_analysis"] = ""
                 st.rerun()
