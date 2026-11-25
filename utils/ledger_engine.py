@@ -2,11 +2,17 @@
 # STRATA SUITE PRODUCTION ENGINE // DOUBLE-ENTRY GENERAL LEDGER & SIMULATION CORE
 # DECOUPLED SSOT ACCOUNTING ENGINE (ZERO UI DEPENDENCY)
 
+import os
 import re
+import sys
 import pandas as pd
 
-from utils.depreciation import calculate_monthly_depreciation
-from utils.scenario_manager import (
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
+from .depreciation import calculate_monthly_depreciation
+from .scenario_manager import (
     ENTRY_MODE_CURVE,
     ENTRY_MODE_FLAT,
     ENTRY_MODE_OVERRIDE,
